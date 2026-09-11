@@ -1,0 +1,42 @@
+# ===== Data =====
+data/
+*.csv
+*.parquet
+*.feather
+
+# ===== Environment =====
+.env
+.venv/
+venv/
+env/
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+*.ipynb_metadata
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ===== Reports (optional: uncomment to track reports) =====
+# reports/profiling/*.html
+
+# ===== Misc =====
+*.log
+*.bak
+.cache/
+
