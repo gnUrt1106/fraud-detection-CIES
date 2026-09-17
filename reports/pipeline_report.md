@@ -6,7 +6,7 @@ title: "Sơ đồ Pipeline Thực Tế — Fraud Detection CIES"
 
 > Sơ đồ này phản ánh **đúng code hiện tại** trong `notebooks/` và `src/` (sau audit), không phải bản thiết kế lý thuyết trong `AGENT_SPEC.md`. Các điểm mà code hiện tại đang chạy khác/hẹp hơn so với spec gốc được đánh dấu ⚠️ trực tiếp trên sơ đồ.
 
-![Pipeline Diagram](pipeline_diagram.png)
+Sơ đồ trực quan (Excalidraw, có thể chỉnh sửa): [`pipeline_diagram.excalidraw`](pipeline_diagram.excalidraw) — mở tại [excalidraw.com](https://excalidraw.com) (kéo-thả file vào canvas).
 
 ---
 
@@ -23,9 +23,9 @@ title: "Sơ đồ Pipeline Thực Tế — Fraud Detection CIES"
 | **Lưu dữ liệu đã encode** | `train_encoded.parquet`, `test_encoded.parquet`, `encoding_maps.joblib` — dùng cho benchmark (notebook 03) | `notebooks/02_preprocessing.ipynb` (§5) |
 | **Lưu dữ liệu raw (chưa encode)** | `train_raw.parquet`, `test_raw.parquet` — bắt buộc cho CIES vì mỗi run phải re-encode từ đầu | `notebooks/02_preprocessing.ipynb` (§5) |
 | **Xử lý mất cân bằng** | Đủ 5 kỹ thuật: SMOTE, SMOTE-ENN, ADASYN, Borderline-SMOTE (resample), Class Weighting (`compute_class_weight('balanced')`, không resample data) | `src/imbalance/resamplers.py::apply_imbalance / get_class_weights` |
-| **Models** | 5 model: Logistic Regression, Random Forest, XGBoost, CatBoost (KHÔNG dùng `cat_features` — dùng chung feature đã encode), ANN (PyTorch MLP 128→64→32→1) | `src/models/train.py::build_model / train_model / _train_ann` |
+| **Models** | 5 model: Logistic Regression, Random Forest (CPU), XGBoost, CatBoost (KHÔNG dùng `cat_features` — dùng chung feature đã encode), ANN (PyTorch MLP 128→64→32→1) — XGBoost/CatBoost/ANN **tự động dùng GPU nếu có** (phát hiện qua `nvidia-smi`, không import torch để tránh xung đột OpenMP) | `src/models/train.py::build_model / train_model / _train_ann / _has_gpu` |
 | **Hyperparameter tuning (tùy chọn)** | Optuna HPO, tham số tốt nhất đóng băng ở `results/best_params.json`, nạp lại qua `build_model` nếu có | `src/models/tune.py::load_best_params` |
-| **Cách ly subprocess** | Mỗi tổ hợp (model × technique) chạy trong 1 subprocess `spawn` riêng — tránh torch (ANN) + xgboost cùng process gây segfault/hang do xung đột OpenMP | `src/utils/isolation.py::run_isolated` |
+| **Cách ly subprocess** | Mỗi tổ hợp (model × technique) chạy trong 1 subprocess `spawn` riêng — tránh torch (ANN) + xgboost cùng process gây segfault/hang do xung đột OpenMP. Timeout có escalation SIGTERM → SIGKILL (trước đó `process.join()` có thể treo vô hạn nếu process con bỏ qua SIGTERM — đã tái hiện trên 1 GPU driver hang thực tế trên Kaggle) | `src/utils/isolation.py::run_isolated / _terminate_hard` |
 | **Benchmark 25 tổ hợp** | Vòng lặp 5 model × 5 kỹ thuật, đánh giá PR-AUC (chính), F1, F2, ROC-AUC, Precision@Recall | `notebooks/03_train_models.ipynb`; `src/models/train.py::train_and_evaluate_combo`; `src/evaluation/metrics.py::evaluate_model` |
 | **SHAP — Linear** | `LinearExplainer` (exact) cho Logistic Regression | `src/explainability/shap_utils.py::_compute_shap_linear` |
 | **SHAP — Tree** | `TreeExplainer` (exact) cho Random Forest, XGBoost, CatBoost | `src/explainability/shap_utils.py::_compute_shap_tree` |
@@ -46,4 +46,3 @@ title: "Sơ đồ Pipeline Thực Tế — Fraud Detection CIES"
    - Train set bị subsample xuống 10,000 dòng trước khi bootstrap (`train_raw.sample(n=min(10000, len(train_raw)))`).
    - Bản thân module `src/explainability/cies.py` hỗ trợ đầy đủ 5 model × 5 kỹ thuật — giới hạn này nằm ở notebook (có thể là chủ đích để chạy debug/local nhanh trước khi lên Kaggle/Colab chạy full scale, đúng như comment "hoặc toàn bộ 25 tổ hợp khi chạy trên GPU server/Kaggle").
 2. **Dataset phụ ULB** đã được tải, split, lưu (`ulb_train.parquet`/`ulb_test.parquet`) nhưng **chưa có notebook/code nào tiêu thụ nó** ở bước model hay CIES.
-3. **`data/processed/`** hiện trống trên máy local tại thời điểm viết báo cáo này — cần chạy lại `02_preprocessing.ipynb` trước khi `03`/`04` có thể chạy.
