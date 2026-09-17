@@ -75,6 +75,17 @@ def _compute_shap_linear(
     model: Any, X_eval: np.ndarray, X_background: Optional[np.ndarray]
 ) -> np.ndarray:
     """SHAP cho Logistic Regression — LinearExplainer (exact)."""
+    # LR giờ được bọc {"model", "scaler"} (StandardScaler, xem train.py) — cần
+    # unwrap và scale X_eval/X_background CÙNG scaler đã fit lúc train, nếu
+    # không LinearExplainer sẽ đọc coef_ ở không gian đã scale nhưng nhận input
+    # ở không gian gốc, ra SHAP values sai lệch hoàn toàn.
+    if isinstance(model, dict) and "scaler" in model:
+        scaler = model["scaler"]
+        model = model["model"]
+        X_eval = scaler.transform(X_eval)
+        if X_background is not None:
+            X_background = scaler.transform(X_background)
+
     if X_background is None:
         # Dùng X_eval làm background nếu không có — không lý tưởng nhưng chấp nhận
         X_background = X_eval

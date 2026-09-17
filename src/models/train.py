@@ -132,6 +132,7 @@ def build_model(
 
     if model_name == "logistic_regression":
         from sklearn.linear_model import LogisticRegression
+        from sklearn.preprocessing import StandardScaler
 
         lr_params = {
             "max_iter": 1000,
@@ -141,7 +142,11 @@ def build_model(
         }
         if params:
             lr_params.update(params)
-        return LogisticRegression(**lr_params)
+        # StandardScaler — feature chưa scale (amt, lat/long, hour, target-encode
+        # probability...) chênh lệch scale lớn khiến lbfgs khó hội tụ trong
+        # max_iter (ConvergenceWarning). Chỉ LR cần: cây (RF/XGBoost/CatBoost)
+        # bất biến với scaling, ANN đã có BatchNorm ngay sau input.
+        return {"model": LogisticRegression(**lr_params), "scaler": StandardScaler()}
 
     elif model_name == "random_forest":
         from sklearn.ensemble import RandomForestClassifier
@@ -266,6 +271,12 @@ def train_model(
     Returns:
         Trained model
     """
+    # --- Logistic Regression (với StandardScaler) ---
+    if isinstance(model, dict) and "scaler" in model:
+        X_train_scaled = model["scaler"].fit_transform(X_train)
+        model["model"].fit(X_train_scaled, y_train)
+        return model
+
     # --- ANN (PyTorch) ---
     if isinstance(model, dict) and "model" in model:
         eff_epochs = epochs if epochs is not None else model.get("epochs", 30)
@@ -350,6 +361,11 @@ def predict_proba(model: Any, X: np.ndarray) -> np.ndarray:
     Returns:
         Array of fraud probabilities (shape: [n_samples])
     """
+    # --- Logistic Regression (với StandardScaler) ---
+    if isinstance(model, dict) and "scaler" in model:
+        X_scaled = model["scaler"].transform(X)
+        return model["model"].predict_proba(X_scaled)[:, 1]
+
     # --- ANN ---
     if isinstance(model, dict) and "model" in model:
         import torch
