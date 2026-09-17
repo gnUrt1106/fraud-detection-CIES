@@ -25,13 +25,17 @@ RÀNG BUỘC: func phải là 1 hàm top-level trong 1 module import được (k
 dùng lambda/closure), và mọi tham số + giá trị trả về phải pickle được.
 """
 
+import logging
 import multiprocessing as mp
 import queue as queue_module
 import traceback
 from typing import Any, Callable, Optional
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_TIMEOUT_SECONDS = 3600  # 1 giờ — đủ cho 1 tổ hợp model×technique
 POLL_INTERVAL_SECONDS = 0.5
+KILL_GRACE_SECONDS = 10  # thời gian chờ sau SIGTERM/SIGKILL trước khi coi là D-state
 
 
 def _subprocess_entry(func: Callable, args: tuple, kwargs: dict, result_queue: mp.Queue) -> None:
@@ -40,6 +44,31 @@ def _subprocess_entry(func: Callable, args: tuple, kwargs: dict, result_queue: m
         result_queue.put(("ok", result))
     except Exception as e:  # noqa: BLE001 — cố ý bắt mọi lỗi để chuyển ngược về process cha
         result_queue.put(("error", f"{type(e).__name__}: {e}\n{traceback.format_exc()}"))
+
+
+def _terminate_hard(process: mp.Process) -> None:
+    """
+    Buộc dừng 1 process con, có escalation SIGTERM -> SIGKILL.
+
+    LÝ DO: `process.join()` KHÔNG có timeout mặc định — nếu process con đang
+    treo trong 1 syscall không thể ngắt bằng SIGTERM (vd. driver GPU/CUDA bị
+    deadlock ở tầng kernel), `terminate()` (SIGTERM) không giết được nó, và
+    `join()` ngay sau đó sẽ đợi VÔ HẠN — vô hiệu hoá toàn bộ cơ chế timeout
+    của run_isolated() (đã tái hiện: 1 job Optuna trên Kaggle "Running" hơn
+    5 giờ dù timeout=3600s, vì join() bị treo ở bước terminate này).
+    """
+    process.terminate()
+    process.join(timeout=KILL_GRACE_SECONDS)
+    if process.is_alive():
+        process.kill()  # SIGKILL — escalation, không thể bị process con chặn
+        process.join(timeout=KILL_GRACE_SECONDS)
+    if process.is_alive():
+        logger.error(
+            f"Process con (pid={process.pid}) vẫn sống sau SIGKILL — có thể "
+            f"đang ở trạng thái D (uninterruptible, thường do driver GPU/kernel "
+            f"treo). Không thể ép dừng từ tầng Python; có thể cần khởi động lại "
+            f"container/kernel."
+        )
 
 
 def run_isolated(
@@ -92,14 +121,13 @@ def run_isolated(
                 )
             waited += POLL_INTERVAL_SECONDS
             if timeout is not None and waited >= timeout:
-                process.terminate()
-                process.join()
+                _terminate_hard(process)
                 raise TimeoutError(
                     f"Subprocess cho '{func_name}' vượt quá timeout={timeout}s "
                     f"— có thể bị treo (hang)."
                 )
 
-    process.join()
+    process.join(timeout=KILL_GRACE_SECONDS)
     if status == "error":
         raise RuntimeError(f"Lỗi bên trong subprocess '{func_name}':\n{payload}")
     return payload
