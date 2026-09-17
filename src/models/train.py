@@ -69,6 +69,37 @@ def _get_ann_class():
     return _FraudDetectorANN
 
 
+_has_gpu_cache: Optional[bool] = None
+
+
+def _has_gpu() -> bool:
+    """
+    Kiểm tra có GPU NVIDIA khả dụng không, qua `nvidia-smi` (subprocess).
+
+    CỐ Ý không dùng `torch.cuda.is_available()` ở đây: gọi nó sẽ import torch
+    vào process hiện tại, đúng thứ mà toàn bộ cơ chế lazy-import ở đầu file
+    này tránh — nếu process đó sau đó (hoặc trước đó) cũng build XGBoost,
+    torch + xgboost cùng nạp 1 process có thể segfault/treo do xung đột
+    OpenMP (xem src/utils/isolation.py).
+    """
+    global _has_gpu_cache
+    if _has_gpu_cache is None:
+        import shutil
+        import subprocess
+
+        if shutil.which("nvidia-smi") is None:
+            _has_gpu_cache = False
+        else:
+            try:
+                result = subprocess.run(
+                    ["nvidia-smi", "-L"], capture_output=True, text=True, timeout=5,
+                )
+                _has_gpu_cache = result.returncode == 0 and "GPU" in result.stdout
+            except Exception:
+                _has_gpu_cache = False
+    return _has_gpu_cache
+
+
 # ===== Model Builder =====
 
 def build_model(
@@ -139,6 +170,9 @@ def build_model(
             "use_label_encoder": False,
             "n_jobs": -1,
         }
+        if _has_gpu():
+            xgb_params["device"] = "cuda"
+            xgb_params["tree_method"] = "hist"
         if class_weights is not None:
             xgb_params["scale_pos_weight"] = (
                 class_weights.get(0, 1.0) / class_weights.get(1, 1.0)
@@ -161,6 +195,8 @@ def build_model(
             "eval_metric": "PRAUC",
             "verbose": 0,
         }
+        if _has_gpu():
+            cb_params["task_type"] = "GPU"
         if class_weights is not None:
             cb_params["class_weights"] = [
                 class_weights.get(0, 1.0),
