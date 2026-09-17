@@ -39,7 +39,7 @@ def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, An
     if model_name == "logistic_regression":
         return {
             "C": trial.suggest_float("C", 1e-4, 1e2, log=True),
-            "max_iter": 1000,
+            "max_iter": 2000,
             "solver": "lbfgs",
         }
 
@@ -95,6 +95,8 @@ def tune_model(
     n_splits: int = 5,
     timeout: Optional[int] = None,
     seed: int = SEED,
+    use_pruning: bool = True,
+    n_startup_trials: int = 5,
 ) -> Dict[str, Any]:
     """
     Tối ưu hóa siêu tham số cho 1 model sử dụng Optuna với Stratified K-Fold CV.
@@ -108,9 +110,19 @@ def tune_model(
         n_splits: Số fold cross-validation
         timeout: Thời gian tối đa (giây)
         seed: Random seed
+        use_pruning: Bật MedianPruner — sau mỗi fold, so PR-AUC trung bình tạm
+            thời (intermediate) với median các trial ĐÃ HOÀN THÀNH trước đó;
+            nếu kém hơn rõ rệt thì dừng trial ngay (TrialPruned), không chạy
+            hết n_splits fold. KHÔNG ảnh hưởng đến cách tính PR-AUC của các
+            trial hoàn thành — chỉ cắt bớt trial rõ ràng tệ để tiết kiệm thời
+            gian, đúng ngữ nghĩa Optuna pruning chuẩn cho CV-based HPO.
+        n_startup_trials: Số trial đầu tiên LUÔN chạy đủ n_splits fold (không
+            bị prune) để có đủ dữ liệu tham chiếu median trước khi bắt đầu
+            prune các trial sau.
 
     Returns:
-        Dict chứa best_params, best_score (PR-AUC), và số trials hoàn thành
+        Dict chứa best_params, best_score (PR-AUC), số trials hoàn thành và
+        số trials bị pruned
     """
     logger.info(f"Bắt đầu Optuna HPO cho '{model_name}' ({n_trials} trials, {n_splits} folds)...")
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
@@ -119,7 +131,7 @@ def tune_model(
         params = sample_hyperparameters(trial, model_name)
         val_pr_aucs = []
 
-        for train_idx, val_idx in skf.split(X, y):
+        for fold_idx, (train_idx, val_idx) in enumerate(skf.split(X, y)):
             X_train_fold, X_val_fold = X[train_idx], X[val_idx]
             y_train_fold, y_val_fold = y[train_idx], y[val_idx]
 
@@ -135,28 +147,59 @@ def tune_model(
             trained = train_model(model, X_train_fold, y_train_fold, model_name=model_name)
 
             # Dự đoán xác suất trên validation fold
-            y_val_proba = predict_proba(trained, X_val_fold, model_name=model_name)
+            y_val_proba = predict_proba(trained, X_val_fold)
 
             # Tính PR-AUC trên validation
             fold_prauc = average_precision_score(y_val_fold, y_val_proba)
             val_pr_aucs.append(fold_prauc)
 
+            # Pruning: báo cáo PR-AUC trung bình tạm thời sau mỗi fold
+            if use_pruning:
+                trial.report(float(np.mean(val_pr_aucs)), fold_idx)
+                if trial.should_prune():
+                    raise optuna.TrialPruned()
+
         # Trung bình PR-AUC qua các fold
         mean_prauc = float(np.mean(val_pr_aucs))
         return mean_prauc
 
+    pruner = (
+        optuna.pruners.MedianPruner(n_startup_trials=n_startup_trials, n_warmup_steps=0)
+        if use_pruning
+        else optuna.pruners.NopPruner()
+    )
     study = optuna.create_study(
         direction="maximize",
         sampler=optuna.samplers.TPESampler(seed=seed),
+        pruner=pruner,
     )
-    study.optimize(objective, n_trials=n_trials, timeout=timeout)
+
+    def _log_trial_progress(study: optuna.Study, trial: optuna.trial.FrozenTrial) -> None:
+        status = "PRUNED" if trial.state == optuna.trial.TrialState.PRUNED else "done"
+        score = f"{trial.value:.4f}" if trial.value is not None else "N/A"
+        try:
+            best_so_far = f"{study.best_value:.4f}"
+        except ValueError:
+            best_so_far = "N/A"
+        print(
+            f"  [{model_name}] trial {trial.number + 1}/{n_trials} {status} "
+            f"(PR-AUC={score}, best={best_so_far})",
+            flush=True,
+        )
+
+    study.optimize(
+        objective, n_trials=n_trials, timeout=timeout,
+        callbacks=[_log_trial_progress],
+    )
 
     best_trial = study.best_trial
     best_params = dict(best_trial.params)
+    n_pruned = sum(1 for t in study.trials if t.state == optuna.trial.TrialState.PRUNED)
+    n_completed = sum(1 for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE)
 
     # Thêm các fixed config cần thiết cho từng model
     if model_name == "logistic_regression":
-        best_params.setdefault("max_iter", 1000)
+        best_params.setdefault("max_iter", 2000)
         best_params.setdefault("solver", "lbfgs")
     elif model_name == "xgboost":
         best_params.setdefault("eval_metric", "aucpr")
@@ -167,7 +210,8 @@ def tune_model(
         best_params.pop("cat_features", None)
 
     logger.info(
-        f"Hoàn thành HPO cho '{model_name}': Best PR-AUC = {best_trial.value:.4f}"
+        f"Hoàn thành HPO cho '{model_name}': Best PR-AUC = {best_trial.value:.4f} "
+        f"({n_completed} completed, {n_pruned} pruned / {len(study.trials)} tổng)"
     )
 
     return {
@@ -175,6 +219,8 @@ def tune_model(
         "best_pr_auc": float(best_trial.value),
         "best_params": best_params,
         "n_trials": len(study.trials),
+        "n_completed_trials": n_completed,
+        "n_pruned_trials": n_pruned,
     }
 
 
@@ -214,9 +260,15 @@ def tune_all_models(
 
     all_results = {}
 
+    # Mỗi model được tune trong 1 subprocess riêng (run_isolated) — vòng lặp
+    # này chạy cả 'ann' và 'xgboost' trong cùng 1 process nếu gọi trực tiếp,
+    # có thể segfault/treo do xung đột OpenMP runtime (xem src/utils/isolation.py).
+    from src.utils.isolation import run_isolated
+
     for model_name in models:
         print(f"=== [Optuna HPO] Tối ưu hóa siêu tham số cho: {model_name} ===")
-        res = tune_model(
+        res = run_isolated(
+            tune_model,
             model_name=model_name,
             X=X,
             y=y,

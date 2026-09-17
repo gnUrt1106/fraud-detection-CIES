@@ -10,45 +10,63 @@ các model khác không tách bạch được — phá vỡ RQ3.
 """
 
 import numpy as np
-import torch
-import torch.nn as nn
 from typing import Optional, Dict, Any
-
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from xgboost import XGBClassifier
-from catboost import CatBoostClassifier
 
 from src.config import SEED
 
 
-# ===== ANN Definition =====
+# ===== Lazy model-library imports =====
+# KHÔNG import sklearn/xgboost/catboost/torch ở top-level của module này.
+# Lý do: torch và xgboost cùng nạp vào 1 process có thể segfault hoặc treo
+# (hang) vô thời hạn do xung đột OpenMP runtime (đã xác nhận tái hiện được
+# trên môi trường dev của project — xem src/utils/isolation.py). Vì
+# notebook 03/04 lặp qua cả 5 model trong cùng 1 kernel, và mỗi tổ hợp
+# (model × technique) được cô lập trong 1 subprocess riêng (run_isolated),
+# mỗi thư viện model chỉ nên import bên trong nhánh xử lý model tương ứng
+# của build_model() — đảm bảo 1 subprocess chỉ bao giờ nạp ĐÚNG 1 thư viện
+# model, không phụ thuộc model nào chạy trước/sau trong vòng lặp.
 
-class FraudDetectorANN(nn.Module):
-    """
-    Simple feedforward neural network cho fraud detection.
 
-    Architecture: Input → 128 → ReLU → Dropout → 64 → ReLU → Dropout → 32 → ReLU → 1 → Sigmoid
-    """
+# ===== ANN Definition (lazy) =====
 
-    def __init__(self, input_dim: int, dropout: float = 0.3):
-        super().__init__()
-        self.network = nn.Sequential(
-            nn.Linear(input_dim, 128),
-            nn.ReLU(),
-            nn.BatchNorm1d(128),
-            nn.Dropout(dropout),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.BatchNorm1d(64),
-            nn.Dropout(dropout),
-            nn.Linear(64, 32),
-            nn.ReLU(),
-            nn.Linear(32, 1),
-        )
+_FraudDetectorANN = None
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.network(x)
+
+def _get_ann_class():
+    """Lazy-define và cache class FraudDetectorANN — chỉ import torch khi gọi lần đầu."""
+    global _FraudDetectorANN
+    if _FraudDetectorANN is None:
+        import torch
+        import torch.nn as nn
+
+        class FraudDetectorANN(nn.Module):
+            """
+            Simple feedforward neural network cho fraud detection.
+
+            Architecture: Input → 128 → ReLU → Dropout → 64 → ReLU → Dropout → 32 → ReLU → 1 → Sigmoid
+            """
+
+            def __init__(self, input_dim: int, dropout: float = 0.3):
+                super().__init__()
+                self.network = nn.Sequential(
+                    nn.Linear(input_dim, 128),
+                    nn.ReLU(),
+                    nn.BatchNorm1d(128),
+                    nn.Dropout(dropout),
+                    nn.Linear(128, 64),
+                    nn.ReLU(),
+                    nn.BatchNorm1d(64),
+                    nn.Dropout(dropout),
+                    nn.Linear(64, 32),
+                    nn.ReLU(),
+                    nn.Linear(32, 1),
+                )
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return self.network(x)
+
+        _FraudDetectorANN = FraudDetectorANN
+    return _FraudDetectorANN
 
 
 # ===== Model Builder =====
@@ -82,6 +100,8 @@ def build_model(
             params = None
 
     if model_name == "logistic_regression":
+        from sklearn.linear_model import LogisticRegression
+
         lr_params = {
             "max_iter": 1000,
             "random_state": seed,
@@ -93,6 +113,8 @@ def build_model(
         return LogisticRegression(**lr_params)
 
     elif model_name == "random_forest":
+        from sklearn.ensemble import RandomForestClassifier
+
         rf_params = {
             "n_estimators": 200,
             "max_depth": 15,
@@ -106,6 +128,8 @@ def build_model(
         return RandomForestClassifier(**rf_params)
 
     elif model_name == "xgboost":
+        from xgboost import XGBClassifier
+
         xgb_params = {
             "n_estimators": 200,
             "max_depth": 6,
@@ -126,6 +150,8 @@ def build_model(
         return XGBClassifier(**xgb_params)
 
     elif model_name == "catboost":
+        from catboost import CatBoostClassifier
+
         # RÀNG BUỘC (spec 5.2): KHÔNG truyền cat_features — dùng feature đã encode chung
         cb_params = {
             "iterations": 200,
@@ -160,8 +186,10 @@ def build_model(
             epochs = params.get("epochs", epochs)
             batch_size = params.get("batch_size", batch_size)
 
+        import torch
+        ann_cls = _get_ann_class()
         torch.manual_seed(seed)
-        model = FraudDetectorANN(input_dim=input_dim, dropout=dropout)
+        model = ann_cls(input_dim=input_dim, dropout=dropout)
         return {
             "model": model,
             "class_weights": class_weights,
@@ -226,6 +254,9 @@ def _train_ann(
     learning_rate: float = 1e-3,
 ) -> Dict:
     """Train PyTorch ANN model."""
+    import torch
+    import torch.nn as nn
+
     model = model_dict["model"]
     class_weights = model_dict.get("class_weights")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -285,6 +316,8 @@ def predict_proba(model: Any, X: np.ndarray) -> np.ndarray:
     """
     # --- ANN ---
     if isinstance(model, dict) and "model" in model:
+        import torch
+
         ann = model["model"]
         device = model.get("device", torch.device("cpu"))
         ann.eval()
@@ -296,3 +329,49 @@ def predict_proba(model: Any, X: np.ndarray) -> np.ndarray:
 
     # --- Sklearn / XGBoost / CatBoost ---
     return model.predict_proba(X)[:, 1]
+
+
+def train_and_evaluate_combo(
+    model_name: str,
+    technique: str,
+    X_train_raw: np.ndarray,
+    y_train_raw: np.ndarray,
+    X_test: np.ndarray,
+    y_test: np.ndarray,
+    seed: int = SEED,
+) -> Dict[str, Any]:
+    """
+    Chạy trọn 1 tổ hợp (model × imbalance technique): imbalance → train →
+    predict → evaluate trên test set (không resample).
+
+    Hàm top-level, picklable — dùng làm target cho
+    src.utils.isolation.run_isolated() để cô lập mỗi tổ hợp trong 1
+    subprocess riêng, tránh xung đột torch/xgboost khi lặp qua nhiều
+    model trong cùng 1 process (xem notebooks/03_train_models.ipynb).
+
+    Args:
+        model_name: Tên model
+        technique: Tên kỹ thuật imbalance
+        X_train_raw, y_train_raw: Train set đã encode (chưa resample)
+        X_test, y_test: Test set đã encode (không resample)
+        seed: Random seed
+
+    Returns:
+        Dict: {"model", "imbalance_technique", **metrics}
+    """
+    from src.imbalance.resamplers import apply_imbalance
+    from src.evaluation.metrics import evaluate_model
+
+    X_res, y_res, class_weights = apply_imbalance(
+        technique, X_train_raw, y_train_raw, seed=seed
+    )
+    model = build_model(
+        model_name=model_name,
+        input_dim=X_res.shape[1],
+        class_weights=class_weights,
+        seed=seed,
+    )
+    trained_model = train_model(model, X_res, y_res, model_name=model_name)
+    y_proba = predict_proba(trained_model, X_test)
+    metrics = evaluate_model(y_test, y_proba)
+    return {"model": model_name, "imbalance_technique": technique, **metrics}

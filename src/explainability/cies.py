@@ -375,6 +375,48 @@ def run_cies_experiment(
     return result
 
 
+def run_cies_experiment_isolated(
+    model_name: str,
+    imbalance_technique: str,
+    df_train: pd.DataFrame,
+    df_test_fixed_eval: pd.DataFrame,
+    target_col: str = TARGET_COL,
+    onehot_cols: Optional[list] = None,
+    target_encode_cols: Optional[list] = None,
+    n_runs: int = N_RUNS,
+    feature_level: bool = False,
+    timeout: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Wrapper chạy run_cies_experiment() trong 1 subprocess riêng biệt.
+
+    BẮT BUỘC dùng hàm này (thay vì gọi run_cies_experiment() trực tiếp)
+    khi lặp qua NHIỀU model trong cùng 1 kernel/script (vd. vòng lặp
+    `for model_name in [...]` ở notebooks/04_cies_experiment.ipynb) —
+    tránh torch (ANN) và xgboost cùng tồn tại trong 1 process, có thể
+    segfault hoặc treo (hang) do xung đột OpenMP runtime. Xem
+    src/utils/isolation.py để biết chi tiết.
+
+    Tham số giống hệt run_cies_experiment(), cộng thêm `timeout` (giây,
+    None = dùng mặc định của run_isolated()).
+    """
+    from src.utils.isolation import run_isolated, DEFAULT_TIMEOUT_SECONDS
+
+    return run_isolated(
+        run_cies_experiment,
+        model_name=model_name,
+        imbalance_technique=imbalance_technique,
+        df_train=df_train,
+        df_test_fixed_eval=df_test_fixed_eval,
+        target_col=target_col,
+        onehot_cols=onehot_cols,
+        target_encode_cols=target_encode_cols,
+        n_runs=n_runs,
+        feature_level=feature_level,
+        timeout=timeout if timeout is not None else DEFAULT_TIMEOUT_SECONDS,
+    )
+
+
 def save_cies_results(
     results: List[Dict[str, Any]],
     output_path: Optional[Path] = None,
