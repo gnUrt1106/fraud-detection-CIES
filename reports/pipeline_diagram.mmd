@@ -1,0 +1,186 @@
+flowchart TD
+
+    RAW["Dataset: Sparkov (kartik2112/fraud-detection)
+data/raw/fraudTrain.csv + fraudTest.csv
+~1.85M dòng, fraud rate ~0.52%
+📄 src/data/download.py::download_dataset
+📄 notebooks/02_preprocessing.ipynb (load + concat)"]
+
+    FE["Feature Engineering & Cleaning
+Drop ID cols (trans_num, cc_num, first, last, street)
+Derive hour, day_of_week (từ trans_date_trans_time)
+Derive age (từ dob)
+📄 notebooks/02_preprocessing.ipynb::preprocess_features"]
+
+    SPLIT["Stratified Train/Test Split (80/20)
+sklearn.train_test_split(stratify=is_fraud, seed=42)
+📄 notebooks/02_preprocessing.ipynb (§3)"]
+
+    RAW --> FE --> SPLIT
+
+    subgraph ENC["ENCODING — src/data/encoding.py"]
+        direction TB
+        OH["One-Hot Encoding
+gender, category, state (low-cardinality)
+📄 encode_train() / encode_test()"]
+        TE["Stratified K-Fold Target Encoding
+merchant, city, job (high-cardinality)
+StratifiedKFold(n_splits=5), smoothing=10
+📄 stratified_kfold_target_encode()"]
+        OH --> TE
+    end
+
+    SPLIT --> OH
+
+    ENCODED[("train_encoded.parquet
+test_encoded.parquet
+encoding_maps.joblib")]
+    RAWSAVE[("train_raw.parquet
+test_raw.parquet
+(chưa encode — dùng để re-encode
+lại mỗi CIES run)")]
+
+    TE --> ENCODED
+    SPLIT --> RAWSAVE
+
+    subgraph IMB["XỬ LÝ MẤT CÂN BẰNG — src/imbalance/resamplers.py::apply_imbalance"]
+        direction TB
+        SMOTE["SMOTE"]
+        SENN["SMOTE-ENN"]
+        ADASYN["ADASYN"]
+        BSMOTE["Borderline-SMOTE"]
+        CW["Class Weighting
+compute_class_weight('balanced')
+(KHÔNG resample data)"]
+    end
+
+    ENCODED --> SMOTE
+    ENCODED --> SENN
+    ENCODED --> ADASYN
+    ENCODED --> BSMOTE
+    ENCODED --> CW
+
+    subgraph MODELS["MODELS — src/models/train.py::build_model / train_model"]
+        direction TB
+        LR["Logistic Regression
+sklearn.LogisticRegression"]
+        RF["Random Forest
+sklearn.RandomForestClassifier"]
+        XGB["XGBoost
+xgboost.XGBClassifier"]
+        CAT["CatBoost
+CatBoostClassifier
+(KHÔNG dùng cat_features — dùng chung
+feature đã encode như 4 model kia)"]
+        ANN["ANN (PyTorch MLP)
+FraudDetectorANN: 128→64→32→1
+📄 _get_ann_class() / _train_ann()"]
+    end
+
+    TUNE[["Optuna HPO (tùy chọn)
+results/best_params.json
+📄 src/models/tune.py::load_best_params"]]
+    TUNE -.-> LR
+    TUNE -.-> RF
+    TUNE -.-> XGB
+    TUNE -.-> CAT
+    TUNE -.-> ANN
+
+    SMOTE --> LR & RF & XGB & CAT & ANN
+    SENN --> LR & RF & XGB & CAT & ANN
+    ADASYN --> LR & RF & XGB & CAT & ANN
+    BSMOTE --> LR & RF & XGB & CAT & ANN
+    CW --> LR & RF & XGB & CAT & ANN
+
+    ISO["⚠️ Mỗi tổ hợp (model × technique) chạy trong
+1 SUBPROCESS RIÊNG (spawn) — run_isolated()
+Lý do: torch (ANN) + xgboost cùng process
+có thể segfault/hang (xung đột OpenMP)
+📄 src/utils/isolation.py::run_isolated"]
+    LR -.-> ISO
+    RF -.-> ISO
+    XGB -.-> ISO
+    CAT -.-> ISO
+    ANN -.-> ISO
+
+    BENCH["Benchmark 25 tổ hợp (5 model × 5 kỹ thuật)
+train_and_evaluate_combo() qua run_isolated()
+Metrics: PR-AUC (chính), F1, F2, ROC-AUC, Precision@Recall
+📄 notebooks/03_train_models.ipynb
+📄 src/evaluation/metrics.py::evaluate_model"]
+    LR --> BENCH
+    RF --> BENCH
+    XGB --> BENCH
+    CAT --> BENCH
+    ANN --> BENCH
+    BENCH --> BENCHOUT[("results/model_benchmark_results.csv
+results/benchmark_prauc_comparison.png")]
+
+    subgraph SHAP_STEP["SHAP EXPLAINABILITY — src/explainability/shap_utils.py::compute_shap"]
+        direction TB
+        SLIN["LinearExplainer (exact)
+→ Logistic Regression"]
+        STREE["TreeExplainer (exact)
+→ Random Forest, XGBoost, CatBoost"]
+        SKERNEL["KernelExplainer (XẤP XỈ)
+→ ANN
+⚠️ log riêng, không so sánh thô với TreeSHAP"]
+    end
+
+    LR --> SLIN
+    RF --> STREE
+    XGB --> STREE
+    CAT --> STREE
+    ANN --> SKERNEL
+
+    subgraph CIES_STEP["CIES — ĐÃ IMPLEMENT — src/explainability/cies.py"]
+        direction TB
+        CIESRUN["run_cies_experiment()
+Mỗi run (seed=0..N_RUNS-1):
+1) Bootstrap resample train (df_train.sample replace=True)
+2) Re-encode TỪ ĐẦU trên resample (encode_train/encode_test)
+3) apply_imbalance()
+4) build_model() + train_model()
+5) compute_shap() trên eval set CỐ ĐỊNH"]
+        CIESSTAB["compute_stability_metric()
+Rank-weighted distance (w_r = 1/r)
++ Spearman correlation → cies_score
+📄 compute_rank_weighted_distance / shap_to_ranks"]
+        CIESFEAT["compute_feature_level_cies()
+Stability cấp feature (mean|SHAP|, CV, rank_std)
+— chỉ Sparkov"]
+        CIESISO["run_cies_experiment_isolated()
+wrap run_isolated() — cách ly subprocess"]
+        CIESRUN --> CIESSTAB --> CIESFEAT
+        CIESRUN -.-> CIESISO
+    end
+
+    RAWSAVE --> CIESRUN
+    SLIN --> CIESRUN
+    STREE --> CIESRUN
+    SKERNEL --> CIESRUN
+
+    NOTE_SUBSET["⚠️ TRẠNG THÁI THỰC TẾ trong notebook 04:
+Chỉ loop qua SUBSET 3 model (LR, RF, XGBoost)
+× 3 kỹ thuật (class_weighting, smote, smote_enn)
+— CatBoost, ANN, ADASYN, Borderline-SMOTE
+CHƯA nằm trong vòng lặp thực chạy.
+Train bootstrap bị subsample còn 10,000 dòng.
+(cies.py hỗ trợ đủ 5×5 — chỉ notebook đang chạy subset debug)
+📄 notebooks/04_cies_experiment.ipynb (cell 4)"]
+    CIESRUN -.-> NOTE_SUBSET
+
+    CIESFEAT --> CIESOUT[("results/cies_summary_results.json
+📄 save_cies_results()")]
+
+    RAWULB["Dataset phụ: ULB (mlg-ulb/creditcardfraud)
+~284K giao dịch, 28 PCA features + Amount
+📄 notebooks/02_preprocessing.ipynb (§6, kagglehub)"]
+    ULBSPLIT["Stratified Split 80/20
+(KHÔNG qua pipeline encoding chung — features
+đã PCA sẵn, không cần encode)"]
+    ULBOUT[("ulb_train.parquet / ulb_test.parquet")]
+    ULBNOTE["⚠️ Hiện CHƯA được model/CIES notebook nào
+(03, 04) tiêu thụ — chỉ mới tải + split + lưu."]
+
+    RAWULB --> ULBSPLIT --> ULBOUT -.-> ULBNOTE
