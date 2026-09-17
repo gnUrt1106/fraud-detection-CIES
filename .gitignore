@@ -39,4 +39,5 @@ build/
 *.log
 *.bak
 .cache/
+scratch/
 
