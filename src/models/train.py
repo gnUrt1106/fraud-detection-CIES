@@ -288,7 +288,19 @@ def train_model(
         )
 
     # --- Sklearn / XGBoost / CatBoost ---
-    model.fit(X_train, y_train)
+    # threading backend: đang chạy trong subprocess daemon (run_isolated) —
+    # backend mặc định "loky" của joblib (dùng cho RandomForest n_jobs) spawn
+    # process con, mà process daemon KHÔNG được phép có con (Python tự hạ về
+    # n_jobs=1, chậm hẳn — xem UserWarning "Loky-backed parallel loops cannot
+    # be called in a multiprocessing"). "threading" không spawn process mới
+    # nên tránh được giới hạn này, và vẫn có speedup thật vì fit() của
+    # RandomForest release GIL trong phần tính toán nặng (Cython). Không ảnh
+    # hưởng XGBoost/CatBoost — 2 thư viện đó tự quản lý song song riêng,
+    # không qua joblib backend.
+    from joblib import parallel_backend
+
+    with parallel_backend("threading"):
+        model.fit(X_train, y_train)
     return model
 
 

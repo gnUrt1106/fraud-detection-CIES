@@ -267,24 +267,38 @@ def tune_all_models(
 
     for model_name in models:
         print(f"=== [Optuna HPO] Tối ưu hóa siêu tham số cho: {model_name} ===")
-        res = run_isolated(
-            tune_model,
-            model_name=model_name,
-            X=X,
-            y=y,
-            n_trials=n_trials,
-            n_splits=n_splits,
-            seed=seed,
-        )
+        try:
+            res = run_isolated(
+                tune_model,
+                model_name=model_name,
+                X=X,
+                y=y,
+                n_trials=n_trials,
+                n_splits=n_splits,
+                seed=seed,
+            )
+        except (TimeoutError, RuntimeError) as e:
+            # KHÔNG để 1 model bị treo/crash làm mất kết quả của các model đã
+            # xong trước đó — ghi nhận lỗi, in cảnh báo, rồi tune tiếp model kế.
+            logger.error(f"'{model_name}' thất bại ({type(e).__name__}: {e}) — bỏ qua, tune tiếp model kế.")
+            print(f"  ❌ '{model_name}' thất bại: {e}\n")
+            all_results[model_name] = {"error": f"{type(e).__name__}: {e}"}
+            with open(out_file, "w", encoding="utf-8") as f:
+                json.dump(all_results, f, indent=2, ensure_ascii=False)
+            continue
+
         all_results[model_name] = res
         print(f"  -> Best PR-AUC: {res['best_pr_auc']:.4f}")
         print(f"  -> Best Params: {res['best_params']}\n")
 
-    # Lưu ra JSON
-    with open(out_file, "w", encoding="utf-8") as f:
-        json.dump(all_results, f, indent=2, ensure_ascii=False)
+        # Lưu NGAY sau mỗi model — nếu model kế tiếp bị treo/crash, kết quả
+        # của các model đã xong không bị mất (trước đây chỉ ghi 1 lần ở cuối
+        # vòng lặp, nên 1 model timeout là mất sạch kết quả của toàn bộ lần
+        # chạy, kể cả các model đã tune xong).
+        with open(out_file, "w", encoding="utf-8") as f:
+            json.dump(all_results, f, indent=2, ensure_ascii=False)
 
-    print(f"✅ Đã lưu toàn bộ best hyperparameters ra: {out_file}")
+    print(f"✅ Đã lưu best hyperparameters ra: {out_file}")
     return all_results
 
 
