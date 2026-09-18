@@ -106,9 +106,21 @@ def _compute_shap_tree(model: Any, X_eval: np.ndarray) -> np.ndarray:
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(X_eval)
 
-    # TreeExplainer có thể trả list cho binary classification
+    # TreeExplainer trả về khác dạng tuỳ model/version shap cho binary
+    # classification — PHẢI luôn quy về đúng shape (n_samples, n_features)
+    # ứng với class 1 (fraud), nếu không các bước sau (rank, stability
+    # metric) sẽ vỡ shape một cách ÂM THẦM hoặc lỗi khó hiểu:
+    #   - list (API cũ, một số version/model): [array_class0, array_class1]
+    #   - ndarray 3 chiều (RandomForestClassifier trên shap>=0.45 — đã xác
+    #     nhận tái hiện với shap 0.52.0): (n_samples, n_features, n_classes)
+    #   - ndarray 2 chiều (XGBoost/CatBoost — binary objective, đã sẵn 1 output):
+    #     (n_samples, n_features), dùng thẳng
     if isinstance(shap_values, list):
         shap_values = shap_values[1]  # Lấy class 1 (fraud)
+    else:
+        shap_values = np.array(shap_values)
+        if shap_values.ndim == 3:
+            shap_values = shap_values[:, :, 1]  # Lấy class 1 (fraud)
 
     return np.array(shap_values)
 

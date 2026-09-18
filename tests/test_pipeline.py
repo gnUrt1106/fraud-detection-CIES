@@ -139,6 +139,28 @@ def test_cies_metrics():
     print(f"✅ Stability metrics verified: identical CIES = {metrics['cies_score']}, inverted CIES = {metrics_inv['cies_score']:.4f}")
 
 
+def test_tree_shap_binary_class_shape():
+    """
+    Regression test: shap.TreeExplainer cho RandomForestClassifier có thể trả
+    ndarray 3 chiều (n_samples, n_features, n_classes) thay vì list — đã tái
+    hiện với shap==0.52.0 và gây ValueError shape mismatch trong
+    compute_stability_metric() khi chạy CIES cho random_forest (không phải
+    XGBoost/CatBoost — 2 model đó vốn đã trả đúng 2D). Nếu compute_shap()
+    không unwrap đúng chiều class, test này phải fail để bắt lại sớm.
+    """
+    print("\n--- Testing TreeExplainer shape handling (RandomForest) ---")
+    from sklearn.ensemble import RandomForestClassifier
+
+    np.random.seed(SEED)
+    X = np.random.rand(100, 5)
+    y = (np.random.rand(100) < 0.3).astype(int)
+    clf = RandomForestClassifier(n_estimators=10, random_state=SEED).fit(X, y)
+
+    shap_values = compute_shap(clf, "random_forest", X[:10])
+    assert shap_values.shape == (10, 5), f"Expected (10, 5), got {shap_values.shape}"
+    print(f"✅ TreeExplainer shape OK: {shap_values.shape}")
+
+
 def test_end_to_end_cies():
     print("\n--- Testing End-to-End CIES Experiment (LR + SMOTE, N_RUNS=3) ---")
     df = create_synthetic_data(500)

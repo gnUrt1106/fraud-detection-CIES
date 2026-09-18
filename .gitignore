@@ -40,4 +40,5 @@ build/
 *.bak
 .cache/
 scratch/
+catboost_info/
 
