@@ -1,0 +1,211 @@
+<title>CIES Pipeline</title>
+<style>
+  :root{
+    --bg:#faf9f6;
+    --fg:#1c2128;
+    --muted:#6b7280;
+    --line:#c7ccd4;
+    --card:#ffffff;
+    --sparkov:#2f6fed;
+    --sparkov-bg:#eaf1ff;
+    --ulb:#0e9bab;
+    --ulb-bg:#e4f6f7;
+    --shared-bg:#f3f1ec;
+    --shared-line:#8a8378;
+    --hpo:#a24fb0;
+    --warn:#b8752a;
+    --warn-bg:#fbf1e3;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14171c;
+      --fg:#e7e9ee;
+      --muted:#9aa1ac;
+      --line:#3a3f48;
+      --card:#1b1f26;
+      --sparkov:#7aa6ff;
+      --sparkov-bg:#1c2740;
+      --ulb:#4fd3de;
+      --ulb-bg:#12333a;
+      --shared-bg:#20221f;
+      --shared-line:#7d7568;
+      --hpo:#d68bdf;
+      --warn:#e0a552;
+      --warn-bg:#332a1a;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14171c;
+    --fg:#e7e9ee;
+    --muted:#9aa1ac;
+    --line:#3a3f48;
+    --card:#1b1f26;
+    --sparkov:#7aa6ff;
+    --sparkov-bg:#1c2740;
+    --ulb:#4fd3de;
+    --ulb-bg:#12333a;
+    --shared-bg:#20221f;
+    --shared-line:#7d7568;
+    --hpo:#d68bdf;
+    --warn:#e0a552;
+    --warn-bg:#332a1a;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--fg);font-family:"Inter",-apple-system,BlinkMacSystemFont,sans-serif;padding:24px 16px 40px}
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:1.35rem;margin:0 0 4px;letter-spacing:-0.01em}
+  .sub{color:var(--muted);font-size:.9rem;margin:0 0 20px;max-width:70ch;line-height:1.5}
+  figure{margin:0}
+  figcaption{color:var(--muted);font-size:.82rem;margin-top:10px;line-height:1.5;max-width:80ch}
+  svg{width:100%;height:auto;display:block}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:.78rem;color:var(--muted);margin:14px 0 0;padding:0;list-style:none}
+  .legend li{display:flex;align-items:center;gap:6px}
+  .dot{width:10px;height:10px;border-radius:2px;display:inline-block;flex:none}
+</style>
+
+<div class="wrap">
+  <h1>Pipeline Fraud Detection — CIES</h1>
+  <p class="sub">Cơ chế dùng chung: xử lý mất cân bằng + train model + SHAP là <strong>một bộ code duy nhất</strong>, nhận đầu vào từ 2 dataset khác nhau (Sparkov, ULB) — CIES chạy trên cả hai để so sánh <code>cies_score</code> có nhất quán giữa 2 dataset hay không.</p>
+
+  <figure>
+    <svg viewBox="0 0 1180 1220" role="img" aria-label="Sơ đồ pipeline: Sparkov và ULB cùng đi qua 1 bộ code xử lý mất cân bằng, train model và tính SHAP; sau đó rẽ nhánh benchmark/CIES riêng rồi hội tụ ở bước so sánh cies_score giữa 2 dataset.">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <!-- ===== Sparkov column ===== -->
+      <rect x="50" y="30" width="430" height="64" rx="8" fill="var(--sparkov-bg)" stroke="var(--sparkov)" stroke-width="1.5"/>
+      <text x="265" y="55" text-anchor="middle" font-size="13" font-weight="600" fill="var(--sparkov)">Sparkov (kartik2112/fraud-detection)</text>
+      <text x="265" y="74" text-anchor="middle" font-size="11.5" fill="var(--fg)">1.85M dòng · fraud rate 0.52%</text>
+
+      <line x1="265" y1="94" x2="265" y2="124" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" color="var(--line)"/>
+
+      <rect x="50" y="124" width="430" height="56" rx="8" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+      <text x="265" y="157" text-anchor="middle" font-size="12" fill="var(--fg)">Feature engineering + Split 80/20 (stratified)</text>
+
+      <line x1="265" y1="180" x2="265" y2="210" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" color="var(--line)"/>
+
+      <rect x="50" y="210" width="430" height="56" rx="8" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+      <text x="265" y="234" text-anchor="middle" font-size="12" fill="var(--fg)">Encoding: One-Hot + K-Fold Target Encoding</text>
+      <text x="265" y="250" text-anchor="middle" font-size="10.5" fill="var(--muted)">gender/category/state · merchant/city/job</text>
+
+      <line x1="265" y1="266" x2="265" y2="296" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" color="var(--line)"/>
+
+      <rect x="50" y="296" width="430" height="50" rx="8" fill="var(--sparkov-bg)" stroke="var(--sparkov)" stroke-width="1" stroke-dasharray="4 3"/>
+      <text x="265" y="326" text-anchor="middle" font-size="11.5" fill="var(--fg)">train_encoded / train_raw (parquet)</text>
+
+      <!-- ===== ULB column ===== -->
+      <rect x="700" y="30" width="430" height="80" rx="8" fill="var(--ulb-bg)" stroke="var(--ulb)" stroke-width="1.5"/>
+      <text x="915" y="55" text-anchor="middle" font-size="13" font-weight="600" fill="var(--ulb)">ULB (mlg-ulb/creditcardfraud)</text>
+      <text x="915" y="74" text-anchor="middle" font-size="11.5" fill="var(--fg)">227,845 dòng · fraud rate 0.17%</text>
+      <text x="915" y="90" text-anchor="middle" font-size="10.5" fill="var(--muted)">V1..V28 (PCA) + Amount + Time — đã là số sẵn</text>
+
+      <line x1="915" y1="110" x2="915" y2="366" stroke="var(--ulb)" stroke-width="1.5" stroke-dasharray="2 4" color="var(--ulb)"/>
+      <text x="935" y="225" font-size="10.5" fill="var(--ulb)">không qua encoding</text>
+      <text x="935" y="239" font-size="10.5" fill="var(--ulb)">(onehot_cols=[] — pass-through)</text>
+
+      <!-- ===== Shared: imbalance x model ===== -->
+      <line x1="265" y1="346" x2="265" y2="366" stroke="var(--line)" stroke-width="1.5" color="var(--line)"/>
+      <line x1="265" y1="366" x2="590" y2="366" stroke="var(--line)" stroke-width="1.5" color="var(--line)"/>
+      <line x1="590" y1="366" x2="590" y2="392" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" color="var(--line)"/>
+      <line x1="915" y1="366" x2="640" y2="366" stroke="var(--ulb)" stroke-width="1.5" color="var(--ulb)"/>
+      <line x1="640" y1="366" x2="640" y2="392" stroke="var(--ulb)" stroke-width="1.5" marker-end="url(#arrow)" color="var(--ulb)"/>
+
+      <rect x="130" y="392" width="920" height="92" rx="10" fill="var(--shared-bg)" stroke="var(--shared-line)" stroke-width="2"/>
+      <text x="590" y="418" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--fg)">Imbalance × Model — CODE DÙNG CHUNG cho cả 2 dataset</text>
+      <text x="590" y="440" text-anchor="middle" font-size="11.5" fill="var(--fg)">5 kỹ thuật: SMOTE · SMOTE-ENN · ADASYN · Borderline-SMOTE · Class Weighting</text>
+      <text x="590" y="458" text-anchor="middle" font-size="11.5" fill="var(--fg)">5 model: Logistic Regression · Random Forest (CPU) · XGBoost · CatBoost · ANN (GPU auto nếu có)</text>
+      <text x="590" y="476" text-anchor="middle" font-size="10.5" fill="var(--muted)">apply_imbalance() · build_model() / train_model() — src/imbalance, src/models/train.py</text>
+
+      <!-- HPO side note -->
+      <rect x="30" y="404" width="86" height="68" rx="8" fill="none" stroke="var(--hpo)" stroke-width="1.3" stroke-dasharray="4 3"/>
+      <text x="73" y="424" text-anchor="middle" font-size="9.5" fill="var(--hpo)">Optuna HPO</text>
+      <text x="73" y="437" text-anchor="middle" font-size="9" fill="var(--hpo)">(decoupled,</text>
+      <text x="73" y="449" text-anchor="middle" font-size="9" fill="var(--hpo)">tune trước khi</text>
+      <text x="73" y="461" text-anchor="middle" font-size="9" fill="var(--hpo)">áp imbalance)</text>
+      <line x1="116" y1="438" x2="128" y2="438" stroke="var(--hpo)" stroke-width="1.3" stroke-dasharray="3 2" marker-end="url(#arrow)" color="var(--hpo)"/>
+
+      <!-- run_isolated note -->
+      <rect x="1064" y="404" width="86" height="68" rx="8" fill="none" stroke="var(--warn)" stroke-width="1.3" stroke-dasharray="4 3"/>
+      <text x="1107" y="421" text-anchor="middle" font-size="9" fill="var(--warn)">run_isolated()</text>
+      <text x="1107" y="434" text-anchor="middle" font-size="8.5" fill="var(--warn)">daemon=False +</text>
+      <text x="1107" y="446" text-anchor="middle" font-size="8.5" fill="var(--warn)">SIGTERM→SIGKILL</text>
+      <text x="1107" y="458" text-anchor="middle" font-size="8.5" fill="var(--warn)">— an toàn khi 1 tổ</text>
+      <text x="1107" y="469" text-anchor="middle" font-size="8.5" fill="var(--warn)">hợp treo/timeout</text>
+      <line x1="1052" y1="438" x2="1062" y2="438" stroke="var(--warn)" stroke-width="1.3" stroke-dasharray="3 2" color="var(--warn)"/>
+
+      <line x1="590" y1="484" x2="590" y2="512" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" color="var(--line)"/>
+
+      <!-- SHAP -->
+      <rect x="180" y="512" width="820" height="64" rx="10" fill="var(--shared-bg)" stroke="var(--shared-line)" stroke-width="2"/>
+      <text x="590" y="537" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--fg)">SHAP — Linear (LR) · Tree (RF, XGBoost, CatBoost) · Kernel (ANN, xấp xỉ)</text>
+      <text x="590" y="556" text-anchor="middle" font-size="10.5" fill="var(--warn)">Tree: đã fix bug — RandomForest trả ndarray 3D (n,f,class) trên shap 0.52, không phải list</text>
+
+      <!-- diverge -->
+      <line x1="590" y1="576" x2="590" y2="596" stroke="var(--line)" stroke-width="1.5" color="var(--line)"/>
+      <line x1="265" y1="596" x2="915" y2="596" stroke="var(--line)" stroke-width="1.5" color="var(--line)"/>
+      <line x1="265" y1="596" x2="265" y2="618" stroke="var(--sparkov)" stroke-width="1.5" marker-end="url(#arrow)" color="var(--sparkov)"/>
+      <line x1="915" y1="596" x2="915" y2="618" stroke="var(--ulb)" stroke-width="1.5" marker-end="url(#arrow)" color="var(--ulb)"/>
+
+      <!-- Sparkov: benchmark -->
+      <rect x="50" y="618" width="430" height="56" rx="8" fill="var(--sparkov-bg)" stroke="var(--sparkov)" stroke-width="1.5"/>
+      <text x="265" y="641" text-anchor="middle" font-size="12" fill="var(--fg)">Benchmark 25 tổ hợp (chỉ Sparkov)</text>
+      <text x="265" y="658" text-anchor="middle" font-size="10.5" fill="var(--muted)">PR-AUC · F1 · F2 · ROC-AUC · Precision@Recall</text>
+
+      <!-- ULB: no benchmark note -->
+      <rect x="700" y="618" width="430" height="56" rx="8" fill="var(--warn-bg)" stroke="var(--warn)" stroke-width="1.3" stroke-dasharray="4 3"/>
+      <text x="915" y="641" text-anchor="middle" font-size="11.5" fill="var(--warn)">⚠ Chưa có bước benchmark riêng cho ULB</text>
+      <text x="915" y="658" text-anchor="middle" font-size="10" fill="var(--warn)">(chỉ notebook 03 chạy Sparkov)</text>
+
+      <line x1="265" y1="674" x2="265" y2="704" stroke="var(--sparkov)" stroke-width="1.5" marker-end="url(#arrow)" color="var(--sparkov)"/>
+      <line x1="915" y1="674" x2="915" y2="704" stroke="var(--ulb)" stroke-width="1.5" marker-end="url(#arrow)" color="var(--ulb)"/>
+
+      <!-- CIES boxes -->
+      <rect x="50" y="704" width="430" height="76" rx="8" fill="var(--sparkov-bg)" stroke="var(--sparkov)" stroke-width="1.5"/>
+      <text x="265" y="728" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--fg)">CIES — Sparkov</text>
+      <text x="265" y="746" text-anchor="middle" font-size="10.5" fill="var(--fg)">N_RUNS=20 bootstrap · train subsample 10,000 dòng</text>
+      <text x="265" y="762" text-anchor="middle" font-size="10.5" fill="var(--fg)">notebooks/04 — subset LR/RF/XGB × 3 kỹ thuật</text>
+
+      <rect x="700" y="704" width="430" height="76" rx="8" fill="var(--ulb-bg)" stroke="var(--ulb)" stroke-width="1.5"/>
+      <text x="915" y="728" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--fg)">CIES — ULB</text>
+      <text x="915" y="746" text-anchor="middle" font-size="10.5" fill="var(--fg)">N_RUNS=20 bootstrap · TOÀN BỘ 227,845 dòng (không subsample)</text>
+      <text x="915" y="762" text-anchor="middle" font-size="10.5" fill="var(--fg)">notebooks/05 — cùng subset LR/RF/XGB × 3 kỹ thuật</text>
+
+      <text x="265" y="798" text-anchor="middle" font-size="10" fill="var(--muted)">run_cies_experiment_isolated() — src/explainability/cies.py</text>
+
+      <!-- converge -->
+      <line x1="265" y1="780" x2="265" y2="826" stroke="var(--sparkov)" stroke-width="1.5" color="var(--sparkov)"/>
+      <line x1="915" y1="780" x2="915" y2="826" stroke="var(--ulb)" stroke-width="1.5" color="var(--ulb)"/>
+      <line x1="265" y1="826" x2="915" y2="826" stroke="var(--line)" stroke-width="1.5" color="var(--line)"/>
+      <line x1="590" y1="826" x2="590" y2="850" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" color="var(--line)"/>
+
+      <rect x="230" y="850" width="720" height="90" rx="10" fill="var(--shared-bg)" stroke="var(--shared-line)" stroke-width="2"/>
+      <text x="590" y="878" text-anchor="middle" font-size="13" font-weight="700" fill="var(--fg)">So sánh cies_score: Sparkov vs. ULB</text>
+      <text x="590" y="898" text-anchor="middle" font-size="11" fill="var(--fg)">Cùng model × kỹ thuật — độ ổn định giải thích có nhất quán giữa 2 dataset?</text>
+      <text x="590" y="916" text-anchor="middle" font-size="10" fill="var(--muted)">notebooks/05_cies_experiment_ulb.ipynb §5 — merge 2 file JSON kết quả</text>
+
+      <line x1="590" y1="940" x2="590" y2="966" stroke="var(--line)" stroke-width="1.5" marker-end="url(#arrow)" color="var(--line)"/>
+
+      <rect x="330" y="966" width="520" height="150" rx="8" fill="var(--card)" stroke="var(--line)" stroke-width="1.5"/>
+      <text x="590" y="992" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--fg)">Kết quả</text>
+      <text x="350" y="1014" font-size="10.5" fill="var(--fg)">• results/cies_summary_results.json (Sparkov)</text>
+      <text x="350" y="1032" font-size="10.5" fill="var(--fg)">• results/cies_summary_results_ulb.json (ULB)</text>
+      <text x="350" y="1050" font-size="10.5" fill="var(--fg)">• results/model_benchmark_results.csv (Sparkov)</text>
+      <text x="350" y="1068" font-size="10.5" fill="var(--fg)">• results/best_params.json (HPO đóng băng)</text>
+      <text x="350" y="1086" font-size="10.5" fill="var(--fg)">• results/cies_sparkov_vs_ulb.png (scatter so sánh)</text>
+      <text x="350" y="1104" font-size="10" fill="var(--muted)">Mỗi tổ hợp lưu ngay sau khi chạy xong — 1 tổ hợp lỗi/</text>
+      <text x="350" y="1118" font-size="10" fill="var(--muted)">timeout không làm mất kết quả các tổ hợp trước đó.</text>
+    </svg>
+    <figcaption>Sparkov và ULB cùng đi qua một bộ code xử lý mất cân bằng + train model + SHAP (không nhân bản logic) — khác biệt duy nhất là ULB bỏ qua bước encoding (đã là PCA feature) và không có bước benchmark riêng. CIES chạy trên cả hai để kiểm tra <code>cies_score</code> có generalize giữa 2 dataset hay không.</figcaption>
+  </figure>
+
+  <ul class="legend">
+    <li><span class="dot" style="background:var(--sparkov)"></span>Sparkov</li>
+    <li><span class="dot" style="background:var(--ulb)"></span>ULB</li>
+    <li><span class="dot" style="background:var(--shared-line)"></span>Code / bước dùng chung</li>
+    <li><span class="dot" style="background:var(--hpo)"></span>Optuna HPO</li>
+    <li><span class="dot" style="background:var(--warn)"></span>Cảnh báo / giới hạn hiện tại</li>
+  </ul>
+</div>
