@@ -258,7 +258,16 @@ def tune_all_models(
     output_dir.mkdir(parents=True, exist_ok=True)
     out_file = output_dir / filename
 
+    # Merge với file kết quả đã có (nếu tồn tại) — cho phép chạy lại/tune tiếp
+    # riêng vài model (vd. sau khi model khác đã timeout) mà KHÔNG xoá mất
+    # kết quả các model đã tune xong từ trước trong cùng file.
     all_results = {}
+    if out_file.exists():
+        try:
+            with open(out_file, "r", encoding="utf-8") as f:
+                all_results = json.load(f)
+        except Exception:
+            all_results = {}
 
     # Mỗi model được tune trong 1 subprocess riêng (run_isolated) — vòng lặp
     # này chạy cả 'ann' và 'xgboost' trong cùng 1 process nếu gọi trực tiếp,
