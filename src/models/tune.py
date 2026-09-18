@@ -233,7 +233,7 @@ def tune_all_models(
     output_dir: Optional[Path] = None,
     filename: str = "best_params.json",
     seed: int = SEED,
-    timeout: float = 7200,
+    timeout: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
     Tối ưu hóa siêu tham số cho toàn bộ danh sách models và lưu kết quả ra file JSON.
@@ -247,13 +247,16 @@ def tune_all_models(
         output_dir: Thư mục lưu (mặc định RESULTS_DIR)
         filename: Tên file kết quả
         seed: Random seed
-        timeout: Giây tối đa cho MỖI model (qua run_isolated). Mặc định 7200s
-            (2 tiếng) — cao hơn hẳn DEFAULT_TIMEOUT_SECONDS=3600s của
-            run_isolated(), vì random_forest/ann trên dataset lớn (Sparkov
-            ~1.48M dòng) có thể cần >3600s chỉ để chạy xong n_startup_trials=5
-            trial đầu của Optuna MedianPruner (chưa bị prune sớm). Không ảnh
-            hưởng model nhanh (LR/XGBoost/CatBoost) — chúng xong sớm hơn
-            nhiều so với cả 2 mốc timeout, con số này chỉ là giới hạn trên.
+        timeout: Giây tối đa cho MỖI model (qua run_isolated). Mặc định None
+            = KHÔNG giới hạn (chấp nhận đánh đổi có chủ đích — random_forest/
+            ann trên dataset lớn có thể cần >2 tiếng chỉ để chạy xong
+            n_startup_trials=5 trial đầu của Optuna MedianPruner, và người
+            dùng còn dư quota Kaggle để chờ). LƯU Ý: None tắt luôn lưới an
+            toàn SIGTERM→SIGKILL của run_isolated() cho model đó — nếu
+            subprocess treo THẬT SỰ (không phải chậm, vd. GPU driver
+            deadlock), nó sẽ chạy tới khi Kaggle tự ngắt session (tối đa 9h
+            GPU) thay vì bị phát hiện sớm. Truyền số giây cụ thể để bật lại
+            giới hạn.
 
     Returns:
         Dict tổng hợp best_params của tất cả models
