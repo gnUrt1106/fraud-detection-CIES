@@ -233,6 +233,7 @@ def tune_all_models(
     output_dir: Optional[Path] = None,
     filename: str = "best_params.json",
     seed: int = SEED,
+    timeout: float = 7200,
 ) -> Dict[str, Any]:
     """
     Tối ưu hóa siêu tham số cho toàn bộ danh sách models và lưu kết quả ra file JSON.
@@ -246,6 +247,13 @@ def tune_all_models(
         output_dir: Thư mục lưu (mặc định RESULTS_DIR)
         filename: Tên file kết quả
         seed: Random seed
+        timeout: Giây tối đa cho MỖI model (qua run_isolated). Mặc định 7200s
+            (2 tiếng) — cao hơn hẳn DEFAULT_TIMEOUT_SECONDS=3600s của
+            run_isolated(), vì random_forest/ann trên dataset lớn (Sparkov
+            ~1.48M dòng) có thể cần >3600s chỉ để chạy xong n_startup_trials=5
+            trial đầu của Optuna MedianPruner (chưa bị prune sớm). Không ảnh
+            hưởng model nhanh (LR/XGBoost/CatBoost) — chúng xong sớm hơn
+            nhiều so với cả 2 mốc timeout, con số này chỉ là giới hạn trên.
 
     Returns:
         Dict tổng hợp best_params của tất cả models
@@ -285,6 +293,7 @@ def tune_all_models(
                 n_trials=n_trials,
                 n_splits=n_splits,
                 seed=seed,
+                timeout=timeout,
             )
         except (TimeoutError, RuntimeError) as e:
             # KHÔNG để 1 model bị treo/crash làm mất kết quả của các model đã
