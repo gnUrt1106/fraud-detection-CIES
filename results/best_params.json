@@ -1,0 +1,51 @@
+{
+  "logistic_regression": {
+    "model_name": "logistic_regression",
+    "best_pr_auc": 0.31896997724462406,
+    "best_params": {
+      "C": 84.64580466129628,
+      "max_iter": 2000,
+      "solver": "lbfgs"
+    },
+    "n_trials": 30,
+    "n_completed_trials": 16,
+    "n_pruned_trials": 14
+  },
+  "random_forest": {
+    "error": "TimeoutError: Subprocess cho 'tune_model' vượt quá timeout=3600s — có thể bị treo (hang)."
+  },
+  "xgboost": {
+    "model_name": "xgboost",
+    "best_pr_auc": 0.9308279856973583,
+    "best_params": {
+      "n_estimators": 300,
+      "max_depth": 10,
+      "learning_rate": 0.045467454720003124,
+      "subsample": 0.8975700231454364,
+      "colsample_bytree": 0.7410663603360459,
+      "eval_metric": "aucpr",
+      "use_label_encoder": false
+    },
+    "n_trials": 30,
+    "n_completed_trials": 24,
+    "n_pruned_trials": 6
+  },
+  "catboost": {
+    "model_name": "catboost",
+    "best_pr_auc": 0.9254350265777209,
+    "best_params": {
+      "iterations": 200,
+      "depth": 10,
+      "learning_rate": 0.12365166286045544,
+      "l2_leaf_reg": 4.569967950846874,
+      "eval_metric": "PRAUC",
+      "verbose": 0
+    },
+    "n_trials": 30,
+    "n_completed_trials": 23,
+    "n_pruned_trials": 7
+  },
+  "ann": {
+    "error": "TimeoutError: Subprocess cho 'tune_model' vượt quá timeout=3600s — có thể bị treo (hang)."
+  }
+}
