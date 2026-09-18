@@ -101,7 +101,21 @@ def run_isolated(
     process = ctx.Process(
         target=_subprocess_entry,
         args=(func, args, kwargs, result_queue),
-        daemon=True,
+        # daemon=False (KHÔNG phải True): process daemon bị Python cấm tự
+        # sinh process con — RandomForestClassifier(n_jobs=-1) cần joblib
+        # spawn worker (backend "loky") để chạy song song, nên với
+        # daemon=True nó bị ép về n_jobs=1 (rất chậm). Ép joblib dùng
+        # backend "threading" thay thế KHÔNG ổn định giữa các version
+        # sklearn/joblib (đã tái hiện: hoạt động ở local nhưng KHÔNG hoạt
+        # động trên container Kaggle — có lẽ version khác không tôn trọng
+        # context manager parallel_backend() cùng cách). daemon=False loại
+        # bỏ hẳn giới hạn gốc, không phụ thuộc version. Đánh đổi: nếu
+        # process CHA (kernel Jupyter/Kaggle) bị kill đột ngột ngoài tầm
+        # kiểm soát code này, process con daemon=False có thể không tự
+        # chết theo — chấp nhận được vì (1) timeout ở dưới vẫn tự
+        # terminate/kill process con trong mọi đường thoát do CODE NÀY quản
+        # lý, (2) trên Kaggle cả container bị dọn sạch khi session dừng.
+        daemon=False,
     )
     process.start()
 
