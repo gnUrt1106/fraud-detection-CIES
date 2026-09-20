@@ -147,7 +147,7 @@ def _runs_matrix(result: dict):
 
 
 def _ranks(mat: np.ndarray) -> np.ndarray:
-    return np.vstack([rankdata(-row, method="min") for row in mat])
+    return np.vstack([rankdata(-row, method="average") for row in mat])
 
 
 def plot_rank_stability(result: dict, top_k: int = 10, save_path: Optional[Path] = None):

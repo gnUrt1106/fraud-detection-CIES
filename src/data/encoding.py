@@ -18,7 +18,7 @@ RÀNG BUỘC:
 
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, StratifiedGroupKFold
 from typing import Dict, Tuple, Optional
 
 from src.config import (
@@ -33,6 +33,7 @@ def stratified_kfold_target_encode(
     n_splits: int = 5,
     smoothing: int = 10,
     random_state: int = SEED,
+    groups: Optional[np.ndarray] = None,
 ) -> Tuple[pd.Series, pd.Series]:
     """
     Stratified K-fold Target Encoding cho 1 cột categorical.
@@ -48,6 +49,10 @@ def stratified_kfold_target_encode(
         n_splits: Số fold cho StratifiedKFold
         smoothing: Hệ số smoothing — category hiếm bị kéo về global_mean
         random_state: Seed cho reproducibility
+        groups: (tuỳ chọn) id nhóm cho từng dòng — các dòng cùng nhóm luôn nằm CÙNG 1 fold.
+            Dùng cho bootstrap (có dòng trùng): nếu bản sao của 1 dòng rơi vào fold train còn
+            dòng đó ở fold validation thì nhãn của chính nó lọt vào giá trị encode của nó
+            (rò rỉ). Khi có `groups` dùng StratifiedGroupKFold (vẫn stratified theo target).
 
     Returns:
         encoded: Series encoded values cho train (out-of-fold)
@@ -55,13 +60,20 @@ def stratified_kfold_target_encode(
     """
     # Đảm bảo index tuần tự tránh lỗi reindexing
     df_reset = df_train.reset_index(drop=True)
-    skf = StratifiedKFold(
-        n_splits=n_splits, shuffle=True, random_state=random_state
-    )
+    if groups is None:
+        skf = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=random_state
+        )
+        splits = skf.split(df_reset, df_reset[target_col])
+    else:
+        skf = StratifiedGroupKFold(
+            n_splits=n_splits, shuffle=True, random_state=random_state
+        )
+        splits = skf.split(df_reset, df_reset[target_col], groups=np.asarray(groups))
     encoded = pd.Series(index=df_reset.index, dtype=float)
     global_mean = df_reset[target_col].mean()
 
-    for train_idx, val_idx in skf.split(df_reset, df_reset[target_col]):
+    for train_idx, val_idx in splits:
         fold_train = df_reset.iloc[train_idx]
         stats = fold_train.groupby(col)[target_col].agg(["mean", "count"])
         # Smoothing: category hiếm bị kéo về global_mean
@@ -91,6 +103,7 @@ def encode_train(
     smoothing: int = 10,
     random_state: int = SEED,
     fixed_categories: Optional[Dict[str, list]] = None,
+    groups: Optional[np.ndarray] = None,
 ) -> Tuple[pd.DataFrame, Dict]:
     """
     Encode toàn bộ categorical features cho tập train.
@@ -104,6 +117,7 @@ def encode_train(
         smoothing: Hệ số smoothing
         random_state: Seed
         fixed_categories: Dict danh sách categories cố định cho từng cột onehot (đảm bảo đồng nhất số feature qua bootstrap runs)
+        groups: id nhóm mỗi dòng (vd. id dòng gốc của bootstrap) — xem stratified_kfold_target_encode
 
     Returns:
         df_encoded: DataFrame đã encode (không chứa cột categorical gốc)
@@ -144,6 +158,7 @@ def encode_train(
                 n_splits=n_splits,
                 smoothing=smoothing,
                 random_state=random_state,
+                groups=groups,
             )
             # .to_numpy(): gán theo VỊ TRÍ. encoded_values mang index gốc của df_train,
             # còn df_encoded đã reset_index — gán thẳng Series sẽ căn theo NHÃN index và

@@ -313,6 +313,36 @@ def test_cies_vs_prauc_merges_on_model_and_technique():
     assert n_points == 2, f"kỳ vọng 2 điểm (1 mỗi tổ hợp), nhận {n_points}"
 
 
+def test_target_encoding_keeps_bootstrap_duplicates_in_same_fold():
+    """
+    Bootstrap có dòng trùng. Với `groups`, mọi bản sao của 1 dòng phải cùng fold nên nhận
+    CÙNG giá trị encode (và nhãn của chính nó không lọt vào thống kê fold train). Không có
+    `groups` thì bản sao rơi vào các fold khác nhau và giá trị encode lệch nhau.
+    """
+    base = create_synthetic_data(300).reset_index(drop=True)
+    sampled = base.sample(frac=1.0, replace=True, random_state=3)
+    gid = sampled.index.to_numpy()
+    df = sampled.reset_index(drop=True)
+
+    grouped, _ = stratified_kfold_target_encode(df, "merchant", "is_fraud", n_splits=5, random_state=SEED, groups=gid)
+    plain, _ = stratified_kfold_target_encode(df, "merchant", "is_fraud", n_splits=5, random_state=SEED)
+
+    def max_spread(enc):
+        return pd.Series(enc.to_numpy()).groupby(gid).agg(lambda v: v.max() - v.min()).max()
+
+    assert max_spread(grouped) < 1e-12, "bản sao của cùng 1 dòng bị tách sang fold khác nhau"
+    assert max_spread(plain) > 1e-6, "test vô nghĩa: không có groups mà bản sao vẫn đồng nhất"
+
+
+def test_shap_ranks_share_ties_instead_of_column_order():
+    """Feature hoà (vd. SHAP = 0) nhận hạng trung bình chung, không xếp theo thứ tự cột."""
+    ranks = shap_to_ranks(np.array([[5.0, 0.0, 0.0, 2.0]]))
+    assert list(ranks) == [1.0, 3.5, 3.5, 2.0], ranks
+    # hoán vị cột không đổi hạng của cùng 1 feature
+    perm = [3, 1, 0, 2]
+    assert list(shap_to_ranks(np.array([[5.0, 0.0, 0.0, 2.0]])[:, perm])) == list(ranks[perm])
+
+
 def test_end_to_end_cies():
     print("\n--- Testing End-to-End CIES Experiment (LR + SMOTE, N_RUNS=3) ---")
     df = create_synthetic_data(500)

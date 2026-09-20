@@ -98,12 +98,14 @@ def shap_to_ranks(shap_values: np.ndarray) -> np.ndarray:
     """
     # Mean absolute SHAP value per feature
     mean_abs_shap = np.mean(np.abs(shap_values), axis=0)
-    # Ranking: argmax → rank 1
-    ranks = np.empty_like(mean_abs_shap, dtype=int)
-    sorted_indices = np.argsort(-mean_abs_shap)  # Descending
-    for rank, idx in enumerate(sorted_indices, start=1):
-        ranks[idx] = rank
-    return ranks
+    # Hoà hạng (vd. các feature SHAP = 0 chưa từng được dùng) chia đều hạng trung bình,
+    # KHÔNG xếp theo thứ tự cột. Xếp theo cột thì khi tập feature bằng 0 khác nhau giữa
+    # 2 run, thứ tự cột quyết định feature nào "hơn" — tạo chênh lệch thứ hạng giả chỉ do
+    # cách sắp cột. (Feature bằng 0 ở MỌI run vẫn giữ hạng cố định và không đóng góp
+    # khoảng cách; trọng số 1/rank ở đuôi bảng vốn đã rất nhỏ.)
+    from scipy.stats import rankdata
+
+    return rankdata(-mean_abs_shap, method="average")
 
 
 def compute_stability_metric(
@@ -287,9 +289,14 @@ def run_cies_experiment(
 
         try:
             # 1. Bootstrap resample train (KHÔNG đổi df_test_fixed_eval)
-            train_resample = df_train.sample(
-                frac=1.0, replace=True, random_state=seed
-            ).reset_index(drop=True)
+            # Bootstrap CÓ dòng trùng. Giữ id dòng gốc làm `groups` để target encoding
+            # (K-fold out-of-fold) không tách bản sao của 1 dòng ra 2 fold khác nhau — nếu
+            # tách, nhãn của chính dòng validation nằm trong thống kê fold train (rò rỉ).
+            # Rút mẫu vị trí giống hệt trước đây (sample() độc lập với nhãn index).
+            base = df_train.reset_index(drop=True)
+            sampled = base.sample(frac=1.0, replace=True, random_state=seed)
+            row_groups = sampled.index.to_numpy()
+            train_resample = sampled.reset_index(drop=True)
 
             # 2. Encoding — FIT LẠI trên resample này
             encoded_train, encoding_maps = encode_train(
@@ -298,6 +305,7 @@ def run_cies_experiment(
                 target_encode_cols=target_encode_cols,
                 random_state=seed,
                 fixed_categories=fixed_categories,
+                groups=row_groups,
             )
 
             # Encode eval set dùng mapping từ resample hiện tại
