@@ -6,7 +6,7 @@ Mapping explainer bắt buộc theo model (spec mục 6.1):
     - Random Forest       → shap.TreeExplainer (exact)
     - XGBoost             → shap.TreeExplainer (exact)
     - CatBoost            → shap.TreeExplainer (exact)
-    - ANN                 → shap.KernelExplainer hoặc shap.DeepExplainer (xấp xỉ)
+    - ANN                 → shap.DeepExplainer (xấp xỉ, tất định); KernelExplainer làm fallback
 
 ANN dùng explainer xấp xỉ — ghi log riêng, không so sánh thô với TreeSHAP.
 """
@@ -25,7 +25,11 @@ EXPLAINER_MAP = {
     "random_forest": "tree",
     "xgboost": "tree",
     "catboost": "tree",
-    "ann": "kernel",  # Hoặc "deep" — mặc định kernel cho safety
+    # DeepExplainer thay KernelExplainer: đo trên ANN thật, Kernel chạy lặp 2 lần cùng
+    # model chỉ khớp nhau Spearman ~0.85 (nhiễu lấy mẫu riêng — sẽ làm điểm CIES của ANN
+    # thấp GIẢ TẠO vì CIES đo đúng độ dao động thứ hạng), chậm hơn ~5x, còn Deep
+    # tất định, cộng dồn đúng (sai số 0) và cùng đơn vị log-odds với LR/XGBoost.
+    "ann": "deep",
 }
 
 
@@ -180,25 +184,38 @@ def _compute_shap_deep(
     X_eval: np.ndarray,
     X_background: Optional[np.ndarray],
 ) -> np.ndarray:
-    """SHAP cho ANN — DeepExplainer (thay thế cho KernelExplainer nếu cần)."""
+    """
+    SHAP cho ANN — DeepExplainer (xấp xỉ dựa trên DeepLIFT, tất định).
+
+    Giải thích logit (đầu ra trước sigmoid) — cùng thang log-odds với LR/XGBoost.
+    Nếu DeepExplainer lỗi (vd. version shap/torch không hỗ trợ 1 layer), tự lùi về
+    KernelExplainer và ghi log cảnh báo thay vì làm hỏng cả run CIES.
+    """
     import torch
 
-    if isinstance(model, dict) and "model" in model:
-        ann = model["model"]
-        device = model.get("device", torch.device("cpu"))
-    else:
+    if not (isinstance(model, dict) and "model" in model):
         raise ValueError("ANN model phải là dict từ build_model()")
+    ann = model["model"]
+    device = model.get("device", torch.device("cpu"))
+    ann.eval()  # BatchNorm/Dropout phải ở chế độ eval, nếu không SHAP không tất định
 
     if X_background is None:
         X_background = X_eval[:100]
 
-    X_bg_tensor = torch.FloatTensor(X_background).to(device)
-    X_eval_tensor = torch.FloatTensor(X_eval).to(device)
+    try:
+        X_bg_tensor = torch.FloatTensor(np.asarray(X_background)).to(device)
+        X_eval_tensor = torch.FloatTensor(np.asarray(X_eval)).to(device)
+        explainer = shap.DeepExplainer(ann, X_bg_tensor)
+        shap_values = explainer.shap_values(X_eval_tensor)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"DeepExplainer lỗi ({type(e).__name__}: {e}) — lùi về KernelExplainer.")
+        return _compute_shap_kernel(model, X_eval, X_background)
 
-    explainer = shap.DeepExplainer(ann, X_bg_tensor)
-    shap_values = explainer.shap_values(X_eval_tensor)
-
+    # shap>=0.4x trả ndarray (n_samples, n_features, n_outputs=1) thay vì list;
+    # bản cũ trả list [array]. Luôn quy về (n_samples, n_features).
     if isinstance(shap_values, list):
         shap_values = shap_values[0]
-
-    return np.array(shap_values)
+    shap_values = np.asarray(shap_values)
+    if shap_values.ndim == 3:
+        shap_values = shap_values[:, :, 0]
+    return shap_values

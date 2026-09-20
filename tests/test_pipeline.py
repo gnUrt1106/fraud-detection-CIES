@@ -193,6 +193,33 @@ def test_cies_rejects_constant_model_runs(monkeypatch):
     assert all(r["status"] == "failed" for r in result["run_logs"])
 
 
+def test_ann_shap_uses_deep_explainer_2d_and_deterministic():
+    """
+    ANN dùng DeepExplainer: phải trả shape (n, f) — shap>=0.4x trả (n, f, 1) — và tất
+    định (KernelExplainer tự lệch chính nó ~0.85 Spearman, làm CIES của ANN thấp giả).
+    Chạy trong subprocess riêng: torch + xgboost (đã nạp bởi test khác) cùng 1 process
+    có thể segfault do xung đột OpenMP (xem src/utils/isolation.py).
+    """
+    import subprocess, textwrap
+    code = textwrap.dedent(f"""
+        import sys; sys.path.insert(0, {str(Path(__file__).resolve().parent.parent)!r})
+        import numpy as np
+        from src.models.train import build_model, train_model
+        from src.explainability.shap_utils import compute_shap, EXPLAINER_MAP
+        assert EXPLAINER_MAP["ann"] == "deep", EXPLAINER_MAP["ann"]
+        rng = np.random.RandomState(0)
+        X = rng.randn(400, 6); y = (X[:, 0] + 0.5 * X[:, 1] > 1).astype(int)
+        m = train_model(build_model("ann", input_dim=6, params={{"epochs": 3, "batch_size": 64}}), X, y, model_name="ann")
+        a = compute_shap(m, "ann", X[:20], X_background=X[:50])
+        b = compute_shap(m, "ann", X[:20], X_background=X[:50])
+        assert a.shape == (20, 6), a.shape
+        assert np.allclose(a, b), "DeepExplainer phải tất định"
+        print("OK")
+    """)
+    res = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=180)
+    assert res.returncode == 0 and "OK" in res.stdout, res.stdout + res.stderr
+
+
 def test_end_to_end_cies():
     print("\n--- Testing End-to-End CIES Experiment (LR + SMOTE, N_RUNS=3) ---")
     df = create_synthetic_data(500)
