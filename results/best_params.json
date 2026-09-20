@@ -12,7 +12,17 @@
     "n_pruned_trials": 14
   },
   "random_forest": {
-    "error": "TimeoutError: Subprocess cho 'tune_model' vượt quá timeout=3600s — có thể bị treo (hang)."
+    "model_name": "random_forest",
+    "best_pr_auc": 0.8570453053893512,
+    "best_params": {
+      "n_estimators": 150,
+      "max_depth": 18,
+      "min_samples_split": 12,
+      "min_samples_leaf": 5
+    },
+    "n_trials": 30,
+    "n_completed_trials": 16,
+    "n_pruned_trials": 14
   },
   "xgboost": {
     "model_name": "xgboost",
