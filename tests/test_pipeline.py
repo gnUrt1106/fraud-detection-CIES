@@ -236,6 +236,83 @@ def test_ann_shap_uses_deep_explainer_2d_and_deterministic():
     assert res.returncode == 0 and "OK" in res.stdout, res.stdout + res.stderr
 
 
+def test_encode_train_handles_non_default_index():
+    """
+    Regression test: cột *_encoded được gán theo NHÃN index → NaN/lệch hàng khi df_train
+    có index không mặc định (vd. ngay sau train_test_split). Phải gán theo vị trí.
+    """
+    df = create_synthetic_data(400)
+    shuffled = df.sample(frac=1.0, random_state=1)          # index xáo trộn, không phải 0..n-1
+    shuffled.index = shuffled.index + 1000                   # và không trùng nhãn với RangeIndex
+    enc, _ = encode_train(
+        shuffled, target_col="is_fraud", onehot_cols=["gender"],
+        target_encode_cols=["merchant"], n_splits=3, random_state=SEED,
+    )
+    assert enc["merchant_encoded"].isna().sum() == 0, "target encoding bị NaN do lệch index"
+    ref, _ = encode_train(
+        shuffled.reset_index(drop=True), target_col="is_fraud", onehot_cols=["gender"],
+        target_encode_cols=["merchant"], n_splits=3, random_state=SEED,
+    )
+    assert np.allclose(enc["merchant_encoded"].to_numpy(), ref["merchant_encoded"].to_numpy())
+
+
+def test_cies_failure_path_returns_all_metric_keys():
+    """Nhánh <2 run thành công phải trả đủ khoá — notebook đọc cies_metrics["mean_spearman"]."""
+    import src.explainability.cies as cies_mod
+
+    df = create_synthetic_data(300)
+    result = cies_mod.run_cies_experiment(
+        model_name="logistic_regression", imbalance_technique="class_weighting",
+        df_train=df.iloc[:200].reset_index(drop=True), df_test_fixed_eval=df.iloc[200:].reset_index(drop=True),
+        target_col="is_fraud", onehot_cols=["gender", "category", "state"],
+        target_encode_cols=["merchant", "city", "job"], n_runs=1,
+    )
+    for key in ("cies_score", "mean_rank_distance", "std_rank_distance", "mean_spearman", "n_runs"):
+        assert key in result["cies_metrics"], key
+
+
+def test_ann_scaling_and_batch_of_one():
+    """
+    Regression tests cho ANN (subprocess riêng vì torch + xgboost cùng process dễ segfault):
+    (1) không crash khi len(train) % batch_size == 1 (BatchNorm1d không nhận batch 1 mẫu);
+    (2) học được dù có feature thang ~1e9 (như unix_time) — không scale thì train hỏng.
+    """
+    import subprocess, textwrap
+    code = textwrap.dedent(f"""
+        import sys; sys.path.insert(0, {str(Path(__file__).resolve().parent.parent)!r})
+        import numpy as np
+        from sklearn.metrics import average_precision_score
+        from src.models.train import build_model, train_model, predict_proba
+        rng = np.random.RandomState(0)
+        # (1) 513 mẫu, batch 512 -> batch cuối = 1 mẫu
+        X = rng.randn(513, 4); y = (rng.rand(513) < 0.3).astype(int)
+        train_model(build_model("ann", input_dim=4, params={{"epochs": 1, "batch_size": 512}}), X, y, model_name="ann")
+        # (2) cột 1 là hằng số cỡ 1e9 + nhiễu nhỏ (như unix_time), cột 0 mang tín hiệu
+        n = 3000
+        x0 = rng.randn(n); y = (x0 > 0.8).astype(int)
+        X = np.column_stack([x0, 1.3e9 + rng.randn(n), rng.randn(n) * 1e6])
+        m = train_model(build_model("ann", input_dim=3, params={{"epochs": 15, "batch_size": 128}}), X, y, model_name="ann")
+        ap = average_precision_score(y, predict_proba(m, X))
+        assert ap > 0.9, f"ANN không học được khi input chưa scale hợp lý: AP={{ap:.3f}}"
+        print("OK")
+    """)
+    res = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=240)
+    assert res.returncode == 0 and "OK" in res.stdout, res.stdout + res.stderr
+
+
+def test_cies_vs_prauc_merges_on_model_and_technique():
+    """Benchmark đặt tên cột 'imbalance_technique'; ghép phải theo (model, technique), không tích Descartes."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from src.visualization.explain import plot_cies_vs_prauc
+
+    cies = pd.DataFrame({"model": ["a", "a"], "technique": ["x", "y"], "cies_score": [0.9, 0.5]})
+    bench = pd.DataFrame({"model": ["a", "a"], "imbalance_technique": ["x", "y"], "pr_auc": [0.8, 0.6]})
+    fig = plot_cies_vs_prauc(cies, bench)
+    n_points = sum(len(c.get_offsets()) for c in fig.axes[0].collections)
+    assert n_points == 2, f"kỳ vọng 2 điểm (1 mỗi tổ hợp), nhận {n_points}"
+
+
 def test_end_to_end_cies():
     print("\n--- Testing End-to-End CIES Experiment (LR + SMOTE, N_RUNS=3) ---")
     df = create_synthetic_data(500)

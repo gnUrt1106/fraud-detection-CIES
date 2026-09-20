@@ -1,5 +1,7 @@
 # ===== Data =====
-data/
+# Có dấu / ở đầu: CHỈ thư mục data/ ở gốc repo (dữ liệu thô/đã xử lý). Viết "data/" trần sẽ
+# khớp cả src/data/ và làm package src.data (encoding.py, download.py) không bao giờ vào git.
+/data/
 *.csv
 *.parquet
 *.feather

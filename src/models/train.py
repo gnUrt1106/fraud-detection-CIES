@@ -308,9 +308,20 @@ def _train_ann(
     import torch
     import torch.nn as nn
 
+    from sklearn.preprocessing import StandardScaler
+
     model = model_dict["model"]
     class_weights = model_dict.get("class_weights")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Chuẩn hoá input: feature thô có thang cực khác nhau (Sparkov: unix_time ~1e9,
+    # city_pop ~1e6, target-encoded ~1e-2; ULB: Time/Amount ~1e3-1e5). Không scale thì
+    # lớp Linear đầu nhận giá trị khổng lồ và train gần như hỏng — đo trên Sparkov:
+    # PR-AUC 0.16 (không scale) vs 0.74 (có scale). BatchNorm nằm SAU lớp Linear đầu nên
+    # không cứu được. Scaler lưu vào model_dict để predict/SHAP dùng lại đúng.
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    model_dict["input_scaler"] = scaler
     model = model.to(device)
 
     # Loss function với class weight
@@ -332,8 +343,11 @@ def _train_ann(
     # Training loop
     model.train()
     dataset = torch.utils.data.TensorDataset(X_tensor, y_tensor)
+    # BatchNorm1d (train mode) báo lỗi nếu batch cuối chỉ có 1 mẫu — xảy ra khi
+    # len(dataset) % batch_size == 1 (vd. 513 mẫu, batch 512). Bỏ batch lẻ đó.
     dataloader = torch.utils.data.DataLoader(
         dataset, batch_size=batch_size, shuffle=True,
+        drop_last=(len(dataset) % batch_size == 1),
     )
 
     for epoch in range(epochs):
@@ -350,6 +364,12 @@ def _train_ann(
     model_dict["model"] = model
     model_dict["device"] = device
     return model_dict
+
+
+def scale_ann_input(model: Any, X: np.ndarray) -> np.ndarray:
+    """Áp scaler đã fit lúc train lên X cho ANN (no-op nếu model chưa có scaler)."""
+    scaler = model.get("input_scaler") if isinstance(model, dict) else None
+    return scaler.transform(X) if scaler is not None else X
 
 
 def predict_proba(model: Any, X: np.ndarray) -> np.ndarray:
@@ -377,6 +397,7 @@ def predict_proba(model: Any, X: np.ndarray) -> np.ndarray:
         ann = model["model"]
         device = model.get("device", torch.device("cpu"))
         ann.eval()
+        X = scale_ann_input(model, X)
         with torch.no_grad():
             X_tensor = torch.FloatTensor(X).to(device)
             logits = ann(X_tensor)

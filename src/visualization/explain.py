@@ -229,8 +229,11 @@ def plot_cies_dataset_compare(df_a: pd.DataFrame, df_b: pd.DataFrame, name_a: st
 
 def plot_cies_vs_prauc(df_cies: pd.DataFrame, df_bench: pd.DataFrame, save_path: Optional[Path] = None):
     """Trade-off: hiệu năng (PR-AUC) vs độ tin cậy giải thích (CIES). Góc phải-trên = tốt cả hai."""
-    key = ["model", "technique"] if "technique" in df_bench.columns else ["model"]
-    m = df_cies.merge(df_bench, on=key)
+    # benchmark (notebook 03) đặt tên cột là "imbalance_technique". Nếu không đổi tên, việc
+    # ghép rơi về chỉ theo "model" → tích Descartes: mỗi điểm CIES bị ghép với PR-AUC của
+    # MỌI kỹ thuật của model đó.
+    df_bench = df_bench.rename(columns={"imbalance_technique": "technique"})
+    m = df_cies.merge(df_bench, on=["model", "technique"])
     fig, ax = plt.subplots(figsize=(8.5, 6))
     sns.scatterplot(data=m, x="pr_auc", y="cies_score", hue="model", style="technique", s=140, ax=ax)
     ax.set_xlabel("PR-AUC (hiệu năng)")

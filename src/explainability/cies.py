@@ -371,7 +371,12 @@ def run_cies_experiment(
     # Tính CIES
     if len(shap_values_runs) < 2:
         logger.error(f"Chỉ có {len(shap_values_runs)} runs thành công, cần ít nhất 2.")
-        cies_metrics = {"cies_score": 0.0, "n_runs": len(shap_values_runs)}
+        # Đủ khoá như nhánh thành công — notebook 04/05 truy cập cies_metrics["mean_spearman"]
+        # ngay sau mỗi tổ hợp; thiếu khoá thì KeyError làm sập cả vòng lặp 9-25 tổ hợp.
+        cies_metrics = {
+            "cies_score": 0.0, "mean_rank_distance": 0.0, "std_rank_distance": 0.0,
+            "mean_spearman": 0.0, "n_runs": len(shap_values_runs),
+        }
     else:
         cies_metrics = compute_stability_metric(shap_values_runs)
 

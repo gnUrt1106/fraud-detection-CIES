@@ -162,6 +162,14 @@ def _compute_shap_kernel(
     else:
         raise ValueError("ANN model phải là dict từ build_model()")
 
+    # ANN được train trên input đã scale (xem train.py::_train_ann) — giải thích trong
+    # không gian đã scale, giống LR.
+    from src.models.train import scale_ann_input
+
+    X_eval = scale_ann_input(model, X_eval)
+    if X_background is not None:
+        X_background = scale_ann_input(model, X_background)
+
     # Background data
     if X_background is None:
         X_background = X_eval
@@ -202,9 +210,11 @@ def _compute_shap_deep(
     if X_background is None:
         X_background = X_eval[:100]
 
+    from src.models.train import scale_ann_input
+
     try:
-        X_bg_tensor = torch.FloatTensor(np.asarray(X_background)).to(device)
-        X_eval_tensor = torch.FloatTensor(np.asarray(X_eval)).to(device)
+        X_bg_tensor = torch.FloatTensor(np.asarray(scale_ann_input(model, X_background))).to(device)
+        X_eval_tensor = torch.FloatTensor(np.asarray(scale_ann_input(model, X_eval))).to(device)
         explainer = shap.DeepExplainer(ann, X_bg_tensor)
         shap_values = explainer.shap_values(X_eval_tensor)
     except Exception as e:  # noqa: BLE001

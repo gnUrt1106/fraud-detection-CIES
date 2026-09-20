@@ -191,7 +191,8 @@ def plot_month_seasonality(df: pd.DataFrame, save_path: Optional[Path] = None):
 
 def ulb_feature_separation(df: pd.DataFrame, target: str = "Class") -> pd.DataFrame:
     """Độ tách lớp mỗi feature: |chênh lệch trung bình| / độ lệch chuẩn gộp (Cohen's d)."""
-    feats = [c for c in df.columns if c != target]
+    # Bỏ Time: config.ULB_FEATURE_COLS loại nó (chỉ là thứ tự giao dịch, không phải feature)
+    feats = [c for c in df.columns if c not in (target, "Time")]
     f, l = df[df[target] == 1][feats], df[df[target] == 0][feats]
     pooled = np.sqrt((f.var() + l.var()) / 2)
     d = ((f.mean() - l.mean()) / pooled).rename("cohens_d")
