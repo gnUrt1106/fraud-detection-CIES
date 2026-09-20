@@ -139,6 +139,22 @@ def test_cies_metrics():
     print(f"✅ Stability metrics verified: identical CIES = {metrics['cies_score']}, inverted CIES = {metrics_inv['cies_score']:.4f}")
 
 
+def test_rank_weighted_distance_depends_on_rank_not_column_order():
+    """
+    Regression test: trọng số phải theo THỨ HẠNG feature, không theo vị trí cột.
+    (1) hoán vị cột giống nhau ở cả 2 ranking không được đổi khoảng cách;
+    (2) đổi chỗ top-2 phải bị phạt nặng hơn đổi chỗ 2 feature cuối.
+    """
+    a = np.array([1, 2, 3, 4, 5, 6]); b = np.array([2, 1, 3, 4, 5, 6])
+    perm = np.array([4, 2, 5, 0, 3, 1])
+    assert np.isclose(compute_rank_weighted_distance(a, b),
+                      compute_rank_weighted_distance(a[perm], b[perm]))
+
+    top_swap = compute_rank_weighted_distance(np.array([1, 2, 3, 4, 5, 6]), np.array([2, 1, 3, 4, 5, 6]))
+    bottom_swap = compute_rank_weighted_distance(np.array([1, 2, 3, 4, 5, 6]), np.array([1, 2, 3, 4, 6, 5]))
+    assert top_swap > bottom_swap, (top_swap, bottom_swap)
+
+
 def test_tree_shap_binary_class_shape():
     """
     Regression test: shap.TreeExplainer cho RandomForestClassifier có thể trả

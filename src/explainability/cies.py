@@ -58,8 +58,16 @@ def compute_rank_weighted_distance(
     Returns:
         Weighted distance (0 = identical rankings, cao hơn = kém ổn định)
     """
+    ranks_a = np.asarray(ranks_a, dtype=float)
+    ranks_b = np.asarray(ranks_b, dtype=float)
     n = len(ranks_a)
-    weights = np.array([1.0 / r for r in range(1, n + 1)])
+
+    # Trọng số THEO THỨ HẠNG của từng feature (không theo vị trí cột): feature nào
+    # từng lọt top ở ít nhất 1 trong 2 lần chạy (min rank nhỏ) thì thay đổi của nó
+    # bị phạt nặng. Bản cũ gán w_i = 1/i theo chỉ số cột i, nên kết quả phụ thuộc
+    # vào THỨ TỰ CỘT feature — cùng 1 cú đổi chỗ top-2 cho khoảng cách 0.122 nếu 2
+    # feature nằm ở cột 0-1 nhưng 0.030 nếu nằm ở cột 4-5.
+    weights = 1.0 / np.minimum(ranks_a, ranks_b)
     weights = weights / weights.sum()  # Normalize
 
     # Khoảng cách rank có trọng số
