@@ -161,6 +161,38 @@ def test_tree_shap_binary_class_shape():
     print(f"✅ TreeExplainer shape OK: {shap_values.shape}")
 
 
+def test_xgboost_scale_pos_weight_direction():
+    """
+    Regression test: scale_pos_weight phải LỚN hơn 1 khi fraud là lớp hiếm.
+    Từng bị tính ngược (w0/w1) nên class_weighting làm XGBoost bỏ qua fraud.
+    """
+    y = np.array([0] * 990 + [1] * 10)
+    weights = get_class_weights(y)
+    model = build_model("xgboost", input_dim=3, class_weights=weights, params={})
+    spw = model.get_params()["scale_pos_weight"]
+    assert spw > 1.0, f"scale_pos_weight={spw} — fraud (lớp hiếm) phải được TĂNG trọng số"
+    assert np.isclose(spw, 99.0, rtol=0.05), f"Kỳ vọng ~99 (n_neg/n_pos), nhận {spw}"
+
+
+def test_cies_rejects_constant_model_runs(monkeypatch):
+    """
+    Model hằng số → SHAP toàn 0 → thứ hạng hoà nhau → CIES giả = 1.0. Chốt chặn
+    trong run_cies_experiment phải loại các run đó (không được trả điểm cao).
+    """
+    import src.explainability.cies as cies_mod
+
+    monkeypatch.setattr(cies_mod, "compute_shap", lambda *a, **k: np.zeros((5, 12)))
+    df = create_synthetic_data(300)
+    result = cies_mod.run_cies_experiment(
+        model_name="logistic_regression", imbalance_technique="class_weighting",
+        df_train=df.iloc[:200].reset_index(drop=True), df_test_fixed_eval=df.iloc[200:].reset_index(drop=True),
+        target_col="is_fraud", onehot_cols=["gender", "category", "state"],
+        target_encode_cols=["merchant", "city", "job"], n_runs=3,
+    )
+    assert result["cies_metrics"]["cies_score"] == 0.0, "run toàn-0 không được cho điểm ổn định cao"
+    assert all(r["status"] == "failed" for r in result["run_logs"])
+
+
 def test_end_to_end_cies():
     print("\n--- Testing End-to-End CIES Experiment (LR + SMOTE, N_RUNS=3) ---")
     df = create_synthetic_data(500)

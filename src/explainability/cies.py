@@ -329,6 +329,11 @@ def run_cies_experiment(
                 trained_model, model_name, X_eval,
                 X_background=X_background,
             )
+            # Model không học được gì (dự đoán hằng số) → SHAP toàn 0 → mọi thứ hạng
+            # hoà nhau → CIES = 1.0 GIẢ (ổn định tuyệt đối vì không có gì để dao
+            # động). Loại run này khỏi phép đo thay vì để nó kéo điểm lên.
+            if np.allclose(shap_vals, 0.0):
+                raise ValueError("SHAP toàn 0 — model không học được (dự đoán hằng số), bỏ run này")
             shap_values_runs.append(shap_vals)
 
             run_logs.append({
@@ -338,6 +343,10 @@ def run_cies_experiment(
                 "n_train_after_imbalance": len(X_res),
                 "n_eval": len(X_eval),
                 "n_features": X_eval.shape[1],
+                # mean|SHAP| từng feature của run này — đủ để vẽ lại độ ổn định
+                # thứ hạng feature qua các run (src/visualization/explain.py)
+                # mà không cần lưu nguyên ma trận SHAP (n_eval x n_features).
+                "mean_abs_shap": np.mean(np.abs(shap_vals), axis=0).tolist(),
                 "status": "success",
             })
 
@@ -363,6 +372,7 @@ def run_cies_experiment(
         "model_name": model_name,
         "imbalance_technique": imbalance_technique,
         "cies_metrics": cies_metrics,
+        "feature_names": list(last_feature_names) if last_feature_names else None,
         "run_logs": run_logs,
     }
 

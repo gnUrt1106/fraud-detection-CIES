@@ -179,9 +179,13 @@ def build_model(
             xgb_params["device"] = "cuda"
             xgb_params["tree_method"] = "hist"
         if class_weights is not None:
+            # scale_pos_weight = trọng số lớp dương / trọng số lớp âm (= n_neg/n_pos
+            # với class_weight='balanced'). Từng bị tính NGƯỢC (w0/w1 ≈ 0.0017
+            # thay vì ≈ 577), khiến fraud bị GIẢM trọng số: PR-AUC XGBoost +
+            # class_weighting trên ULB tụt 0.877 → 0.704.
             xgb_params["scale_pos_weight"] = (
-                class_weights.get(0, 1.0) / class_weights.get(1, 1.0)
-                if class_weights.get(1, 1.0) > 0
+                class_weights.get(1, 1.0) / class_weights.get(0, 1.0)
+                if class_weights.get(0, 1.0) > 0
                 else 1.0
             )
         if params:
