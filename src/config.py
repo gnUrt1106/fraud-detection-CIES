@@ -73,6 +73,16 @@ MODEL_NAMES = [
     "ann",
 ]
 
+# ===== Xử lý dòng tổng hợp của các kỹ thuật resample trên cột one-hot =====
+# SMOTE/ADASYN/Borderline-SMOTE nội suy tuyến tính nên sinh cột one-hot PHÂN SỐ (đo trên
+# Sparkov: 90% dòng tổng hợp có ít nhất 1 cột phân số; 81% "bật" >1 category cùng lúc — điều
+# không bao giờ xảy ra ở dữ liệu thật). True = ép mỗi nhóm one-hot của dòng tổng hợp về 1
+# category hợp lệ (argmax). LƯU Ý đánh đổi đã đo (XGBoost, Sparkov 300k): PR-AUC SMOTE gốc
+# 0.887 → 0.766 khi ép hợp lệ (SMOTENC độc lập cho 0.733; lấy mẫu theo trọng số 0.736) —
+# giá trị phân số vô tình cô lập dòng tổng hợp khỏi vùng dữ liệu thật. Đặt False để quay về
+# SMOTE thuần (one-hot phân số) nếu muốn so sánh với cách làm phổ biến trong literature.
+SNAP_SYNTHETIC_ONEHOT = True
+
 # ===== Danh sách imbalance techniques =====
 IMBALANCE_TECHNIQUES = [
     "smote",

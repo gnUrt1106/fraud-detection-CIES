@@ -54,8 +54,5 @@
     "n_trials": 30,
     "n_completed_trials": 23,
     "n_pruned_trials": 7
-  },
-  "ann": {
-    "error": "TimeoutError: Subprocess cho 'tune_model' vượt quá timeout=3600s — có thể bị treo (hang)."
   }
 }

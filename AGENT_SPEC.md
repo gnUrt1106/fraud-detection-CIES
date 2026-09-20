@@ -106,14 +106,16 @@ from sklearn.model_selection import StratifiedKFold
 def stratified_kfold_target_encode(df_train, col, target_col, n_splits=5, smoothing=10):
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=SEED)
     encoded = pd.Series(index=df_train.index, dtype=float)
-    global_mean = df_train[target_col].mean()
 
     for train_idx, val_idx in skf.split(df_train, df_train[target_col]):
         fold_train = df_train.iloc[train_idx]
+        # CẬP NHẬT: prior tính CHỈ từ fold train (bản gốc dùng trung bình toàn bộ train,
+        # làm nhãn của fold validation lọt vào prior). Test set vẫn dùng thống kê toàn train.
+        fold_mean = fold_train[target_col].mean()
         stats = fold_train.groupby(col)[target_col].agg(['mean', 'count'])
-        # Smoothing: category hiếm bị kéo về global_mean
-        smoothed = (stats['count'] * stats['mean'] + smoothing * global_mean) / (stats['count'] + smoothing)
-        encoded.iloc[val_idx] = df_train[col].iloc[val_idx].map(smoothed).fillna(global_mean)
+        # Smoothing: category hiếm bị kéo về fold_mean
+        smoothed = (stats['count'] * stats['mean'] + smoothing * fold_mean) / (stats['count'] + smoothing)
+        encoded.iloc[val_idx] = df_train[col].iloc[val_idx].map(smoothed).fillna(fold_mean)
 
     return encoded
 ```

@@ -20,7 +20,7 @@ import pandas as pd
 
 from src.config import SEED, ONEHOT_COLS, TARGET_ENCODE_COLS
 from src.data.encoding import encode_train, encode_test, stratified_kfold_target_encode
-from src.imbalance.resamplers import apply_imbalance, get_class_weights
+from src.imbalance.resamplers import apply_imbalance, get_class_weights, onehot_groups_from_columns
 from src.models.train import build_model, train_model, predict_proba
 from src.evaluation.metrics import evaluate_model
 from src.explainability.shap_utils import compute_shap
@@ -341,6 +341,58 @@ def test_shap_ranks_share_ties_instead_of_column_order():
     # hoán vị cột không đổi hạng của cùng 1 feature
     perm = [3, 1, 0, 2]
     assert list(shap_to_ranks(np.array([[5.0, 0.0, 0.0, 2.0]])[:, perm])) == list(ranks[perm])
+
+
+def test_target_encoding_prior_uses_fold_train_only():
+    """
+    Category chưa từng thấy ở fold train phải nhận prior = trung bình nhãn của CHÍNH fold train
+    đó (không phải trung bình toàn bộ train, vốn chứa nhãn của fold validation).
+    Mỗi dòng 1 category riêng ⇒ mọi dòng validation đều rơi vào nhánh fillna.
+    """
+    from sklearn.model_selection import StratifiedKFold
+
+    rng = np.random.RandomState(0)
+    n = 500
+    df = pd.DataFrame({"uniq": [f"c{i}" for i in range(n)], "is_fraud": (rng.rand(n) < 0.2).astype(int)})
+    enc, _ = stratified_kfold_target_encode(df, "uniq", "is_fraud", n_splits=5, random_state=SEED)
+    skf = StratifiedKFold(5, shuffle=True, random_state=SEED)
+    for a, b in skf.split(df, df["is_fraud"]):
+        expected = df["is_fraud"].iloc[a].mean()
+        assert np.allclose(enc.iloc[b].to_numpy(), expected), "prior phải là mean của fold train"
+
+
+def test_resampling_yields_valid_onehot_blocks(monkeypatch):
+    """
+    SMOTE/ADASYN/Borderline/SMOTE-ENN nội suy nên sinh one-hot phân số (dòng "bật" >1 category).
+    Với onehot_groups, mọi nhóm phải là đúng 1 category (0/1, tổng = 1). Tắt công tắc
+    SNAP_SYNTHETIC_ONEHOT thì phải thấy phân số — nếu không thì test này vô nghĩa.
+    """
+    import src.imbalance.resamplers as rs
+
+    df = create_synthetic_data(1500, fraud_rate=0.1)
+    enc, _ = encode_train(
+        df, target_col="is_fraud", onehot_cols=["gender", "category", "state"],
+        target_encode_cols=["merchant", "city", "job"], n_splits=3, random_state=SEED,
+    )
+    feats = [c for c in enc.columns if c != "is_fraud"]
+    X, y = enc[feats].to_numpy(dtype=float), enc["is_fraud"].to_numpy()
+    groups = onehot_groups_from_columns(feats, ["gender", "category", "state"])
+    assert len(groups) == 3
+
+    def blocks_valid(Xr):
+        for g in groups:
+            b = Xr[:, g]
+            if not (np.isin(b, [0.0, 1.0]).all() and np.allclose(b.sum(axis=1), 1.0)):
+                return False
+        return True
+
+    for tech in ["smote", "smote_enn", "adasyn", "borderline_smote"]:
+        Xr, _, _ = apply_imbalance(tech, X, y, seed=SEED, onehot_groups=groups)
+        assert blocks_valid(Xr), f"{tech}: one-hot không hợp lệ sau resample"
+
+    monkeypatch.setattr(rs, "SNAP_SYNTHETIC_ONEHOT", False)
+    Xr, _, _ = apply_imbalance("smote", X, y, seed=SEED, onehot_groups=groups)
+    assert not blocks_valid(Xr), "test vô nghĩa: SMOTE thuần lẽ ra phải sinh one-hot phân số"
 
 
 def test_end_to_end_cies():

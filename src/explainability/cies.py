@@ -32,7 +32,7 @@ from src.config import (
     ONEHOT_COLS, TARGET_ENCODE_COLS,
 )
 from src.data.encoding import encode_train, encode_test
-from src.imbalance.resamplers import apply_imbalance
+from src.imbalance.resamplers import apply_imbalance, onehot_groups_from_columns
 from src.models.train import build_model, train_model, predict_proba
 from src.explainability.shap_utils import compute_shap
 
@@ -327,7 +327,8 @@ def run_cies_experiment(
 
             # 3. Imbalance handling
             X_res, y_res, class_weights = apply_imbalance(
-                imbalance_technique, X_train, y_train, seed=seed
+                imbalance_technique, X_train, y_train, seed=seed,
+                onehot_groups=onehot_groups_from_columns(train_feature_cols, onehot_cols),
             )
 
             # 4. Train model

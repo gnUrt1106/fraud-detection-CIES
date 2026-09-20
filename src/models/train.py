@@ -416,6 +416,7 @@ def train_and_evaluate_combo(
     X_test: np.ndarray,
     y_test: np.ndarray,
     seed: int = SEED,
+    onehot_groups: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
     Chạy trọn 1 tổ hợp (model × imbalance technique): imbalance → train →
@@ -432,6 +433,7 @@ def train_and_evaluate_combo(
         X_train_raw, y_train_raw: Train set đã encode (chưa resample)
         X_test, y_test: Test set đã encode (không resample)
         seed: Random seed
+        onehot_groups: Chỉ số cột từng nhóm one-hot (resamplers.onehot_groups_from_columns)
 
     Returns:
         Dict: {"model", "imbalance_technique", **metrics}
@@ -440,7 +442,7 @@ def train_and_evaluate_combo(
     from src.evaluation.metrics import evaluate_model
 
     X_res, y_res, class_weights = apply_imbalance(
-        technique, X_train_raw, y_train_raw, seed=seed
+        technique, X_train_raw, y_train_raw, seed=seed, onehot_groups=onehot_groups,
     )
     model = build_model(
         model_name=model_name,

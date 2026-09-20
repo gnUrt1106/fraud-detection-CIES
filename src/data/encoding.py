@@ -75,13 +75,17 @@ def stratified_kfold_target_encode(
 
     for train_idx, val_idx in splits:
         fold_train = df_reset.iloc[train_idx]
+        # Prior làm mịn tính CHỈ từ fold train. Dùng trung bình toàn bộ train (bản cũ, theo
+        # pseudo-code gốc của spec) thì nhãn của chính các dòng validation lọt vào prior —
+        # rò rỉ nhỏ nhưng có thật, và dễ loại bỏ hoàn toàn.
+        fold_mean = fold_train[target_col].mean()
         stats = fold_train.groupby(col)[target_col].agg(["mean", "count"])
-        # Smoothing: category hiếm bị kéo về global_mean
+        # Smoothing: category hiếm bị kéo về fold_mean
         smoothed = (
-            stats["count"] * stats["mean"] + smoothing * global_mean
+            stats["count"] * stats["mean"] + smoothing * fold_mean
         ) / (stats["count"] + smoothing)
         encoded.iloc[val_idx] = (
-            df_reset[col].iloc[val_idx].map(smoothed).fillna(global_mean)
+            df_reset[col].iloc[val_idx].map(smoothed).fillna(fold_mean)
         )
 
     # Full mapping trên toàn bộ train — dùng cho test set
