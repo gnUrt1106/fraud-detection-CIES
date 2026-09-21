@@ -81,7 +81,10 @@ MODEL_NAMES = [
 # 0.887 → 0.766 khi ép hợp lệ (SMOTENC độc lập cho 0.733; lấy mẫu theo trọng số 0.736) —
 # giá trị phân số vô tình cô lập dòng tổng hợp khỏi vùng dữ liệu thật. Đặt False để quay về
 # SMOTE thuần (one-hot phân số) nếu muốn so sánh với cách làm phổ biến trong literature.
-SNAP_SYNTHETIC_ONEHOT = True
+# MẶC ĐỊNH False (SMOTE thuần, như literature/spec): trên xgboost x smote, 100k dòng, CIES gần như
+# không đổi giữa hai chế độ (0.957 khi False, 0.959 khi True) nhưng PR-AUC tụt mạnh khi True,
+# nên chọn cách so sánh được với các bài dùng SMOTE chuẩn. Đặt True để chạy ablation.
+SNAP_SYNTHETIC_ONEHOT = False
 
 # ===== Danh sách imbalance techniques =====
 IMBALANCE_TECHNIQUES = [

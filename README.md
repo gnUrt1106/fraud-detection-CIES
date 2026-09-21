@@ -104,7 +104,7 @@ Repo phải ở chế độ Public để Kaggle `git clone` ẩn danh được.
 ## Lưu ý quan trọng
 
 - **Không nạp torch và xgboost trong cùng một process** (xung đột OpenMP có thể segfault hoặc treo). Mỗi model/tổ hợp chạy qua `src/utils/isolation.py::run_isolated` (subprocess `spawn`).
-- **`SNAP_SYNTHETIC_ONEHOT`** (`src/config.py`): ép dòng tổng hợp của SMOTE-family về one-hot hợp lệ. Có đánh đổi lớn về PR-AUC — đọc `reports/pipeline_report.md` trước khi đổi.
+- **`SNAP_SYNTHETIC_ONEHOT`** (`src/config.py`): mặc định **`False`** (SMOTE thuần như literature); đặt `True` để ép dòng tổng hợp về one-hot hợp lệ (ablation). Ép hợp lệ làm PR-AUC tụt mạnh còn CIES gần như không đổi — xem `reports/pipeline_report.md`.
 - **CIES trong repo là biến thể của CIES gốc** (Văduva et al., 2026, arXiv:2603.05024): bài gốc nhiễu hoá đầu vào lúc suy luận, repo nhiễu hoá dữ liệu huấn luyện (bootstrap + train lại) và đo trên thứ hạng. Chi tiết và danh mục nguồn: [`reports/literature_support.md`](reports/literature_support.md).
 
 ## License

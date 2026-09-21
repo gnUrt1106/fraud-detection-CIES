@@ -369,6 +369,7 @@ def test_resampling_yields_valid_onehot_blocks(monkeypatch):
     """
     import src.imbalance.resamplers as rs
 
+    monkeypatch.setattr(rs, "SNAP_SYNTHETIC_ONEHOT", True)  # mặc định trong config là False
     df = create_synthetic_data(1500, fraud_rate=0.1)
     enc, _ = encode_train(
         df, target_col="is_fraud", onehot_cols=["gender", "category", "state"],

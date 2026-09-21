@@ -54,14 +54,14 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-21), không 
 
 ## Đánh đổi đã đo
 
-**Ép one-hot hợp lệ (`config.SNAP_SYNTHETIC_ONEHOT`)**: SMOTE sinh cột one-hot phân số (Sparkov 300k: 90% dòng tổng hợp có ≥1 cột phân số, 81% "bật" >1 category). Nay mỗi nhóm one-hot được ép về 1 category (argmax) cho SMOTE/SMOTE-ENN/ADASYN/Borderline-SMOTE (không áp cho class_weighting), nhưng PR-AUC tụt mạnh (1 seed):
+**Ép one-hot hợp lệ (`config.SNAP_SYNTHETIC_ONEHOT`)**: SMOTE sinh cột one-hot phân số (Sparkov 300k: 90% dòng tổng hợp có ≥1 cột phân số, 81% "bật" >1 category). Công tắc này ép mỗi nhóm one-hot về 1 category (argmax) cho SMOTE/SMOTE-ENN/ADASYN/Borderline-SMOTE (không áp cho class_weighting), nhưng PR-AUC tụt mạnh (1 seed):
 
 | | Không resample | SMOTE gốc | Snap argmax | Lấy mẫu theo trọng số | SMOTENC |
 |---|---|---|---|---|---|
 | XGBoost | 0.905 | 0.887 | 0.766 | 0.736 | 0.733 |
 | Random Forest | 0.815 | 0.719 | 0.573 | 0.547 | 0.487 |
 
-Ba cách hợp lệ độc lập cho kết quả gần nhau nên không phải lỗi của một cách làm; giả thuyết: giá trị phân số vô tình cô lập dòng tổng hợp khỏi vùng dữ liệu thật. Hệ quả: các kỹ thuật resample sẽ trông kém hơn rõ so với trước và so với class_weighting. `False` = SMOTE thuần.
+Ba cách hợp lệ độc lập cho kết quả gần nhau nên không phải lỗi của một cách làm; giả thuyết: giá trị phân số vô tình cô lập dòng tổng hợp khỏi vùng dữ liệu thật. Hệ quả: các kỹ thuật resample sẽ trông kém hơn rõ so với trước và so với class_weighting. **Quyết định: mặc định `False` (SMOTE thuần).** Lý do: (1) khớp spec và cách làm chuẩn trong literature nên so sánh được; (2) trên `xgboost × smote`, 100k dòng, CIES gần như không đổi giữa hai chế độ (0,957 khi `False`, 0,959 khi `True`; std hạng 0,0052 và 0,0042) trong khi PR-AUC tụt mạnh khi `True`; (3) ép hợp lệ làm các kỹ thuật resample bị thiệt so với class_weighting vì lý do chưa được giải thích chắc chắn. Hạn chế: dòng tổng hợp có one-hot phân số (không hợp lệ về ngữ nghĩa). `True` giữ làm ablation. So sánh CIES chỉ có một tổ hợp, chưa kiểm ở tổ hợp khác.
 
 **Prior của target encoding** (nay chỉ từ fold train): giá trị encode lệch tối đa 5.6e-7 (thang ~0.005), `test_encoded` không đổi ⇒ kết quả Optuna đã có vẫn hợp lệ.
 
@@ -94,6 +94,6 @@ Ba cách hợp lệ độc lập cho kết quả gần nhau nên không phải l
 
 1. Tune Random Forest trên Kaggle.
 2. Chạy 03, 04, 05; mở rộng 04/05 lên 5×5 trước khi báo cáo.
-3. Quyết định giữ hay tắt `SNAP_SYNTHETIC_ONEHOT` sau khi có số benchmark thật.
+3. (Tuỳ chọn) chạy ablation `SNAP_SYNTHETIC_ONEHOT=True` trên vài tổ hợp để báo cáo như một phân tích bổ sung.
 4. Quyết định có tính thêm CIES đúng công thức gốc (nhiễu đầu vào) làm chỉ số phụ hay không; làm đối chứng KernelSHAP.
 5. Chạy lại notebook 06 với kết quả thật.
