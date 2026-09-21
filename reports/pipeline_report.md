@@ -50,8 +50,8 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-21), không 
 4. **CIES của repo là biến thể của CIES gốc** (arXiv:2603.05024): gốc nhiễu hoá đầu vào lúc suy luận, so độ lớn SHAP, chuẩn hoá theo độ lớn giải thích gốc; repo nhiễu hoá dữ liệu huấn luyện và so thứ hạng. Bảng so sánh chi tiết và nguồn cho các quyết định khác: [`literature_support.md`](literature_support.md).
 5. **`timeout=None`** cho tune/benchmark: không còn lưới an toàn nếu tiến trình treo thật.
 6. **Sparkov là dữ liệu mô phỏng**; nhiều hình dạng "quá sạch" là dấu vết của bộ sinh dữ liệu.
-8. **Một số tham số tối ưu vẫn sát/chạm biên vùng tìm mới** (RF: `n_estimators=300`, `max_depth=30`, `min_samples_split=2`, `min_samples_leaf=1` đều ở biên; CatBoost `depth=11` sát biên 12, `iterations=500` gần 600; XGBoost `n_estimators=550` gần 600). Chưa nới thêm vì đường hội tụ của RF phẳng (PR-AUC CV 0,8865 từ trial 37, 0,8872 ở trial 89 và 98), nên coi RF đã hội tụ quanh 0,88; đây là hạn chế của giao thức, không phải lỗi.
 7. **Thời gian resample SMOTE-ENN** tăng ~4× mỗi lần gấp đôi dữ liệu (25k→1.4s, 50k→5.1s, 100k→19.7s ⇒ ≈1.2 giờ cho 1.48M dòng, chưa tính train).
+8. **Một số tham số tối ưu vẫn sát/chạm biên vùng tìm mới** (RF: `n_estimators=300`, `max_depth=30`, `min_samples_split=2`, `min_samples_leaf=1` đều ở biên; CatBoost `depth=11` sát biên 12, `iterations=500` gần 600; XGBoost `n_estimators=550` gần 600). Chưa nới thêm vì đường hội tụ của RF phẳng (PR-AUC CV 0,8865 từ trial 37, 0,8872 ở trial 89 và 98), nên coi RF đã hội tụ quanh 0,88; đây là hạn chế của giao thức, không phải lỗi.
 
 ## Đánh đổi đã đo
 
