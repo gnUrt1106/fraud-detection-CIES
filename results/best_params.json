@@ -29,18 +29,18 @@
   },
   "catboost": {
     "model_name": "catboost",
-    "best_pr_auc": 0.9257062120417059,
+    "best_pr_auc": 0.9271378982954219,
     "best_params": {
-      "iterations": 300,
-      "depth": 10,
-      "learning_rate": 0.06254222205598346,
-      "l2_leaf_reg": 1.0329487167449283,
+      "iterations": 500,
+      "depth": 11,
+      "learning_rate": 0.059111791105392025,
+      "l2_leaf_reg": 3.7352577453607028,
       "eval_metric": "PRAUC",
       "verbose": 0
     },
-    "n_trials": 30,
-    "n_completed_trials": 23,
-    "n_pruned_trials": 7
+    "n_trials": 100,
+    "n_completed_trials": 65,
+    "n_pruned_trials": 35
   },
   "ann": {
     "model_name": "ann",
