@@ -46,7 +46,7 @@ def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, An
     elif model_name == "random_forest":
         return {
             "n_estimators": trial.suggest_int("n_estimators", 100, 300, step=50),
-            "max_depth": trial.suggest_int("max_depth", 6, 18),
+            "max_depth": trial.suggest_int("max_depth", 6, 30),
             "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
             "min_samples_leaf": trial.suggest_int("min_samples_leaf", 1, 10),
         }
