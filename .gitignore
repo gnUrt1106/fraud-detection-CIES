@@ -44,3 +44,6 @@ build/
 scratch/
 catboost_info/
 
+
+# Optuna checkpoints (SQLite) — tải về từ Output Kaggle, không cần commit
+/results/tuning_checkpoints/

@@ -97,6 +97,8 @@ def tune_model(
     seed: int = SEED,
     use_pruning: bool = True,
     n_startup_trials: int = 5,
+    storage_path: Optional[Path] = None,
+    optimize_timeout: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
     Tối ưu hóa siêu tham số cho 1 model sử dụng Optuna với Stratified K-Fold CV.
@@ -119,10 +121,17 @@ def tune_model(
         n_startup_trials: Số trial đầu tiên LUÔN chạy đủ n_splits fold (không
             bị prune) để có đủ dữ liệu tham chiếu median trước khi bắt đầu
             prune các trial sau.
+        storage_path: File SQLite lưu study (checkpoint). Nếu đặt, mọi trial được ghi xuống
+            đĩa ngay khi xong; chạy lại với cùng file sẽ TIẾP TỤC study cũ và chỉ chạy nốt số
+            trial còn thiếu để đủ n_trials (trial đang dở khi phiên bị ngắt bị đánh dấu FAIL và
+            chạy lại). Trial COMPLETE và PRUNED đều tính vào n_trials.
+        optimize_timeout: Giây tối đa cho lượt chạy này (mềm: dừng SAU khi trial hiện tại xong).
+            Dùng với storage_path để chia nhiều phiên Kaggle; không làm đổi ngân sách n_trials.
 
     Returns:
         Dict chứa best_params, best_score (PR-AUC), số trials hoàn thành và
-        số trials bị pruned
+        số trials bị pruned. Nếu chưa đủ n_trials (hết optimize_timeout) trả thêm
+        "complete": False — khi đó chạy lại để tiếp tục.
     """
     logger.info(f"Bắt đầu Optuna HPO cho '{model_name}' ({n_trials} trials, {n_splits} folds)...")
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
@@ -168,11 +177,33 @@ def tune_model(
         if use_pruning
         else optuna.pruners.NopPruner()
     )
-    study = optuna.create_study(
-        direction="maximize",
-        sampler=optuna.samplers.TPESampler(seed=seed),
-        pruner=pruner,
-    )
+    FINISHED = (optuna.trial.TrialState.COMPLETE, optuna.trial.TrialState.PRUNED)
+
+    if storage_path is not None:
+        storage_path = Path(storage_path)
+        storage_path.parent.mkdir(parents=True, exist_ok=True)
+        study = optuna.create_study(
+            study_name=model_name,
+            storage=f"sqlite:///{storage_path}",
+            load_if_exists=True,
+            direction="maximize",
+            sampler=optuna.samplers.TPESampler(seed=seed),
+            pruner=pruner,
+        )
+        # Trial đang chạy dở lúc phiên bị ngắt: đánh dấu FAIL (không tính vào n_trials).
+        for t in study.get_trials(deepcopy=False, states=(optuna.trial.TrialState.RUNNING,)):
+            study.tell(t.number, state=optuna.trial.TrialState.FAIL)
+        n_prev = sum(1 for t in study.trials if t.state in FINISHED)
+        if n_prev:
+            # Đổi seed theo số trial đã có để lượt tiếp theo không lặp lại đúng dãy ngẫu nhiên cũ.
+            study.sampler = optuna.samplers.TPESampler(seed=seed + n_prev)
+            print(f"  [{model_name}] tiếp tục từ checkpoint: đã có {n_prev}/{n_trials} trial.", flush=True)
+    else:
+        study = optuna.create_study(
+            direction="maximize",
+            sampler=optuna.samplers.TPESampler(seed=seed),
+            pruner=pruner,
+        )
 
     def _log_trial_progress(study: optuna.Study, trial: optuna.trial.FrozenTrial) -> None:
         status = "PRUNED" if trial.state == optuna.trial.TrialState.PRUNED else "done"
@@ -181,16 +212,25 @@ def tune_model(
             best_so_far = f"{study.best_value:.4f}"
         except ValueError:
             best_so_far = "N/A"
+        n_finished_now = sum(1 for t in study.trials if t.state in FINISHED)
         print(
-            f"  [{model_name}] trial {trial.number + 1}/{n_trials} {status} "
+            f"  [{model_name}] trial {n_finished_now}/{n_trials} {status} "
             f"(PR-AUC={score}, best={best_so_far})",
             flush=True,
         )
 
-    study.optimize(
-        objective, n_trials=n_trials, timeout=timeout,
-        callbacks=[_log_trial_progress],
-    )
+    n_finished = sum(1 for t in study.trials if t.state in FINISHED)
+    remaining = n_trials - n_finished
+    if remaining > 0:
+        study.optimize(
+            objective, n_trials=remaining, timeout=optimize_timeout if optimize_timeout is not None else timeout,
+            callbacks=[_log_trial_progress],
+        )
+    n_finished = sum(1 for t in study.trials if t.state in FINISHED)
+    is_complete = n_finished >= n_trials
+
+    if not any(t.state == optuna.trial.TrialState.COMPLETE for t in study.trials):
+        return {"model_name": model_name, "complete": False, "n_finished": n_finished}
 
     best_trial = study.best_trial
     best_params = dict(best_trial.params)
@@ -211,16 +251,17 @@ def tune_model(
 
     logger.info(
         f"Hoàn thành HPO cho '{model_name}': Best PR-AUC = {best_trial.value:.4f} "
-        f"({n_completed} completed, {n_pruned} pruned / {len(study.trials)} tổng)"
+        f"({n_completed} completed, {n_pruned} pruned / {n_finished} tổng)"
     )
 
     return {
         "model_name": model_name,
         "best_pr_auc": float(best_trial.value),
         "best_params": best_params,
-        "n_trials": len(study.trials),
+        "n_trials": n_finished,
         "n_completed_trials": n_completed,
         "n_pruned_trials": n_pruned,
+        "complete": is_complete,
     }
 
 
@@ -234,6 +275,8 @@ def tune_all_models(
     filename: str = "best_params.json",
     seed: int = SEED,
     timeout: Optional[float] = None,
+    checkpoint_dir: Optional[Path] = None,
+    session_budget: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
     Tối ưu hóa siêu tham số cho toàn bộ danh sách models và lưu kết quả ra file JSON.
@@ -258,9 +301,19 @@ def tune_all_models(
             GPU) thay vì bị phát hiện sớm. Truyền số giây cụ thể để bật lại
             giới hạn.
 
+        checkpoint_dir: Nếu đặt, mỗi model lưu study Optuna vào <checkpoint_dir>/<model>.db
+            (SQLite) sau từng trial; chạy lại sẽ tiếp tục thay vì bắt đầu từ đầu. Model chỉ được
+            ghi vào file kết quả khi ĐỦ n_trials.
+        session_budget: Tổng giây cho lượt chạy này (mềm, dừng sau trial đang chạy). Dùng để chia
+            nhiều phiên Kaggle mà không đổi n_trials. Cần checkpoint_dir, nếu không phần đã chạy
+            sẽ mất khi hết giờ.
+
     Returns:
         Dict tổng hợp best_params của tất cả models
     """
+    import time
+
+    session_start = time.time()
     if models is None:
         models = MODEL_NAMES
     if output_dir is None:
@@ -287,6 +340,15 @@ def tune_all_models(
 
     for model_name in models:
         print(f"=== [Optuna HPO] Tối ưu hóa siêu tham số cho: {model_name} ===")
+        extra = {}
+        if checkpoint_dir is not None:
+            extra["storage_path"] = Path(checkpoint_dir) / f"{model_name}.db"
+        if session_budget is not None:
+            left = session_budget - (time.time() - session_start)
+            if left <= 0:
+                print(f"  ⏹ Hết ngân sách thời gian của phiên — bỏ qua '{model_name}' (chạy lại để tiếp tục).\n")
+                continue
+            extra["optimize_timeout"] = left
         try:
             res = run_isolated(
                 tune_model,
@@ -297,6 +359,7 @@ def tune_all_models(
                 n_splits=n_splits,
                 seed=seed,
                 timeout=timeout,
+                **extra,
             )
         except (TimeoutError, RuntimeError) as e:
             # KHÔNG để 1 model bị treo/crash làm mất kết quả của các model đã
@@ -306,6 +369,15 @@ def tune_all_models(
             all_results[model_name] = {"error": f"{type(e).__name__}: {e}"}
             with open(out_file, "w", encoding="utf-8") as f:
                 json.dump(all_results, f, indent=2, ensure_ascii=False)
+            continue
+
+        if not res.get("complete", True):
+            # Chưa đủ n_trials (hết ngân sách thời gian): KHÔNG ghi vào file kết quả để tránh dùng
+            # tham số của study dở dang. Checkpoint đã lưu — chạy lại notebook để tiếp tục.
+            print(
+                f"  ⏸ '{model_name}' mới xong {res.get('n_finished', res.get('n_trials'))}/{n_trials} trial "
+                f"(hết ngân sách thời gian). Checkpoint đã lưu — chạy lại để tiếp tục.\n"
+            )
             continue
 
         all_results[model_name] = res

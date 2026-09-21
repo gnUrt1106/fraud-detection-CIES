@@ -396,6 +396,42 @@ def test_resampling_yields_valid_onehot_blocks(monkeypatch):
     assert not blocks_valid(Xr), "test vô nghĩa: SMOTE thuần lẽ ra phải sinh one-hot phân số"
 
 
+def test_tune_checkpoint_resume(tmp_path):
+    """
+    Checkpoint SQLite: chạy lại với cùng file phải TIẾP TỤC (chỉ chạy nốt số trial còn thiếu),
+    trial RUNNING dở dang phải bị đánh dấu FAIL và không tính vào n_trials.
+    """
+    import optuna
+    from src.models.tune import tune_model
+
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(300, 5))
+    y = (X[:, 0] + rng.normal(scale=0.5, size=300) > 0.8).astype(int)
+    db = tmp_path / "lr.db"
+
+    r1 = tune_model("logistic_regression", X, y, n_trials=3, n_splits=3, storage_path=db)
+    assert r1["complete"] and r1["n_trials"] == 3
+
+    # Giả lập phiên bị ngắt giữa 1 trial: study có 1 trial RUNNING.
+    study = optuna.load_study(study_name="logistic_regression", storage=f"sqlite:///{db}")
+    study.ask()
+    assert any(t.state == optuna.trial.TrialState.RUNNING for t in study.trials)
+
+    r2 = tune_model("logistic_regression", X, y, n_trials=5, n_splits=3, storage_path=db)
+    assert r2["complete"] and r2["n_trials"] == 5
+
+    study = optuna.load_study(study_name="logistic_regression", storage=f"sqlite:///{db}")
+    finished = [t for t in study.trials if t.state in (
+        optuna.trial.TrialState.COMPLETE, optuna.trial.TrialState.PRUNED)]
+    assert len(finished) == 5, "phải đủ đúng 5 trial hoàn tất, không thừa/thiếu"
+    assert not any(t.state == optuna.trial.TrialState.RUNNING for t in study.trials)
+    assert sum(t.state == optuna.trial.TrialState.FAIL for t in study.trials) == 1
+
+    # Chạy lại khi đã đủ: không chạy thêm trial nào.
+    r3 = tune_model("logistic_regression", X, y, n_trials=5, n_splits=3, storage_path=db)
+    assert r3["n_trials"] == 5
+
+
 def test_end_to_end_cies():
     print("\n--- Testing End-to-End CIES Experiment (LR + SMOTE, N_RUNS=3) ---")
     df = create_synthetic_data(500)

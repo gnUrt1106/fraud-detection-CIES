@@ -31,13 +31,13 @@ Fraud Detection - CIES/
 ├── results/                      # best_params.json và kết quả benchmark/CIES
 ├── reports/                      # figures/, profiling/, system_architecture.html,
 │                                 # pipeline_report.md, benchmark_literature.md
-├── tests/test_pipeline.py        # 19 test
+├── tests/test_pipeline.py        # 20 test
 └── .agents/rules/               # Hướng dẫn cho agent
 ```
 
 ## Tiến độ hiện tại (2026-09-21)
 - [x] Toàn bộ module `src/` và 7 notebook
-- [x] Test suite (19 test, gồm hồi quy các lỗi đã sửa)
+- [x] Test suite (20 test, gồm hồi quy các lỗi đã sửa)
 - [x] Đợt rà soát mã nguồn, sửa lỗi (xem `reports/pipeline_report.md`)
 - [x] Tune Optuna: Logistic Regression, XGBoost, CatBoost, ANN
 - [ ] Tune Optuna: Random Forest

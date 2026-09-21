@@ -45,7 +45,7 @@ Cột `Time` của ULB bị loại (chỉ là thứ tự giao dịch); xem `ULB_
 │   ├── explainability/       # shap_utils.py, cies.py
 │   ├── visualization/        # dataset.py, explain.py
 │   └── utils/                # isolation.py (chạy mỗi tổ hợp trong subprocess riêng)
-├── tests/test_pipeline.py    # 19 test, gồm hồi quy cho các lỗi đã sửa
+├── tests/test_pipeline.py    # 20 test, gồm hồi quy cho các lỗi đã sửa
 ├── results/                  # best_params.json và kết quả benchmark/CIES
 ├── reports/                  # figures/, profiling/, tài liệu và sơ đồ kiến trúc
 ├── AGENT_SPEC.md  AGENTS.md  FILE_REFERENCE.md
@@ -91,6 +91,7 @@ Repo phải ở chế độ Public để Kaggle `git clone` ẩn danh được.
 2. Bật **Internet: On** và **Accelerator: GPU**.
 3. Sửa `MODELS_TO_TUNE` trong cell config (kết quả tự merge vào `results/best_params.json` có sẵn trong repo).
 4. **Save Version → Save & Run All (Commit)**: chạy nền trên server Kaggle, tắt máy vẫn được. Tải `best_params.json` từ tab Output rồi đưa vào `results/`.
+5. **Model chạy quá 9 giờ/phiên (vd. ANN):** mỗi trial được lưu vào `results/tuning_checkpoints/<model>.db`. Hết `SESSION_BUDGET` (mặc định 7,5 giờ) notebook dừng mềm; phiên sau Add Input bằng *Notebook Output* của phiên trước rồi chạy lại — cell khôi phục sẽ chép checkpoint và chỉ chạy nốt số trial còn thiếu. Model chỉ được ghi vào `best_params.json` khi đủ `N_TRIALS`.
 
 ## Trạng thái (cập nhật 2026-09-21)
 
