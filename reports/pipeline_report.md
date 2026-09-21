@@ -37,8 +37,8 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-21), không 
 
 | Hạng mục | Trạng thái |
 |---|---|
-| Tune Logistic Regression / XGBoost / CatBoost / ANN | Xong — PR-AUC CV 0.319 / 0.929 / 0.926 / 0.892 |
-| Tune Random Forest | **Chưa xong** (chạy riêng bằng `MODELS_TO_TUNE = ["random_forest"]`) |
+| Tune lần 1 (30 trial, vùng hẹp) | LR / XGBoost / CatBoost / ANN xong (PR-AUC CV 0.319 / 0.929 / 0.926 / 0.892), RF xong 0.857 nhưng `max_depth` chạm biên 18. Nhiều tham số chạm biên (CatBoost `depth`, `iterations`; ANN `epochs`; LR `C`) |
+| Tune lần 2 (100 trial, vùng đã nới, cùng ngân sách cho mọi model) | **Đang chạy theo đợt**: đợt 1 = LR + XGBoost; CatBoost, ANN, RF chưa. Đến khi xong cả 5, `best_params.json` là hỗn hợp hai giao thức, chưa dùng cho benchmark. Vùng mới: LR `C` ≤1e4; RF `max_depth` 6–30; XGBoost `n_estimators` ≤600, `max_depth` 3–16; CatBoost `iterations` ≤600, `depth` 4–12, `l2_leaf_reg` 0.1–30; ANN `epochs` ≤60 |
 | Benchmark 25 tổ hợp (03), CIES Sparkov (04), CIES ULB (05) | **Chưa có kết quả** trên code/dữ liệu hiện tại |
 | Đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2) | Chưa làm |
 
@@ -92,7 +92,7 @@ Ba cách hợp lệ độc lập cho kết quả gần nhau nên không phải l
 
 ## Việc tiếp theo
 
-1. Tune Random Forest trên Kaggle.
+1. Tune lại 5 model (100 trial, vùng mới) trên Kaggle theo đợt; RF chậm nhất (~1500 giây/trial ở lần 1).
 2. Chạy 03, 04, 05; mở rộng 04/05 lên 5×5 trước khi báo cáo.
 3. (Tuỳ chọn) chạy ablation `SNAP_SYNTHETIC_ONEHOT=True` trên vài tổ hợp để báo cáo như một phân tích bổ sung.
 4. Quyết định có tính thêm CIES đúng công thức gốc (nhiễu đầu vào) làm chỉ số phụ hay không; làm đối chứng KernelSHAP.

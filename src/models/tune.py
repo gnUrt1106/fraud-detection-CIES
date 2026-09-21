@@ -38,7 +38,7 @@ def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, An
     """
     if model_name == "logistic_regression":
         return {
-            "C": trial.suggest_float("C", 1e-4, 1e2, log=True),
+            "C": trial.suggest_float("C", 1e-4, 1e4, log=True),
             "max_iter": 2000,
             "solver": "lbfgs",
         }
@@ -53,8 +53,8 @@ def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, An
 
     elif model_name == "xgboost":
         return {
-            "n_estimators": trial.suggest_int("n_estimators", 100, 300, step=50),
-            "max_depth": trial.suggest_int("max_depth", 4, 10),
+            "n_estimators": trial.suggest_int("n_estimators", 100, 600, step=50),
+            "max_depth": trial.suggest_int("max_depth", 3, 16),
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
             "subsample": trial.suggest_float("subsample", 0.6, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
@@ -65,10 +65,10 @@ def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, An
     elif model_name == "catboost":
         # RÀNG BUỘC: KHÔNG dùng cat_features
         return {
-            "iterations": trial.suggest_int("iterations", 100, 300, step=50),
-            "depth": trial.suggest_int("depth", 4, 10),
+            "iterations": trial.suggest_int("iterations", 100, 600, step=50),
+            "depth": trial.suggest_int("depth", 4, 12),
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
-            "l2_leaf_reg": trial.suggest_float("l2_leaf_reg", 1.0, 10.0, log=True),
+            "l2_leaf_reg": trial.suggest_float("l2_leaf_reg", 0.1, 30.0, log=True),
             "eval_metric": "PRAUC",
             "verbose": 0,
         }
@@ -77,7 +77,7 @@ def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, An
         return {
             "lr": trial.suggest_float("lr", 1e-4, 1e-2, log=True),
             "dropout": trial.suggest_float("dropout", 0.1, 0.5),
-            "epochs": trial.suggest_int("epochs", 10, 25, step=5),
+            "epochs": trial.suggest_int("epochs", 10, 60, step=5),
             "batch_size": trial.suggest_categorical("batch_size", [256, 512, 1024]),
         }
 
@@ -91,7 +91,7 @@ def tune_model(
     model_name: str,
     X: np.ndarray,
     y: np.ndarray,
-    n_trials: int = 30,
+    n_trials: int = 100,
     n_splits: int = 5,
     timeout: Optional[int] = None,
     seed: int = SEED,
@@ -228,7 +228,7 @@ def tune_all_models(
     X: np.ndarray,
     y: np.ndarray,
     models: Optional[list] = None,
-    n_trials: int = 30,
+    n_trials: int = 100,
     n_splits: int = 5,
     output_dir: Optional[Path] = None,
     filename: str = "best_params.json",

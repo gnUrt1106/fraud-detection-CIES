@@ -96,8 +96,7 @@ Repo phải ở chế độ Public để Kaggle `git clone` ẩn danh được.
 
 - [x] Pipeline đầy đủ: encoding, 5 kỹ thuật imbalance, 5 model, metrics, SHAP, CIES, tune, trực quan hoá.
 - [x] Đợt rà soát toàn bộ mã nguồn: đã sửa các lỗi nghiêm trọng (chi tiết ở [`reports/pipeline_report.md`](reports/pipeline_report.md)).
-- [x] Tune: Logistic Regression, XGBoost, CatBoost, ANN đã có tham số trong `results/best_params.json`.
-- [ ] Tune: **Random Forest** còn thiếu (notebook Kaggle đang đặt sẵn `MODELS_TO_TUNE = ["random_forest"]`).
+- [ ] Tune lại **cả 5 model** với vùng tìm đã nới và `N_TRIALS=100` cho mọi model (cùng ngân sách). Chạy theo đợt trên Kaggle; đợt 1 (`logistic_regression`, `xgboost`) là cấu hình sẵn trong notebook. `results/best_params.json` hiện còn tham số cũ (30 trial, vùng hẹp) của catboost/ann và chưa có random_forest cho tới khi chạy lại.
 - [ ] Chạy benchmark (03), CIES Sparkov (04), CIES ULB (05) trên tham số và code mới — **chưa có kết quả nào**.
 - [ ] Thí nghiệm đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2).
 
