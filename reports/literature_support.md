@@ -77,3 +77,28 @@ Có một bài liên quan tới gian lận + độ tin cậy của SHAP dưới 
 - [S12] Han, H., Wang, W.-Y., Mao, B.-H. (2005). *Borderline-SMOTE: A New Over-Sampling Method in Imbalanced Data Sets Learning.* ICIC, 878–887. <https://doi.org/10.1007/11538059_91>
 - [S13] Micci-Barreca, D. (2001). *A preprocessing scheme for high-cardinality categorical attributes in classification and prediction problems.* ACM SIGKDD Explorations, 3(1), 27–32. <https://dl.acm.org/doi/10.1145/507533.507538>
 - [S14] Akiba, T., et al. (2019). *Optuna: A Next-generation Hyperparameter Optimization Framework.* KDD. <https://arxiv.org/abs/1907.10902>
+
+---
+
+## 5. Cách tune khi so sánh nhiều model trong tài liệu (tra cứu 2026-09-21)
+
+Đã đọc toàn văn [S15] (mục 4.4, 6.2, 6.5); [S16] chỉ đọc phần mô tả giao thức qua trang HTML; [S17], [S18], [S19] chỉ đọc tóm tắt.
+
+| Vấn đề | Tài liệu nói gì |
+|---|---|
+| So sánh công bằng | Cho mọi phương pháp **cùng ngân sách tune** (cùng thời gian hoặc cùng số bước/trial); không so bản đã tune kỹ với bản mặc định [S17]. [S16] dùng random search ~400 lần thử cho mỗi model/dataset và báo cáo hiệu năng theo **số lần thử**, để thấy kết luận có đổi theo ngân sách không |
+| Vùng tìm | Biên phải nằm trong vùng "hợp lý" của phương pháp và dữ liệu; quá hẹp thì có thể không chứa cấu hình tốt, quá rộng thì khó tìm trong ngân sách cho trước. Tham số bị chặn dưới nên tune theo thang log với **cận trên rộng rãi** [S15, mục 6.2]. Vùng tìm của [S16] lấy từ Hyperopt-Sklearn/bài gốc (XGBoost `max_depth` 1–11; RF `max_depth` trong {None, 2, 3, 4} theo trang mô tả) |
+| Điều kiện dừng | Thực tế gần như luôn đặt ngân sách cố định từ trước; quy tắc ngón tay cái 50×l hoặc 100×l lần đánh giá với l = số hyperparameter. Dừng theo "không tiến bộ" là **rủi ro**: có thể dừng quá sớm, và về khái niệm chỉ hợp với bộ tối ưu cục bộ, còn các bộ tối ưu có thành phần khám phá toàn cục có thể đi ngang rất lâu rồi bất ngờ cải thiện. Khuyến nghị kết hợp nhiều tiêu chí với ngưỡng rộng rãi và một **trần tuyệt đối** [S15, mục 6.5] |
+| Đánh giá sau khi tune | Điểm CV tốt nhất của chính quá trình tune bị lạc quan (chọn trên cùng dữ liệu); cần đánh giá trên dữ liệu độc lập hoặc nested resampling [S15, mục 4.4; S18] |
+| Tune có đáng không | Đo "tunability" = mức cải thiện khi tune so với mặc định, khác nhau giữa thuật toán và tham số [S19] |
+
+**Hệ quả cho repo (nhận định của tôi, cần bạn duyệt):**
+- Giao thức hiện tại (cùng 30 trial cho mọi model, TPE + pruner) đã là kiểu "cùng ngân sách" mà tài liệu coi là công bằng. Đề xuất dừng theo hội tụ ở phần trao đổi trước **không phải chuẩn**, và [S15] cảnh báo rủi ro của nó; nếu dùng thì chỉ như một phần bổ sung kèm trần số trial.
+- Vấn đề thật sự nằm ở **thiết kế vùng tìm** (nhiều tham số chạm biên) và **ngân sách 30 trial thấp** so với quy tắc 50×l–100×l (RF có 4 hyperparameter ⇒ 200–400 trial; đó chỉ là quy tắc ngón tay cái, không phải định lý).
+- `best_pr_auc` trong `best_params.json` là điểm CV chọn-trên-chính-nó nên lạc quan; con số báo cáo cuối cùng phải là kết quả benchmark trên tập test (notebook 03).
+
+- [S15] Bischl, B., et al. (2023). *Hyperparameter optimization: Foundations, algorithms, best practices, and open challenges.* WIREs Data Mining and Knowledge Discovery. arXiv:2107.05847. <https://arxiv.org/abs/2107.05847>
+- [S16] Grinsztajn, L., Oyallon, E., Varoquaux, G. (2022). *Why do tree-based models still outperform deep learning on typical tabular data?* NeurIPS Datasets and Benchmarks. <https://arxiv.org/abs/2207.08815>
+- [S17] Sivaprasad, P. T., Mai, F., Vogels, T., Jaggi, M., Fleuret, F. (2020). *Optimizer Benchmarking Needs to Account for Hyperparameter Tuning.* ICML. <https://arxiv.org/abs/1910.11758>
+- [S18] Cawley, G. C., Talbot, N. L. C. (2010). *On over-fitting in model selection and subsequent selection bias in performance evaluation.* JMLR, 11, 2079–2107. <https://dl.acm.org/doi/10.5555/1756006.1859921>
+- [S19] Probst, P., Boulesteix, A.-L., Bischl, B. (2019). *Tunability: Importance of Hyperparameters of Machine Learning Algorithms.* JMLR, 20(53). <https://jmlr.org/papers/v20/18-444.html>
