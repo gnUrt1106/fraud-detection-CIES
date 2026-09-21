@@ -326,7 +326,7 @@ Mục này ghi lại những chỗ code hiện tại **khác hoặc vượt** so
 | §6.2 Đối chứng KernelSHAP | Bắt buộc nếu đủ thời gian | **Chưa làm** (`reports/kernelshap_control_experiment.json` chưa tồn tại) | Còn nợ |
 | §7.1 Công thức CIES | "Theo công thức paper CIES gốc" | Khoảng cách thứ hạng có trọng số `1/min(hạng_a, hạng_b)` trên từng feature; `cies_score = 1 − khoảng cách TB`; hoà hạng = hạng trung bình; run có SHAP toàn 0 bị loại | **Chưa đối chiếu với paper gốc** — cần đối chiếu |
 | §1.2 ULB | 30 feature gồm `Time` | Bỏ cột `Time` (`ULB_FEATURE_COLS`: V1..V28 + Amount) | Quyết định trong `config.py`, nay được áp dụng nhất quán |
-| §1.3 / §7.2 Phạm vi chạy | Cả 5 model × 5 kỹ thuật ở cả 2 dataset; không tự giảm để tiết kiệm thời gian | Notebook 04 và 05 hiện chỉ chạy tập con (LR, RF, XGBoost × class_weighting, SMOTE, SMOTE-ENN); Sparkov dùng mẫu 10.000 dòng, ULB dùng toàn bộ | **Lệch spec** — cần mở rộng lên đủ 5×5 trước khi báo cáo kết quả |
+| §1.3 / §7.2 Phạm vi chạy | Cả 5 model × 5 kỹ thuật ở cả 2 dataset; không tự giảm để tiết kiệm thời gian | Notebook 04 và 05 chạy đủ 5×5; Sparkov subsample phân tầng 100.000 dòng (`SUBSAMPLE_N`), ULB dùng toàn bộ | **Lệch nhẹ** — chỉ subsample Sparkov; cỡ mẫu cần chứng minh bằng kiểm tra độ nhạy (notebook 04 mục 8) |
 | §9 Môi trường | Local dùng subsample nhỏ; train thật trên Kaggle | Tune chạy trên Kaggle GPU (repo public, dataset `cies-processed`); mỗi tổ hợp chạy trong subprocess `spawn`; `timeout=None` cho tune và benchmark | Đúng tinh thần spec |
 
 ### Quy ước kỹ thuật thêm

@@ -44,7 +44,7 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-21), không 
 
 ## Lệch so với spec và giới hạn
 
-1. **Notebook 04/05 chỉ chạy tập con**: LR, RF, XGBoost × class_weighting, SMOTE, SMOTE-ENN (thiếu CatBoost, ANN, ADASYN, Borderline-SMOTE). Sparkov subsample 10.000 dòng; ULB dùng toàn bộ 227.845 dòng train (ước lượng ~60–70 phút cho 9 tổ hợp × 20 run). `cies.py` hỗ trợ đủ 5×5.
+1. **Notebook 04/05 chạy đủ 5×5.** Sparkov subsample **phân tầng 100.000 dòng** (`SUBSAMPLE_N`, ≈521 fraud, giữ tỷ lệ 0,52%) vì train đầy đủ 1.48M dòng quá nặng cho 20 run/tổ hợp; mẫu 10.000 cũ chỉ có ~59 fraud (bootstrap còn ~37 fraud khác nhau) nên CIES sẽ đo nhiễu mẫu nhỏ. Cỡ 100k chưa được kiểm chứng bằng thực nghiệm: notebook 04 mục 8 (`RUN_SENSITIVITY`) chạy CIES `xgboost × class_weighting` ở 10k/30k/50k/100k để xem điểm có bão hoà không. ULB dùng toàn bộ 227.845 dòng train; SMOTE-ENN ở cỡ này chậm, chạy đủ 25 tổ hợp mất vài giờ.
 2. **ULB chưa có benchmark PR-AUC/F1 riêng**, chỉ có CIES; không cần encoding vì feature đã là số, và bỏ cột `Time`.
 3. **Tune tách khỏi imbalance**: tham số tối ưu cho trường hợp không xử lý mất cân bằng, dùng chung cho cả 5 kỹ thuật.
 4. **Công thức khoảng cách thứ hạng của CIES chưa đối chiếu với paper gốc.**
