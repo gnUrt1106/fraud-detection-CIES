@@ -6,7 +6,7 @@ title: "Sơ đồ Pipeline Thực Tế — Fraud Detection CIES"
 
 > Sơ đồ này phản ánh **đúng code hiện tại** trong `notebooks/` và `src/` (sau audit), không phải bản thiết kế lý thuyết trong `AGENT_SPEC.md`. Các điểm mà code hiện tại đang chạy khác/hẹp hơn so với spec gốc được đánh dấu ⚠️ trực tiếp trên sơ đồ.
 
-Sơ đồ trực quan: [`pipeline_diagram.html`](pipeline_diagram.html) — mở thẳng bằng trình duyệt bất kỳ, không cần công cụ ngoài.
+Sơ đồ kiến trúc hệ thống (3 góc nhìn: kiến trúc phân tầng, hợp đồng dữ liệu giữa các bước, một lượt CIES; kèm bảng tra cứu module và giới hạn đã biết): [`system_architecture.html`](system_architecture.html) — mở thẳng bằng trình duyệt bất kỳ, không cần công cụ ngoài.
 
 ---
 
