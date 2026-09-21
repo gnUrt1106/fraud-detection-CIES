@@ -47,7 +47,7 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-21), không 
 1. **Notebook 04/05 chạy đủ 5×5.** Sparkov subsample **phân tầng 100.000 dòng** (`SUBSAMPLE_N`, ≈521 fraud, giữ tỷ lệ 0,52%) vì train đầy đủ 1.48M dòng quá nặng cho 20 run/tổ hợp; mẫu 10.000 cũ chỉ có ~59 fraud (bootstrap còn ~37 fraud khác nhau) nên CIES sẽ đo nhiễu mẫu nhỏ. Cỡ 100k chưa được kiểm chứng bằng thực nghiệm: notebook 04 mục 8 (`RUN_SENSITIVITY`) chạy CIES `xgboost × class_weighting` ở 10k/30k/50k/100k để xem điểm có bão hoà không. ULB dùng toàn bộ 227.845 dòng train; SMOTE-ENN ở cỡ này chậm, chạy đủ 25 tổ hợp mất vài giờ.
 2. **ULB chưa có benchmark PR-AUC/F1 riêng**, chỉ có CIES; không cần encoding vì feature đã là số, và bỏ cột `Time`.
 3. **Tune tách khỏi imbalance**: tham số tối ưu cho trường hợp không xử lý mất cân bằng, dùng chung cho cả 5 kỹ thuật.
-4. **Công thức khoảng cách thứ hạng của CIES chưa đối chiếu với paper gốc.**
+4. **CIES của repo là biến thể của CIES gốc** (arXiv:2603.05024): gốc nhiễu hoá đầu vào lúc suy luận, so độ lớn SHAP, chuẩn hoá theo độ lớn giải thích gốc; repo nhiễu hoá dữ liệu huấn luyện và so thứ hạng. Bảng so sánh chi tiết và nguồn cho các quyết định khác: [`literature_support.md`](literature_support.md).
 5. **`timeout=None`** cho tune/benchmark: không còn lưới an toàn nếu tiến trình treo thật.
 6. **Sparkov là dữ liệu mô phỏng**; nhiều hình dạng "quá sạch" là dấu vết của bộ sinh dữ liệu.
 7. **Thời gian resample SMOTE-ENN** tăng ~4× mỗi lần gấp đôi dữ liệu (25k→1.4s, 50k→5.1s, 100k→19.7s ⇒ ≈1.2 giờ cho 1.48M dòng, chưa tính train).
@@ -95,5 +95,5 @@ Ba cách hợp lệ độc lập cho kết quả gần nhau nên không phải l
 1. Tune Random Forest trên Kaggle.
 2. Chạy 03, 04, 05; mở rộng 04/05 lên 5×5 trước khi báo cáo.
 3. Quyết định giữ hay tắt `SNAP_SYNTHETIC_ONEHOT` sau khi có số benchmark thật.
-4. Đối chiếu công thức CIES với paper gốc; làm đối chứng KernelSHAP.
+4. Quyết định có tính thêm CIES đúng công thức gốc (nhiễu đầu vào) làm chỉ số phụ hay không; làm đối chứng KernelSHAP.
 5. Chạy lại notebook 06 với kết quả thật.

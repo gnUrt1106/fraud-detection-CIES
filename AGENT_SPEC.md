@@ -257,7 +257,7 @@ def run_cies_experiment(model_name, imbalance_technique, df_train, df_test_fixed
         shap_vals = compute_shap(model, df_test_fixed_eval)
         shap_values_runs.append(shap_vals)
 
-    cies_score = compute_stability_metric(shap_values_runs)  # theo công thức paper CIES gốc
+    cies_score = compute_stability_metric(shap_values_runs)  # biến thể của CIES gốc (xem §11)
     return cies_score
 ```
 
@@ -324,7 +324,7 @@ Mục này ghi lại những chỗ code hiện tại **khác hoặc vượt** so
 | §5/§7 Hyperparameter | Không có | Optuna HPO (`src/models/tune.py`): tune **trước**, trên dữ liệu chưa xử lý imbalance, rồi đóng băng cho mọi kỹ thuật để không thêm biến gây nhiễu | **Ngoài spec gốc** — đã dùng xuyên suốt; cần xác nhận chính thức nếu đưa vào luận văn |
 | §6.1 Explainer ANN | Kernel hoặc Deep | `DeepExplainer` (Kernel tự chạy lại nhiễu: 2 lần chạy cùng model chỉ khớp Spearman ~0.85, và chậm hơn ~5×) | Trong phạm vi spec cho phép |
 | §6.2 Đối chứng KernelSHAP | Bắt buộc nếu đủ thời gian | **Chưa làm** (`reports/kernelshap_control_experiment.json` chưa tồn tại) | Còn nợ |
-| §7.1 Công thức CIES | "Theo công thức paper CIES gốc" | Khoảng cách thứ hạng có trọng số `1/min(hạng_a, hạng_b)` trên từng feature; `cies_score = 1 − khoảng cách TB`; hoà hạng = hạng trung bình; run có SHAP toàn 0 bị loại | **Chưa đối chiếu với paper gốc** — cần đối chiếu |
+| §7.1 Công thức CIES | "Theo công thức paper CIES gốc" | Khoảng cách thứ hạng có trọng số `1/min(hạng_a, hạng_b)` trên từng feature; `cies_score = 1 − khoảng cách TB`; hoà hạng = hạng trung bình; run có SHAP toàn 0 bị loại | **Đã đối chiếu (arXiv:2603.05024): khác công thức gốc** — gốc nhiễu hoá đầu vào, so độ lớn SHAP, chuẩn hoá theo `‖φ(x)‖_w`; repo nhiễu hoá dữ liệu huấn luyện, so thứ hạng. Xem `reports/literature_support.md` |
 | §1.2 ULB | 30 feature gồm `Time` | Bỏ cột `Time` (`ULB_FEATURE_COLS`: V1..V28 + Amount) | Quyết định trong `config.py`, nay được áp dụng nhất quán |
 | §1.3 / §7.2 Phạm vi chạy | Cả 5 model × 5 kỹ thuật ở cả 2 dataset; không tự giảm để tiết kiệm thời gian | Notebook 04 và 05 chạy đủ 5×5; Sparkov subsample phân tầng 100.000 dòng (`SUBSAMPLE_N`), ULB dùng toàn bộ | **Lệch nhẹ** — chỉ subsample Sparkov; cỡ mẫu cần chứng minh bằng kiểm tra độ nhạy (notebook 04 mục 8) |
 | §9 Môi trường | Local dùng subsample nhỏ; train thật trên Kaggle | Tune chạy trên Kaggle GPU (repo public, dataset `cies-processed`); mỗi tổ hợp chạy trong subprocess `spawn`; `timeout=None` cho tune và benchmark | Đúng tinh thần spec |

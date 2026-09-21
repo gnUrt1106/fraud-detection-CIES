@@ -103,7 +103,7 @@ ul.lim li{margin-bottom:5px}
 <tr><td><code>src/models/tune.py</code></td><td>Optuna HPO, lưu/merge <code>best_params.json</code> sau mỗi model</td><td>Tune trên dữ liệu <b>chưa</b> xử lý imbalance (decoupled); <code>timeout=None</code> tắt lưới an toàn SIGKILL</td></tr>
 <tr><td><code>src/evaluation/metrics.py</code></td><td>PR-AUC, ROC-AUC, F1, F2, Precision@Recall</td><td>Test set không resample</td></tr>
 <tr><td><code>src/explainability/shap_utils.py</code></td><td>Chọn explainer theo model, chuẩn hoá về (n, f)</td><td>RF trả mảng 3 chiều ở shap 0.52; ANN/LR giải thích trong không gian đã scale</td></tr>
-<tr><td><code>src/explainability/cies.py</code></td><td>Vòng lặp bootstrap và <code>compute_stability_metric</code></td><td>Công thức khoảng cách <b>chưa đối chiếu với paper gốc</b>; hoà hạng = hạng trung bình</td></tr>
+<tr><td><code>src/explainability/cies.py</code></td><td>Vòng lặp bootstrap và <code>compute_stability_metric</code></td><td>Biến thể của CIES gốc (arXiv:2603.05024): nhiễu hoá dữ liệu huấn luyện, đo trên thứ hạng; hoà hạng = hạng trung bình</td></tr>
 <tr><td><code>src/utils/isolation.py</code></td><td><code>run_isolated</code>: subprocess <code>spawn</code>, timeout, SIGTERM→SIGKILL</td><td><code>daemon=False</code> (để Random Forest song song được) đổi lại tiến trình con có thể mồ côi nếu cha bị kill đột ngột</td></tr>
 <tr><td><code>src/visualization/*</code></td><td>Biểu đồ insight, SHAP, CIES</td><td>Biểu đồ theo từng run cần kết quả CIES mới (có <code>mean_abs_shap</code>)</td></tr>
 </tbody></table></div>
