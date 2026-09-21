@@ -38,7 +38,7 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-21), không 
 | Hạng mục | Trạng thái |
 |---|---|
 | Tune lần 1 (30 trial, vùng hẹp) | LR / XGBoost / CatBoost / ANN xong (PR-AUC CV 0.319 / 0.929 / 0.926 / 0.892), RF xong 0.857 nhưng `max_depth` chạm biên 18. Nhiều tham số chạm biên (CatBoost `depth`, `iterations`; ANN `epochs`; LR `C`) |
-| Tune lần 2 (100 trial, vùng đã nới, cùng ngân sách cho mọi model) | **Đang chạy theo đợt**: đợt 1 = LR + XGBoost; CatBoost, ANN, RF chưa. Đến khi xong cả 5, `best_params.json` là hỗn hợp hai giao thức, chưa dùng cho benchmark. Vùng mới: LR `C` ≤1e4; RF `max_depth` 6–30; XGBoost `n_estimators` ≤600, `max_depth` 3–16; CatBoost `iterations` ≤600, `depth` 4–12, `l2_leaf_reg` 0.1–30; ANN `epochs` ≤60 |
+| Tune lần 2 (100 trial, vùng đã nới, cùng ngân sách cho mọi model) | Xong: LR 0.319, XGBoost 0.933, CatBoost 0.9271, RF 0.8872 (70 xong / 30 cắt). **ANN còn lại** (chạy nhiều phiên Kaggle với checkpoint SQLite). Đến khi ANN xong, `best_params.json` là hỗn hợp hai giao thức (ANN còn 30 trial cũ), chưa dùng cho benchmark |
 | Benchmark 25 tổ hợp (03), CIES Sparkov (04), CIES ULB (05) | **Chưa có kết quả** trên code/dữ liệu hiện tại |
 | Đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2) | Chưa làm |
 
@@ -50,6 +50,7 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-21), không 
 4. **CIES của repo là biến thể của CIES gốc** (arXiv:2603.05024): gốc nhiễu hoá đầu vào lúc suy luận, so độ lớn SHAP, chuẩn hoá theo độ lớn giải thích gốc; repo nhiễu hoá dữ liệu huấn luyện và so thứ hạng. Bảng so sánh chi tiết và nguồn cho các quyết định khác: [`literature_support.md`](literature_support.md).
 5. **`timeout=None`** cho tune/benchmark: không còn lưới an toàn nếu tiến trình treo thật.
 6. **Sparkov là dữ liệu mô phỏng**; nhiều hình dạng "quá sạch" là dấu vết của bộ sinh dữ liệu.
+8. **Một số tham số tối ưu vẫn sát/chạm biên vùng tìm mới** (RF: `n_estimators=300`, `max_depth=30`, `min_samples_split=2`, `min_samples_leaf=1` đều ở biên; CatBoost `depth=11` sát biên 12, `iterations=500` gần 600; XGBoost `n_estimators=550` gần 600). Chưa nới thêm vì đường hội tụ của RF phẳng (PR-AUC CV 0,8865 từ trial 37, 0,8872 ở trial 89 và 98), nên coi RF đã hội tụ quanh 0,88; đây là hạn chế của giao thức, không phải lỗi.
 7. **Thời gian resample SMOTE-ENN** tăng ~4× mỗi lần gấp đôi dữ liệu (25k→1.4s, 50k→5.1s, 100k→19.7s ⇒ ≈1.2 giờ cho 1.48M dòng, chưa tính train).
 
 ## Đánh đổi đã đo
