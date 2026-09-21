@@ -113,7 +113,7 @@ ul.lim li{margin-bottom:5px}
   
 <ul class="lim">
 <li><b>Tune tách khỏi imbalance:</b> tham số tối ưu cho trường hợp không xử lý mất cân bằng rồi dùng nguyên cho cả 5 kỹ thuật — để so sánh công bằng, nhưng không tối ưu riêng cho từng kỹ thuật.</li>
-<li><b>Phạm vi CIES:</b> notebook 04 và 05 chạy đủ 5 model × 5 kỹ thuật; Sparkov dùng mẫu phân tầng 100.000 dòng (≈521 fraud), ULB dùng toàn bộ. Cỡ mẫu 100k cần được chứng minh bằng kiểm tra độ nhạy (notebook 04, mục 8).</li>
+<li><b>Phạm vi CIES:</b> notebook 04 và 05 chạy đủ 5 model × 5 kỹ thuật; Sparkov dùng mẫu phân tầng 100.000 dòng (≈521 fraud), ULB dùng toàn bộ. Cỡ mẫu 100k đã được kiểm tra độ nhạy (10k–100k, CIES 0,951–0,965) nhưng chỉ trên một tổ hợp.</li>
 <li><b>ULB chưa có benchmark riêng</b> (PR-AUC/F1...) — chỉ có CIES.</li>
 <li><b>Sparkov là dữ liệu mô phỏng</b>: nhiều hình dạng "quá sạch" (giờ đêm, category theo khung giờ) là dấu vết của bộ sinh dữ liệu; ULB (dữ liệu thật) dùng để kiểm chứng.</li>
 <li><b>Kernel SHAP</b> chỉ còn là đường lùi của ANN; thí nghiệm đối chứng KernelSHAP ở spec §6.2 chưa thực hiện.</li>
