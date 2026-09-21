@@ -1,88 +1,73 @@
-# 📋 File Reference — Chức năng từng file trong project
+# File Reference — Chức năng từng file trong project
 
-## Root Files
+Danh mục theo trạng thái code hiện tại (chỉ liệt kê file nằm trong git). Sơ đồ tổng thể: `reports/system_architecture.html`.
 
-| File | Chức năng |
-|------|-----------|
-| `README.md` | Tài liệu dự án: mô tả, hướng dẫn cài đặt, cách chạy, tiến độ |
-| `AGENTS.md` | Entry point cho AI agent — trỏ đến `.agents/rules/` |
-| `requirements.txt` | Danh sách thư viện Python (pandas, numpy, matplotlib, seaborn, kagglehub, ydata-profiling, ...) |
-| `.env.example` | Mẫu biến môi trường — chứa `KAGGLE_USERNAME` và `KAGGLE_KEY` |
-| `.gitignore` | Quy tắc git ignore: data, .venv, __pycache__, .ipynb_checkpoints, ... |
-
----
-
-## `src/` — Source Code
+## Root
 
 | File | Chức năng |
 |------|-----------|
-| `src/__init__.py` | Đánh dấu `src` là Python package |
-| `src/config.py` | **Trung tâm cấu hình** — khai báo tất cả đường dẫn (`PROJECT_ROOT`, `RAW_DATA_DIR`, `PROCESSED_DATA_DIR`, `FIGURES_DIR`, `MODELS_DIR`, `RESULTS_DIR`), tên dataset Kaggle (Sparkov & ULB), hằng số tái lập (`SEED=42`, `N_RUNS=20`), target column (`is_fraud`), danh sách cột one-hot (`ONEHOT_COLS`) và target encode (`TARGET_ENCODE_COLS`), danh sách models & imbalance techniques. |
-| `src/data/__init__.py` | Đánh dấu `src/data` là Python subpackage |
-| `src/data/download.py` | Script tải dataset Sparkov từ Kaggle về `data/raw/` qua `kagglehub`. Kiểm tra nếu data đã có thì bỏ qua. Chạy bằng: `python -m src.data.download` |
-| `src/data/encoding.py` | **Encoding pipeline**: Stratified K-fold Target Encoding (bắt buộc dùng `StratifiedKFold`) cho `merchant, city, job`; One-hot cho `gender, category, state`. Hỗ trợ `fixed_categories` chống lệch feature khi bootstrap. Fit chỉ trên train, transform test. |
-| `src/imbalance/__init__.py` | Đánh dấu `src/imbalance` là Python subpackage |
-| `src/imbalance/resamplers.py` | Wrapper cho **chính xác 5 kỹ thuật imbalance**: SMOTE, SMOTE-ENN, ADASYN, Borderline-SMOTE, và Class Weighting (không resample data, truyền class weight vào loss/model). |
-| `src/models/__init__.py` | Đánh dấu `src/models` là Python subpackage |
-| `src/models/train.py` | Build và huấn luyện **5 models**: Logistic Regression, Random Forest, XGBoost, CatBoost (dùng chung features đã encode, KHÔNG dùng `cat_features`), ANN (PyTorch MLP). Hỗ trợ hàm `predict_proba` thống nhất. |
-| `src/evaluation/__init__.py` | Đánh dấu `src/evaluation` là Python subpackage |
-| `src/evaluation/metrics.py` | Bộ metrics đánh giá: **PR-AUC (metric chính)**, ROC-AUC (chỉ tham khảo), F1, F2, Precision@Recall cố định (0.5, 0.7, 0.8). |
-| `src/explainability/__init__.py` | Đánh dấu `src/explainability` là Python subpackage |
-| `src/explainability/shap_utils.py` | Tính SHAP values chuẩn hóa theo loại mô hình: `LinearExplainer` (LR), `TreeExplainer` (RF, XGBoost, CatBoost), `KernelExplainer` (ANN). |
-| `src/explainability/cies.py` | **Thuật toán cốt lõi CIES**: `compute_rank_weighted_distance` ($w_r = 1/r$), `compute_stability_metric`, `compute_feature_level_cies`, `run_cies_experiment` (bootstrap resample -> re-encode -> resample -> train -> SHAP trên eval cố định -> N runs -> CIES score), và `save_cies_results`. |
+| `README.md` | Mô tả project, cài đặt, thứ tự chạy thí nghiệm, chạy trên Kaggle, trạng thái |
+| `AGENT_SPEC.md` | Đặc tả nghiên cứu: quyết định đã chốt, ràng buộc bắt buộc, danh sách cấm; cuối file có mục 11 ghi các chỗ code hiện tại lệch spec |
+| `AGENTS.md` | Entry point cho AI agent — trỏ tới `.agents/rules/` và tóm tắt các bẫy đã gặp |
+| `FILE_REFERENCE.md` | File này |
+| `requirements.txt` | Thư viện Python (pandas, scikit-learn, imbalanced-learn, xgboost, catboost, torch, shap, optuna, pyarrow, kagglehub, ydata-profiling...) |
+| `.env.example` | Mẫu biến môi trường `KAGGLE_USERNAME`, `KAGGLE_KEY` |
+| `.gitignore` | Ignore `/data/` (chỉ thư mục ở gốc — không phải `src/data/`), `.venv/`, `__pycache__/`, `.ipynb_checkpoints/`, `*.log`, `scratch/`, `catboost_info/`... |
 
 ---
 
-## `notebooks/` — Jupyter Notebooks
+## `src/` — Mã nguồn
 
 | File | Chức năng |
 |------|-----------|
-| `01_eda.ipynb` | **Exploratory Data Analysis** — phân tích khám phá dữ liệu: phân bố class imbalance, phân bố amount, phân tích theo giờ/ngày, fraud rate theo category/gender, correlation heatmap, phân bố tuổi. Xuất biểu đồ ra `reports/figures/`. |
-| `02_preprocessing.ipynb` | **Preprocessing & Encoding Pipeline** — load raw data, stratified train/test split 80/20, cleaning/feature engineering, fit Stratified K-fold Target Encoding & One-hot, transform test, lưu dữ liệu vào `data/processed/`, xử lý dataset phụ ULB. |
-| `03_train_models.ipynb` | **Model Training & Evaluation Benchmark** — chạy 25 tổ hợp (5 models × 5 kỹ thuật imbalance), đánh giá qua PR-AUC, F1, F2, ROC-AUC, xuất bảng kết quả và biểu đồ so sánh ra `results/`. |
-| `04_cies_experiment.ipynb` | **CIES Explanation Stability Experiment** — chạy pipeline CIES với bootstrap resample và eval set cố định, tính CIES score, vẽ CIES Heatmap, biểu đồ Trade-off (PR-AUC vs CIES), phân tích độ ổn định cấp đặc trưng (Feature-level CIES). |
+| `config.py` | **Trung tâm cấu hình**: đường dẫn, `SEED=42`, `N_RUNS=20`, tên dataset Kaggle, cột target (`is_fraud` / `Class`), `ONEHOT_COLS`, `TARGET_ENCODE_COLS`, `ULB_FEATURE_COLS` (bỏ `Time`), `MODEL_NAMES`, `IMBALANCE_TECHNIQUES`, công tắc `SNAP_SYNTHETIC_ONEHOT` |
+| `data/download.py` | Tải Sparkov về `data/raw/` qua `kagglehub` (bỏ qua nếu đã có). Chạy: `python -m src.data.download` |
+| `data/encoding.py` | One-Hot (`gender, category, state`) và Stratified K-fold Target Encoding out-of-fold (`merchant, city, job`). Prior làm mịn chỉ từ fold train; tham số `groups` (dùng `StratifiedGroupKFold`) giữ bản sao của bootstrap cùng fold; `fixed_categories` giữ số cột one-hot ổn định qua các run; `encode_test` dùng thống kê toàn train |
+| `imbalance/resamplers.py` | Đúng 5 kỹ thuật: SMOTE, SMOTE-ENN, ADASYN, Borderline-SMOTE (resample) và Class Weighting (trả `class_weights`, không resample). `snap_onehot_groups` / `onehot_groups_from_columns` ép dòng tổng hợp về one-hot hợp lệ khi `SNAP_SYNTHETIC_ONEHOT=True` |
+| `models/train.py` | `build_model` / `train_model` / `predict_proba` cho 5 model. CatBoost dùng chung feature đã encode (không `cat_features`). Logistic Regression và ANN được bọc kèm `StandardScaler` (trong dict model). XGBoost/CatBoost/ANN tự dùng GPU nếu có (`_has_gpu` qua `nvidia-smi`, cố ý không import torch). `train_and_evaluate_combo` chạy 1 tổ hợp cho notebook 03. Import thư viện model là lazy để tránh nạp torch cùng xgboost |
+| `models/tune.py` | Optuna HPO: TPE + MedianPruner, CV 5 fold, tối ưu PR-AUC, tune trên dữ liệu **chưa** xử lý imbalance. `tune_all_models` chạy mỗi model trong subprocess, lưu/merge `results/best_params.json` sau mỗi model; `load_best_params` để `build_model` tự nạp |
+| `evaluation/metrics.py` | PR-AUC (metric chính), ROC-AUC, F1, F2, Precision@Recall (0.5/0.7/0.8), confusion matrix |
+| `explainability/shap_utils.py` | `compute_shap` chọn explainer theo model: `LinearExplainer` (LR), `TreeExplainer` (RF, XGBoost, CatBoost), `DeepExplainer` (ANN, tự lùi về `KernelExplainer` nếu lỗi). Luôn trả `(n_mẫu, n_feature)` cho lớp fraud; LR/ANN giải thích trong không gian đã scale |
+| `explainability/cies.py` | Thuật toán CIES: `shap_to_ranks` (hạng trung bình khi hoà), `compute_rank_weighted_distance` (trọng số theo hạng), `compute_stability_metric`, `compute_feature_level_cies`, `run_cies_experiment` (bootstrap có `groups` → encode lại → imbalance → train → SHAP trên eval cố định; loại run có SHAP toàn 0), `run_cies_experiment_isolated`, `save_cies_results` |
+| `utils/isolation.py` | `run_isolated`: chạy hàm trong subprocess `spawn` (cách ly torch/xgboost), có timeout với leo thang SIGTERM → SIGKILL; `daemon=False` để Random Forest song song được |
+| `visualization/dataset.py` | Biểu đồ insight dataset: mất cân bằng, giờ, category×giờ, số tiền, khoảng cách, nhịp giao dịch, mùa vụ, ULB top-feature |
+| `visualization/explain.py` | Biểu đồ SHAP (beeswarm, so sánh model, đồng thuận thứ hạng, dependence) và CIES (heatmap, ổn định thứ hạng, top-k, Spearman giữa run, Sparkov vs ULB, trade-off với PR-AUC) |
+| `__init__.py` (các thư mục) | Đánh dấu Python package |
 
 ---
 
-## `data/` — Dữ liệu
+## `notebooks/`
 
-| Thư mục | Chức năng |
-|---------|-----------|
-| `data/raw/` | Dữ liệu gốc từ Kaggle: `fraudTrain.csv` (~351MB), `fraudTest.csv` (~150MB) |
-| `data/processed/` | Dữ liệu đã tiền xử lý: `train_encoded.parquet`, `test_encoded.parquet`, `encoding_maps.joblib`, `ulb_train.parquet`, `ulb_test.parquet` |
+| File | Chức năng |
+|------|-----------|
+| `01_eda.ipynb` | Khám phá dữ liệu Sparkov + data profiling (`reports/profiling/`); xuất biểu đồ ra `reports/figures/` |
+| `02_preprocessing.ipynb` | Làm sạch, chia 80/20 stratified, encoding, lưu `data/processed/*.parquet` và `encoding_maps.joblib`; tải và chia ULB |
+| `kaggle_optuna_tuning.ipynb` | Tune trên Kaggle: clone repo, link `train_encoded.parquet` từ dataset input, chạy `tune_all_models`. Chọn model qua `MODELS_TO_TUNE` |
+| `03_train_models.ipynb` | Benchmark 5 model × 5 kỹ thuật → `results/model_benchmark_results.csv` (lưu/resume từng tổ hợp, `timeout=None`) |
+| `04_cies_experiment.ipynb` | CIES trên Sparkov (tập con 3 model × 3 kỹ thuật, train subsample 10.000 dòng) → `results/cies_summary_results.json` |
+| `05_cies_experiment_ulb.ipynb` | CIES trên ULB (cùng tập con, toàn bộ train, `feature_level=False`) → `results/cies_summary_results_ulb.json` |
+| `06_visualizations.ipynb` | Biểu đồ insight dataset, SHAP và CIES → `reports/figures/` |
 
 ---
 
-## `reports/` — Báo cáo & Biểu đồ
+## `results/`, `reports/`, `tests/`
 
-| Thư mục/File | Chức năng |
+| File/Thư mục | Chức năng |
 |--------------|-----------|
-| `reports/benchmark_literature.md` | Bảng tổng hợp kết quả PR-AUC/F1 từ các paper nghiên cứu trên Sparkov (2024–2026) với cột CIES = N/A minh họa khoảng trống nghiên cứu |
-| `reports/figures/` | Biểu đồ xuất từ EDA notebook (9 biểu đồ PNG) |
-| `reports/profiling/` | Báo cáo data profiling tự động (`sparkov_profile_report.html`) |
+| `results/best_params.json` | Hyperparameter đóng băng từ Optuna, dùng lại ở notebook 03/04/05 |
+| `reports/system_architecture.html` | Sơ đồ kiến trúc hệ thống (3 góc nhìn, bảng tra cứu module, giới hạn đã biết) |
+| `reports/pipeline_report.md` | Bảng giải thích từng bước pipeline, trạng thái chạy, lệch so với spec, nhật ký sửa lỗi |
+| `reports/benchmark_literature.md` | Kết quả PR-AUC/F1 từ các paper dùng Sparkov (2024–2026), cột CIES = N/A minh hoạ khoảng trống nghiên cứu |
+| `reports/figures/` | Biểu đồ PNG: 9 ảnh EDA (`01_..09_`) và các ảnh insight/SHAP/CIES từ notebook 06 |
+| `reports/profiling/sparkov_profile_report.html` | Báo cáo data profiling tự động |
+| `tests/test_pipeline.py` | 19 test: encoding chống rò rỉ (fold prior, index không mặc định, nhóm bootstrap), CatBoost không `cat_features`, 5 kỹ thuật imbalance và one-hot hợp lệ sau resample, công thức CIES (hạng thay vì vị trí cột, hoà hạng), hình dạng SHAP của Tree/ANN, `scale_pos_weight`, ANN (scale, batch 1 mẫu), end-to-end CIES |
 
 ---
 
-## `tests/` — Kiểm thử tự động
+## `.agents/rules/` — Hướng dẫn cho agent
 
 | File | Chức năng |
 |------|-----------|
-| `tests/test_pipeline.py` | Test suite kiểm tra toàn diện: encoding chống leakage, CatBoost không dùng `cat_features`, 5 kỹ thuật imbalance, tính đúng đắn của công thức CIES, end-to-end CIES run trên sample data. |
-
----
-
-## `.agents/rules/` — Hướng dẫn cho Agent
-
-| File | Chức năng |
-|------|-----------|
-| `project-overview.md` | Tổng quan project, cấu trúc thư mục, dataset info, tiến độ |
-| `coding-standards.md` | Quy chuẩn code: PEP 8, type hints, pathlib, config pattern, data/ML conventions |
-| `workflow.md` | Quy trình làm việc: nhận task → sửa bug → thêm feature |
-
----
-
-## `.vscode/` — IDE Config
-
-| File | Chức năng |
-|------|-----------|
-| `settings.json` | Cấu hình VSCode: Python interpreter trỏ về `.venv`, extra paths cho import |
+| `project-overview.md` | Tổng quan, cấu trúc thư mục, tiến độ |
+| `coding-standards.md` | Quy chuẩn code Python, data, ML và các bẫy đã gặp |
+| `workflow.md` | Quy trình: task mới, sửa bug, thêm feature |

@@ -1,6 +1,7 @@
 # AGENT_SPEC.md — Đặc tả kỹ thuật cho pipeline nghiên cứu CIES
 
 > File này dành cho coding agent (Antigravity/Claude Code) đọc và thực thi khi xây dựng project.
+> **Cập nhật 2026-09-21:** các mục 2, 3.2 và 6.1 đã chỉnh cho khớp code; mục **11** (cuối file) liệt kê mọi chỗ code hiện tại lệch bản gốc và trạng thái từng chỗ. Các ràng buộc bắt buộc ở những mục còn lại giữ nguyên.
 > Đây KHÔNG phải tài liệu học thuật để đọc hiểu — đây là spec kỹ thuật với quyết định đã chốt, ràng buộc bắt buộc, và lý do (để agent không tự "sửa cho tối ưu hơn" và vô tình phá vỡ tính hợp lệ của thí nghiệm.
 
 ---
@@ -51,15 +52,18 @@ Tạo file `reports/benchmark_literature.md` liệt kê kết quả PR-AUC/F1 t�
 ## 2. CẤU TRÚC PROJECT
 
 ```
-fraud-detection-thesis/
-├── data/
+fraud-detection-cies/
+├── data/                        # KHÔNG nằm trong git (.gitignore: /data/)
 │   ├── raw/
 │   └── processed/
 ├── notebooks/
 │   ├── 01_eda.ipynb
 │   ├── 02_preprocessing.ipynb
+│   ├── kaggle_optuna_tuning.ipynb   # tune Optuna trên Kaggle (xem mục 11)
 │   ├── 03_train_models.ipynb
-│   └── 04_cies_experiment.ipynb
+│   ├── 04_cies_experiment.ipynb
+│   ├── 05_cies_experiment_ulb.ipynb # CIES trên dataset phụ
+│   └── 06_visualizations.ipynb
 ├── src/
 │   ├── config.py
 │   ├── data/
@@ -68,16 +72,24 @@ fraud-detection-thesis/
 │   ├── imbalance/
 │   │   └── resamplers.py        # wrapper cho 5 kỹ thuật, KHÔNG thêm kỹ thuật khác
 │   ├── models/
-│   │   └── train.py             # 5 model, cùng bộ feature input cho tất cả (xem mục 5.2)
+│   │   ├── train.py             # 5 model, cùng bộ feature input cho tất cả (xem mục 5.2)
+│   │   └── tune.py              # Optuna HPO (ngoài spec gốc — xem mục 11)
 │   ├── explainability/
-│   │   ├── shap_utils.py        # TreeSHAP cho LR/RF/XGB/CatBoost, KernelSHAP/DeepSHAP cho ANN
+│   │   ├── shap_utils.py        # Linear/Tree SHAP; ANN dùng DeepExplainer (Kernel dự phòng)
 │   │   └── cies.py              # thuật toán tính CIES
-│   └── evaluation/
-│       └── metrics.py           # PR-AUC chính, không dùng ROC-AUC làm metric quyết định
+│   ├── evaluation/
+│   │   └── metrics.py           # PR-AUC chính, không dùng ROC-AUC làm metric quyết định
+│   ├── visualization/           # dataset.py, explain.py
+│   └── utils/
+│       └── isolation.py         # chạy mỗi model/tổ hợp trong subprocess riêng
+├── results/                     # best_params.json, kết quả benchmark/CIES
 ├── reports/
 │   ├── figures/
 │   ├── profiling/
-│   └── benchmark_literature.md
+│   ├── benchmark_literature.md
+│   ├── pipeline_report.md
+│   └── system_architecture.html
+├── tests/test_pipeline.py
 ├── requirements.txt
 └── README.md
 ```
@@ -211,7 +223,7 @@ Lý do (đừng "tối ưu" bỏ ràng buộc này): nếu CatBoost dùng encodi
 | Random Forest | `shap.TreeExplainer` | Exact |
 | XGBoost | `shap.TreeExplainer` | Exact |
 | CatBoost | `shap.TreeExplainer` | Exact |
-| ANN | `shap.KernelExplainer` hoặc `shap.DeepExplainer` | **Xấp xỉ — ghi log riêng, không so sánh thô với TreeSHAP** |
+| ANN | `shap.KernelExplainer` hoặc `shap.DeepExplainer` (**hiện dùng `DeepExplainer`**, tự lùi về Kernel nếu lỗi) | **Xấp xỉ — ghi log riêng, không so sánh thô với TreeSHAP** |
 
 ### 6.2. Thí nghiệm đối chứng bắt buộc (nếu đủ thời gian)
 
@@ -296,3 +308,29 @@ Tải dataset qua `kagglehub`, KHÔNG hardcode đường dẫn tải thủ công
 | Eval set thay đổi giữa các run CIES | Eval set cố định xuyên suốt N_RUNS |
 
 **Nếu trong quá trình code, agent thấy có lý do kỹ thuật để làm khác đi so với bảng trên — DỪNG LẠI, không tự sửa, hỏi user trước.**
+
+---
+
+## 11. CẬP NHẬT SO VỚI BẢN GỐC (trạng thái 2026-09-21)
+
+Mục này ghi lại những chỗ code hiện tại **khác hoặc vượt** so với spec ở trên. Cột "Trạng thái" cho biết đã được người dùng yêu cầu/chấp thuận hay còn cần xác nhận. Ràng buộc bắt buộc ở các mục 0–10 không bị sửa ngoài các chỗ ghi trong bảng.
+
+| Mục | Bản gốc | Hiện tại | Trạng thái |
+|---|---|---|---|
+| §3.2 Target encoding | Prior làm mịn = trung bình toàn bộ train | Prior = trung bình **fold train**; test vẫn dùng thống kê toàn train | Người dùng yêu cầu. Đã sửa pseudo-code ở §3.2 |
+| §7.1 Bootstrap + encoding | `stratified_kfold_target_encode(train_resample)` | Bootstrap có dòng trùng nên CIES truyền `groups` (id dòng gốc) và dùng `StratifiedGroupKFold` để bản sao cùng fold; đường tune/benchmark vẫn `StratifiedKFold` | Sửa rò rỉ nhãn; cần xác nhận nếu đưa vào luận văn |
+| §4.1 Kỹ thuật imbalance | SMOTE/ADASYN/Borderline/SMOTE-ENN thuần | Sau resample, dòng tổng hợp được ép về one-hot hợp lệ (`config.SNAP_SYNTHETIC_ONEHOT`, argmax). Đánh đổi đã đo: PR-AUC XGBoost 0.887 → 0.766, Random Forest 0.719 → 0.573 (Sparkov 300k) | Người dùng yêu cầu; có công tắc. Chi tiết ở `reports/pipeline_report.md` |
+| §5 Model | Không nói về scale | Logistic Regression và ANN có `StandardScaler` (cây bất biến với scale). ANN không scale cho PR-AUC 0.16 so với 0.74 (Sparkov) | Chi tiết kỹ thuật, không đổi bộ feature |
+| §5/§7 Hyperparameter | Không có | Optuna HPO (`src/models/tune.py`): tune **trước**, trên dữ liệu chưa xử lý imbalance, rồi đóng băng cho mọi kỹ thuật để không thêm biến gây nhiễu | **Ngoài spec gốc** — đã dùng xuyên suốt; cần xác nhận chính thức nếu đưa vào luận văn |
+| §6.1 Explainer ANN | Kernel hoặc Deep | `DeepExplainer` (Kernel tự chạy lại nhiễu: 2 lần chạy cùng model chỉ khớp Spearman ~0.85, và chậm hơn ~5×) | Trong phạm vi spec cho phép |
+| §6.2 Đối chứng KernelSHAP | Bắt buộc nếu đủ thời gian | **Chưa làm** (`reports/kernelshap_control_experiment.json` chưa tồn tại) | Còn nợ |
+| §7.1 Công thức CIES | "Theo công thức paper CIES gốc" | Khoảng cách thứ hạng có trọng số `1/min(hạng_a, hạng_b)` trên từng feature; `cies_score = 1 − khoảng cách TB`; hoà hạng = hạng trung bình; run có SHAP toàn 0 bị loại | **Chưa đối chiếu với paper gốc** — cần đối chiếu |
+| §1.2 ULB | 30 feature gồm `Time` | Bỏ cột `Time` (`ULB_FEATURE_COLS`: V1..V28 + Amount) | Quyết định trong `config.py`, nay được áp dụng nhất quán |
+| §1.3 / §7.2 Phạm vi chạy | Cả 5 model × 5 kỹ thuật ở cả 2 dataset; không tự giảm để tiết kiệm thời gian | Notebook 04 và 05 hiện chỉ chạy tập con (LR, RF, XGBoost × class_weighting, SMOTE, SMOTE-ENN); Sparkov dùng mẫu 10.000 dòng, ULB dùng toàn bộ | **Lệch spec** — cần mở rộng lên đủ 5×5 trước khi báo cáo kết quả |
+| §9 Môi trường | Local dùng subsample nhỏ; train thật trên Kaggle | Tune chạy trên Kaggle GPU (repo public, dataset `cies-processed`); mỗi tổ hợp chạy trong subprocess `spawn`; `timeout=None` cho tune và benchmark | Đúng tinh thần spec |
+
+### Quy ước kỹ thuật thêm
+- Tham số tối ưu lưu ở `results/best_params.json`, `build_model` tự nạp; model chưa có tham số dùng mặc định.
+- Kết quả benchmark/CIES lưu ngay sau mỗi tổ hợp và bỏ qua tổ hợp đã có khi chạy lại.
+- Không nạp torch và xgboost trong cùng một process (xem `src/utils/isolation.py`).
+

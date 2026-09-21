@@ -1,124 +1,111 @@
-# 🔍 Fraud Detection Thesis — Phát hiện gian lận giao dịch tài chính
+# Fraud Detection — CIES
 
-## Mô tả
+Đồ án nghiên cứu **độ ổn định của giải thích mô hình phát hiện gian lận** dưới các kỹ thuật xử lý mất cân bằng dữ liệu.
 
-Đồ án nghiên cứu về **phát hiện gian lận giao dịch tài chính** (Financial Fraud Detection) sử dụng các phương pháp Machine Learning. Project sử dụng bộ dữ liệu **Sparkov** được tạo bằng [Sparkov Data Generation Tool](https://github.com/namebrandon/Sparkov_Data_Generation) — một công cụ mô phỏng giao dịch thẻ tín dụng hợp lệ và gian lận dựa trên hồ sơ khách hàng thực tế.
+Chỉ số đo là **CIES (Credibility Index via Explanation Stability)**: huấn luyện lại mô hình nhiều lần trên các mẫu bootstrap của tập train, tính SHAP trên một tập eval cố định, rồi đo thứ hạng các feature dao động bao nhiêu giữa các lần chạy. Thứ hạng càng ít đổi thì giải thích càng đáng tin.
 
-### Nguồn dữ liệu
+- **5 mô hình**: Logistic Regression, Random Forest, XGBoost, CatBoost, ANN (PyTorch).
+- **5 kỹ thuật imbalance**: SMOTE, SMOTE-ENN, ADASYN, Borderline-SMOTE, Class Weighting.
+- **2 dataset**: Sparkov (chính) và ULB Credit Card Fraud (phụ, để kiểm chứng xu hướng có khái quát hoá không).
 
-- **Kaggle Dataset**: [kartik2112/fraud-detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection)
-- **Công cụ sinh dữ liệu**: [Sparkov Data Generation](https://github.com/namebrandon/Sparkov_Data_Generation) by Brandon Harris
-- **Thời gian bao phủ**: Giao dịch từ 01/01/2019 đến 31/12/2020
-- **Quy mô**: ~1.3 triệu giao dịch train + ~550K giao dịch test
+Đặc tả nghiên cứu và các ràng buộc thiết kế nằm ở [`AGENT_SPEC.md`](AGENT_SPEC.md). Sơ đồ kiến trúc hệ thống: [`reports/system_architecture.html`](reports/system_architecture.html) (mở bằng trình duyệt).
 
-### Cấu trúc Project
+## Dữ liệu
+
+| | Sparkov (chính) | ULB (phụ) |
+|---|---|---|
+| Nguồn | [kartik2112/fraud-detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection) | [mlg-ulb/creditcardfraud](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) |
+| Quy mô | ~1.85M giao dịch (train ~1.3M + test ~555K gốc, sau đó gộp và chia lại 80/20 stratified) | ~284.8K giao dịch |
+| Tỷ lệ fraud | ~0.52% | ~0.17% |
+| Feature | Cột thô (categorical + số), cần encoding | V1..V28 (PCA) + Amount, đã là số |
+| Ghi chú | Dữ liệu **mô phỏng** bởi [Sparkov Data Generation](https://github.com/namebrandon/Sparkov_Data_Generation) | Dữ liệu thật, ẩn danh |
+
+Cột `Time` của ULB bị loại (chỉ là thứ tự giao dịch); xem `ULB_FEATURE_COLS` trong `src/config.py`.
+
+## Cấu trúc project
 
 ```
-fraud-detection-thesis/
-├── data/
-│   ├── raw/                  # Dữ liệu gốc tải từ Kaggle
-│   └── processed/            # Dữ liệu đã tiền xử lý (bước sau)
+├── data/                     # KHÔNG nằm trong git (chỉ ignore /data/ ở gốc, xem .gitignore)
+│   ├── raw/                  # fraudTrain.csv, fraudTest.csv
+│   └── processed/            # train_/test_encoded, train_/test_raw, ulb_*, encoding_maps
 ├── notebooks/
-│   └── 01_eda.ipynb          # Exploratory Data Analysis
+│   ├── 01_eda.ipynb                 # Khám phá dữ liệu + data profiling
+│   ├── 02_preprocessing.ipynb       # Làm sạch, chia 80/20, encoding, xử lý ULB
+│   ├── kaggle_optuna_tuning.ipynb   # Tune hyperparameter bằng Optuna (chạy trên Kaggle)
+│   ├── 03_train_models.ipynb        # Benchmark 5 model x 5 kỹ thuật
+│   ├── 04_cies_experiment.ipynb     # CIES trên Sparkov
+│   ├── 05_cies_experiment_ulb.ipynb # CIES trên ULB
+│   └── 06_visualizations.ipynb      # Biểu đồ insight dataset, SHAP, CIES
 ├── src/
-│   ├── config.py             # Đường dẫn và hằng số dùng chung
-│   └── data/
-│       └── download.py       # Script tải dataset từ Kaggle
-├── reports/
-│   ├── figures/              # Biểu đồ xuất ra từ EDA
-│   └── profiling/            # Báo cáo data profiling (HTML)
-├── requirements.txt
-├── .env.example
-├── .gitignore
-└── README.md
+│   ├── config.py             # Đường dẫn, hằng số, danh sách model/kỹ thuật, công tắc
+│   ├── data/                 # download.py, encoding.py
+│   ├── imbalance/            # resamplers.py
+│   ├── models/               # train.py, tune.py
+│   ├── evaluation/           # metrics.py
+│   ├── explainability/       # shap_utils.py, cies.py
+│   ├── visualization/        # dataset.py, explain.py
+│   └── utils/                # isolation.py (chạy mỗi tổ hợp trong subprocess riêng)
+├── tests/test_pipeline.py    # 19 test, gồm hồi quy cho các lỗi đã sửa
+├── results/                  # best_params.json và kết quả benchmark/CIES
+├── reports/                  # figures/, profiling/, tài liệu và sơ đồ kiến trúc
+├── AGENT_SPEC.md  AGENTS.md  FILE_REFERENCE.md
+└── requirements.txt  .env.example
 ```
 
----
+Chi tiết từng file: [`FILE_REFERENCE.md`](FILE_REFERENCE.md).
 
-## Hướng dẫn cài đặt
-
-### 1. Clone repository
+## Cài đặt
 
 ```bash
-git clone <repository-url>
-cd fraud-detection-thesis
-```
-
-### 2. Tạo môi trường ảo và cài dependencies
-
-```bash
+git clone https://github.com/gnUrt1106/fraud-detection-CIES.git
+cd fraud-detection-CIES
 python3 -m venv .venv
 source .venv/bin/activate          # macOS/Linux
-# .venv\Scripts\activate           # Windows
-
 pip install -r requirements.txt
 ```
 
-### 3. Cấu hình Kaggle API Credentials
+### Kaggle credentials
 
-Bạn cần Kaggle API token để tải dữ liệu. Chọn **một trong hai cách** sau:
+Cần để tải dữ liệu qua `kagglehub`. Chọn một trong hai:
 
-#### Cách 1 — File `kaggle.json` (khuyến nghị)
+- **`kaggle.json`**: tạo token tại [Kaggle Settings](https://www.kaggle.com/settings) (mục API), rồi `mkdir -p ~/.kaggle && mv ~/Downloads/kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json`.
+- **Biến môi trường**: `cp .env.example .env` rồi điền `KAGGLE_USERNAME`, `KAGGLE_KEY` (hoặc `export` trực tiếp).
 
-1. Truy cập [Kaggle Settings](https://www.kaggle.com/settings)
-2. Mục **API** → nhấn **"Create New Token"**
-3. File `kaggle.json` sẽ tự tải về, chứa `username` và `key`
-4. Di chuyển file vào thư mục Kaggle:
+## Chạy thí nghiệm
 
-```bash
-mkdir -p ~/.kaggle
-mv ~/Downloads/kaggle.json ~/.kaggle/
-chmod 600 ~/.kaggle/kaggle.json
-```
+Chạy theo thứ tự. Các notebook mở bằng `jupyter lab`.
 
-#### Cách 2 — Biến môi trường
+1. **Tải dữ liệu Sparkov**: `python -m src.data.download` (bỏ qua nếu `data/raw/` đã có).
+2. **`02_preprocessing.ipynb`**: sinh `data/processed/*.parquet` (và tải/chia ULB).
+3. **Tune trên Kaggle** (`kaggle_optuna_tuning.ipynb`, bật GPU): ghi `results/best_params.json`. Xem mục [Chạy trên Kaggle](#chạy-trên-kaggle).
+4. **`03_train_models.ipynb`**, **`04_cies_experiment.ipynb`**, **`05_cies_experiment_ulb.ipynb`**: benchmark và CIES. Cả ba đều nạp tham số từ `best_params.json`; mỗi tổ hợp được lưu ngay khi xong nên chạy lại sẽ bỏ qua phần đã có.
+5. **`06_visualizations.ipynb`**: vẽ biểu đồ vào `reports/figures/` (phần CIES tự bỏ qua nếu chưa có kết quả).
 
-```bash
-cp .env.example .env
-# Mở file .env và điền KAGGLE_USERNAME, KAGGLE_KEY
-```
+Chạy test: `python -m pytest tests -q`.
 
-Hoặc export trực tiếp:
+### Chạy trên Kaggle
 
-```bash
-export KAGGLE_USERNAME=your_username
-export KAGGLE_KEY=your_api_key
-```
+Repo phải ở chế độ Public để Kaggle `git clone` ẩn danh được.
 
-### 4. Tải dữ liệu
+1. Upload `data/processed/train_encoded.parquet` thành một Kaggle Dataset (tên `cies-processed`) và Add Input vào notebook.
+2. Bật **Internet: On** và **Accelerator: GPU**.
+3. Sửa `MODELS_TO_TUNE` trong cell config (kết quả tự merge vào `results/best_params.json` có sẵn trong repo).
+4. **Save Version → Save & Run All (Commit)**: chạy nền trên server Kaggle, tắt máy vẫn được. Tải `best_params.json` từ tab Output rồi đưa vào `results/`.
 
-```bash
-python -m src.data.download
-```
+## Trạng thái (cập nhật 2026-09-21)
 
-Script sẽ tải dataset Sparkov từ Kaggle về `data/raw/`. Nếu dữ liệu đã tồn tại, script sẽ bỏ qua.
+- [x] Pipeline đầy đủ: encoding, 5 kỹ thuật imbalance, 5 model, metrics, SHAP, CIES, tune, trực quan hoá.
+- [x] Đợt rà soát toàn bộ mã nguồn: đã sửa các lỗi nghiêm trọng (chi tiết ở [`reports/pipeline_report.md`](reports/pipeline_report.md)).
+- [x] Tune: Logistic Regression, XGBoost, CatBoost, ANN đã có tham số trong `results/best_params.json`.
+- [ ] Tune: **Random Forest** còn thiếu (notebook Kaggle đang đặt sẵn `MODELS_TO_TUNE = ["random_forest"]`).
+- [ ] Chạy benchmark (03), CIES Sparkov (04), CIES ULB (05) trên tham số và code mới — **chưa có kết quả nào**.
+- [ ] Thí nghiệm đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2).
 
-### 5. Chạy notebook EDA
+## Lưu ý quan trọng
 
-```bash
-jupyter notebook notebooks/01_eda.ipynb
-```
-
-Hoặc dùng JupyterLab:
-
-```bash
-jupyter lab
-```
-
----
-
-## Tiến độ
-
-- [x] Khởi tạo cấu trúc project
-- [x] Script tải dữ liệu
-- [x] Exploratory Data Analysis (EDA)
-- [x] Data Profiling tự động
-- [ ] Tiền xử lý dữ liệu (encoding, xử lý mất cân bằng, train/test split)
-- [ ] Huấn luyện mô hình (LR, RF, XGBoost, CatBoost, ANN)
-- [ ] Đánh giá và so sánh mô hình
-- [ ] Giải thích mô hình (SHAP, CIES)
-
----
+- **Không nạp torch và xgboost trong cùng một process** (xung đột OpenMP có thể segfault hoặc treo). Mỗi model/tổ hợp chạy qua `src/utils/isolation.py::run_isolated` (subprocess `spawn`).
+- **`SNAP_SYNTHETIC_ONEHOT`** (`src/config.py`): ép dòng tổng hợp của SMOTE-family về one-hot hợp lệ. Có đánh đổi lớn về PR-AUC — đọc `reports/pipeline_report.md` trước khi đổi.
+- **Công thức khoảng cách thứ hạng của CIES** chưa được đối chiếu với paper gốc.
 
 ## License
 
