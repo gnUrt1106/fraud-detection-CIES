@@ -432,6 +432,22 @@ def test_tune_checkpoint_resume(tmp_path):
     assert r3["n_trials"] == 5
 
 
+def test_tune_merge_write_keeps_entries_added_meanwhile(tmp_path):
+    """File kết quả bị sửa bởi tiến trình khác giữa lượt chạy: ghi model mới không được xoá mục đó."""
+    import json
+    from src.models.tune import _merge_write
+
+    f = tmp_path / "best_params.json"
+    f.write_text(json.dumps({"xgboost": {"n_trials": 30}}))
+    # ... lượt chạy khác merge thêm catboost trong lúc tune ...
+    f.write_text(json.dumps({"xgboost": {"n_trials": 100}, "catboost": {"n_trials": 100}}))
+    out = _merge_write(f, "random_forest", {"n_trials": 100})
+    saved = json.loads(f.read_text())
+    assert saved == out
+    assert saved["xgboost"]["n_trials"] == 100 and saved["catboost"]["n_trials"] == 100
+    assert saved["random_forest"]["n_trials"] == 100
+
+
 def test_end_to_end_cies():
     print("\n--- Testing End-to-End CIES Experiment (LR + SMOTE, N_RUNS=3) ---")
     df = create_synthetic_data(500)

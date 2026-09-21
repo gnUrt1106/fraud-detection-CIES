@@ -45,7 +45,7 @@ Cột `Time` của ULB bị loại (chỉ là thứ tự giao dịch); xem `ULB_
 │   ├── explainability/       # shap_utils.py, cies.py
 │   ├── visualization/        # dataset.py, explain.py
 │   └── utils/                # isolation.py (chạy mỗi tổ hợp trong subprocess riêng)
-├── tests/test_pipeline.py    # 20 test, gồm hồi quy cho các lỗi đã sửa
+├── tests/test_pipeline.py    # 21 test, gồm hồi quy cho các lỗi đã sửa
 ├── results/                  # best_params.json và kết quả benchmark/CIES
 ├── reports/                  # figures/, profiling/, tài liệu và sơ đồ kiến trúc
 ├── AGENT_SPEC.md  AGENTS.md  FILE_REFERENCE.md

@@ -265,6 +265,27 @@ def tune_model(
     }
 
 
+def _merge_write(out_file: Path, model_name: str, entry: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Đọc LẠI file kết quả ngay trước khi ghi rồi chỉ cập nhật mục của `model_name`.
+
+    Tránh ghi đè kết quả do tiến trình khác thêm vào file trong lúc lượt chạy này đang tune (một
+    lượt RF ~8 giờ đã từng ghi đè các model được merge vào file giữa chừng, vì bản đọc ở đầu lượt
+    đã cũ). Trả về nội dung file sau khi ghi.
+    """
+    current: Dict[str, Any] = {}
+    if out_file.exists():
+        try:
+            with open(out_file, "r", encoding="utf-8") as f:
+                current = json.load(f)
+        except Exception:
+            current = {}
+    current[model_name] = entry
+    with open(out_file, "w", encoding="utf-8") as f:
+        json.dump(current, f, indent=2, ensure_ascii=False)
+    return current
+
+
 def tune_all_models(
     X: np.ndarray,
     y: np.ndarray,
@@ -366,9 +387,7 @@ def tune_all_models(
             # xong trước đó — ghi nhận lỗi, in cảnh báo, rồi tune tiếp model kế.
             logger.error(f"'{model_name}' thất bại ({type(e).__name__}: {e}) — bỏ qua, tune tiếp model kế.")
             print(f"  ❌ '{model_name}' thất bại: {e}\n")
-            all_results[model_name] = {"error": f"{type(e).__name__}: {e}"}
-            with open(out_file, "w", encoding="utf-8") as f:
-                json.dump(all_results, f, indent=2, ensure_ascii=False)
+            all_results = _merge_write(out_file, model_name, {"error": f"{type(e).__name__}: {e}"})
             continue
 
         if not res.get("complete", True):
@@ -380,7 +399,6 @@ def tune_all_models(
             )
             continue
 
-        all_results[model_name] = res
         print(f"  -> Best PR-AUC: {res['best_pr_auc']:.4f}")
         print(f"  -> Best Params: {res['best_params']}\n")
 
@@ -388,8 +406,7 @@ def tune_all_models(
         # của các model đã xong không bị mất (trước đây chỉ ghi 1 lần ở cuối
         # vòng lặp, nên 1 model timeout là mất sạch kết quả của toàn bộ lần
         # chạy, kể cả các model đã tune xong).
-        with open(out_file, "w", encoding="utf-8") as f:
-            json.dump(all_results, f, indent=2, ensure_ascii=False)
+        all_results = _merge_write(out_file, model_name, res)
 
     print(f"✅ Đã lưu best hyperparameters ra: {out_file}")
     return all_results
