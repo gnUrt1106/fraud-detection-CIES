@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 import logging
 import json
+import os
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from scipy.stats import spearmanr
@@ -453,13 +454,34 @@ def run_cies_experiment_isolated(
     )
 
 
+def _serialize_cies(obj: Any) -> Any:
+    """Convert non-JSON-serializable types (numpy scalars/arrays, DataFrame) trong kết quả CIES."""
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, pd.DataFrame):
+        return obj.to_dict(orient="records")
+    return str(obj)
+
+
 def save_cies_results(
     results: List[Dict[str, Any]],
     output_path: Optional[Path] = None,
     filename: str = "cies_results.json",
 ):
     """
-    Lưu kết quả CIES ra file JSON.
+    Lưu kết quả CIES ra file JSON — GHI ĐÈ toàn bộ file bằng đúng `results` truyền vào.
+
+    CHỈ an toàn khi có ĐÚNG 1 tiến trình ghi vào file này (vòng lặp tuần tự chuẩn của
+    notebook 04/05: đọc 1 lần lúc khởi động, tự thêm dần vào list trong bộ nhớ, ghi đè
+    sau mỗi tổ hợp — list trong bộ nhớ luôn phản ánh đúng toàn bộ file vì không ai khác
+    ghi vào đó). Nếu chạy NHIỀU tiến trình song song cùng ghi 1 file (vd. chạy thêm vài
+    tổ hợp "phụ" cho nhanh), dùng merge_cies_result() cho từng tổ hợp thay vì hàm này —
+    nếu không, tiến trình nào ghi sau sẽ ĐÈ MẤT kết quả tiến trình khác vừa thêm (đã xảy
+    ra thật: chạy 3 tiến trình CIES song song làm mất 1 tổ hợp đã xong).
 
     Args:
         results: List kết quả từ run_cies_experiment()
@@ -472,19 +494,45 @@ def save_cies_results(
     output_path.mkdir(parents=True, exist_ok=True)
     filepath = output_path / filename
 
-    # Convert non-serializable types
-    def _serialize(obj):
-        if isinstance(obj, (np.integer,)):
-            return int(obj)
-        if isinstance(obj, (np.floating,)):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        if isinstance(obj, pd.DataFrame):
-            return obj.to_dict(orient="records")
-        return str(obj)
-
     with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(results, f, default=_serialize, indent=2, ensure_ascii=False)
+        json.dump(results, f, default=_serialize_cies, indent=2, ensure_ascii=False)
 
     logger.info(f"CIES results saved to: {filepath}")
+
+
+def merge_cies_result(
+    result: Dict[str, Any],
+    output_path: Optional[Path] = None,
+    filename: str = "cies_results.json",
+) -> List[Dict[str, Any]]:
+    """
+    Đọc LẠI file kết quả ngay trước khi ghi, rồi chỉ thay/thêm đúng 1 tổ hợp
+    (model_name, imbalance_technique) của `result` — an toàn khi nhiều tiến trình cùng
+    ghi vào 1 file (khác save_cies_results(), vốn ghi đè cả file bằng list trong bộ nhớ
+    của riêng tiến trình gọi nó, làm mất kết quả do tiến trình khác thêm vào giữa chừng).
+
+    Returns:
+        Toàn bộ nội dung file sau khi ghi.
+    """
+    if output_path is None:
+        output_path = RESULTS_DIR
+    output_path.mkdir(parents=True, exist_ok=True)
+    filepath = output_path / filename
+
+    key = (result.get("model_name"), result.get("imbalance_technique"))
+    current: List[Dict[str, Any]] = []
+    if filepath.exists():
+        try:
+            current = json.load(open(filepath, "r", encoding="utf-8"))
+        except Exception:
+            current = []
+    current = [r for r in current if (r.get("model_name"), r.get("imbalance_technique")) != key]
+    current.append(result)
+
+    tmp = filepath.with_suffix(filepath.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(current, f, default=_serialize_cies, indent=2, ensure_ascii=False)
+    os.replace(tmp, filepath)
+
+    logger.info(f"CIES result ({key[0]} x {key[1]}) merged vào: {filepath}")
+    return current

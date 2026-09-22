@@ -12,6 +12,7 @@ Checks:
 """
 
 import sys
+import json
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -471,6 +472,48 @@ def test_end_to_end_cies():
     print(f"✅ End-to-End CIES run success: CIES score = {result['cies_metrics']['cies_score']:.4f}")
     print("Top features by mean SHAP:")
     print(result["feature_cies"].head(3))
+
+
+def test_save_cies_results_overwrite_loses_concurrent_writes(tmp_path):
+    """
+    save_cies_results() ghi đè cả file bằng list trong bộ nhớ của riêng nó — TÁI HIỆN lỗi
+    thật: 2 "tiến trình" (ở đây là 2 lần gọi tuần tự, mô phỏng race) cùng ghi vào 1 file thì
+    tiến trình ghi sau làm mất kết quả tiến trình kia vừa thêm. Test này xác nhận lỗi đó CÓ
+    THẬT với save_cies_results() — không dùng hàm này khi có >1 tiến trình ghi cùng file.
+    """
+    from src.explainability.cies import save_cies_results
+
+    f = "combo.json"
+    # Tiến trình A đọc file rỗng, có list riêng [A]
+    list_a = [{"model_name": "logistic_regression", "imbalance_technique": "smote_enn", "cies_metrics": {}}]
+    save_cies_results(list_a, tmp_path, filename=f)
+    # Tiến trình B (list riêng, không biết A vừa ghi) ghi đè bằng list của B — B không có A
+    list_b = [{"model_name": "xgboost", "imbalance_technique": "smote_enn", "cies_metrics": {}}]
+    save_cies_results(list_b, tmp_path, filename=f)
+
+    saved = json.load(open(tmp_path / f, encoding="utf-8"))
+    models = {r["model_name"] for r in saved}
+    assert models == {"xgboost"}, "tái hiện lỗi: kết quả logistic_regression của A đã bị B ghi đè mất"
+
+
+def test_merge_cies_result_keeps_concurrent_writes(tmp_path):
+    """merge_cies_result() PHẢI sửa được đúng lỗi ở test trên — đọc lại trước khi ghi."""
+    from src.explainability.cies import merge_cies_result
+
+    f = "combo.json"
+    merge_cies_result({"model_name": "logistic_regression", "imbalance_technique": "smote_enn", "cies_metrics": {}}, tmp_path, filename=f)
+    merge_cies_result({"model_name": "xgboost", "imbalance_technique": "smote_enn", "cies_metrics": {}}, tmp_path, filename=f)
+
+    saved = json.load(open(tmp_path / f, encoding="utf-8"))
+    models = {r["model_name"] for r in saved}
+    assert models == {"logistic_regression", "xgboost"}, "cả 2 tổ hợp phải còn nguyên, không cái nào bị đè mất"
+
+    # Ghi lại đúng combo cũ (vd. chạy lại sau lỗi) phải THAY chứ không nhân đôi
+    merge_cies_result({"model_name": "xgboost", "imbalance_technique": "smote_enn", "cies_metrics": {"cies_score": 0.99}}, tmp_path, filename=f)
+    saved = json.load(open(tmp_path / f, encoding="utf-8"))
+    assert len(saved) == 2
+    xgb = next(r for r in saved if r["model_name"] == "xgboost")
+    assert xgb["cies_metrics"]["cies_score"] == 0.99
 
 
 def test_optuna_tuning():
