@@ -198,7 +198,6 @@ def build_model(
             "learning_rate": 0.1,
             "random_state": seed,
             "eval_metric": "aucpr",
-            "use_label_encoder": False,
             "n_jobs": -1,
         }
         if _has_gpu():

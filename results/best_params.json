@@ -20,8 +20,7 @@
       "learning_rate": 0.028561457568935196,
       "subsample": 0.9087806051001299,
       "colsample_bytree": 0.9363395948389526,
-      "eval_metric": "aucpr",
-      "use_label_encoder": false
+      "eval_metric": "aucpr"
     },
     "n_trials": 100,
     "n_completed_trials": 74,

@@ -59,7 +59,6 @@ def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, An
             "subsample": trial.suggest_float("subsample", 0.6, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
             "eval_metric": "aucpr",
-            "use_label_encoder": False,
         }
 
     elif model_name == "catboost":
@@ -243,7 +242,6 @@ def tune_model(
         best_params.setdefault("solver", "lbfgs")
     elif model_name == "xgboost":
         best_params.setdefault("eval_metric", "aucpr")
-        best_params.setdefault("use_label_encoder", False)
     elif model_name == "catboost":
         best_params.setdefault("eval_metric", "PRAUC")
         best_params.setdefault("verbose", 0)
