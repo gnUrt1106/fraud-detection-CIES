@@ -107,6 +107,25 @@ def plot_model_rank_agreement(mean_abs_by_model: Dict[str, np.ndarray], save_pat
     return _finish(fig, save_path)
 
 
+def plot_condition_agreement(
+    mean_abs_by_condition: Dict[str, np.ndarray],
+    title: str = "Đồng thuận thứ hạng feature",
+    save_path: Optional[Path] = None,
+):
+    """
+    Ma trận đồng thuận thứ hạng feature giữa các điều kiện (vd. 5 kỹ thuật imbalance của cùng
+    1 model) — dùng rank-weighted distance của CIES (phạt nặng hơn khi TOP feature bất đồng),
+    KHÔNG phải Spearman như `plot_model_rank_agreement` (Spearman coi mọi hạng ngang nhau).
+    """
+    from src.explainability.cies import compute_condition_agreement_matrix
+
+    m = compute_condition_agreement_matrix(mean_abs_by_condition)
+    fig, ax = plt.subplots(figsize=(0.9 * len(m) + 3, 0.8 * len(m) + 2.2))
+    sns.heatmap(m, annot=True, fmt=".3f", cmap="RdYlGn", vmin=0, vmax=1, ax=ax, linewidths=0.5)
+    ax.set_title(title)
+    return _finish(fig, save_path)
+
+
 # ===== Nhóm 3: CIES =====
 
 def cies_results_to_df(results: List[dict]) -> pd.DataFrame:

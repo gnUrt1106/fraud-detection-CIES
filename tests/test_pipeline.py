@@ -155,6 +155,30 @@ def test_rank_weighted_distance_depends_on_rank_not_column_order():
     assert top_swap > bottom_swap, (top_swap, bottom_swap)
 
 
+def test_condition_agreement_matrix_rank_weighted_not_spearman():
+    """
+    compute_condition_agreement_matrix(): so thứ hạng GIỮA các điều kiện (vd. kỹ thuật imbalance
+    của cùng 1 model), dùng rank-weighted distance — không phải Spearman (coi mọi hạng ngang
+    nhau). Cùng 1 cú đổi chỗ top-2 phải bị phạt nặng hơn đổi chỗ 2 feature cuối, y hệt tính chất
+    đã kiểm ở compute_rank_weighted_distance, nhưng qua đường vào là mean|SHAP| (không phải rank
+    có sẵn) để tái hiện đúng cách notebook 06 gọi hàm này.
+    """
+    from src.explainability.cies import compute_condition_agreement_matrix
+
+    base = np.array([6.0, 5.0, 4.0, 3.0, 2.0, 1.0])  # feature 0 quan trọng nhất
+    top_swapped = base.copy(); top_swapped[[0, 1]] = top_swapped[[1, 0]]
+    bottom_swapped = base.copy(); bottom_swapped[[4, 5]] = bottom_swapped[[5, 4]]
+
+    m_top = compute_condition_agreement_matrix({"a": base, "b": top_swapped})
+    m_bottom = compute_condition_agreement_matrix({"a": base, "b": bottom_swapped})
+    assert m_top.loc["a", "b"] < m_bottom.loc["a", "b"], "đổi chỗ top-2 phải bị phạt nặng hơn"
+
+    m_same = compute_condition_agreement_matrix({"a": base, "b": base.copy(), "c": base * 2})
+    assert np.allclose(np.diag(m_same.values), 1.0)
+    assert np.isclose(m_same.loc["a", "b"], 1.0)
+    assert np.isclose(m_same.loc["a", "c"], 1.0), "nhân đôi mọi giá trị không đổi thứ hạng -> vẫn đồng thuận tuyệt đối"
+
+
 def test_tree_shap_binary_class_shape():
     """
     Regression test: shap.TreeExplainer cho RandomForestClassifier có thể trả

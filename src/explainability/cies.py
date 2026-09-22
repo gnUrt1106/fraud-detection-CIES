@@ -84,6 +84,21 @@ def compute_rank_weighted_distance(
     return float(distance)
 
 
+def _ranks_from_mean_abs(mean_abs_shap: np.ndarray) -> np.ndarray:
+    """
+    Xếp hạng feature từ vector mean|SHAP| (1 giá trị/feature). Rank 1 = quan trọng nhất.
+
+    Hoà hạng (vd. các feature SHAP = 0 chưa từng được dùng) chia đều hạng trung bình, KHÔNG
+    xếp theo thứ tự cột. Xếp theo cột thì khi tập feature bằng 0 khác nhau giữa 2 điều kiện
+    (2 run, hoặc 2 kỹ thuật/model), thứ tự cột quyết định feature nào "hơn" — tạo chênh lệch
+    thứ hạng giả chỉ do cách sắp cột. (Feature bằng 0 ở MỌI điều kiện vẫn giữ hạng cố định và
+    không đóng góp khoảng cách; trọng số 1/rank ở đuôi bảng vốn đã rất nhỏ.)
+    """
+    from scipy.stats import rankdata
+
+    return rankdata(-np.asarray(mean_abs_shap), method="average")
+
+
 def shap_to_ranks(shap_values: np.ndarray) -> np.ndarray:
     """
     Chuyển SHAP values thành ranking vector.
@@ -97,16 +112,38 @@ def shap_to_ranks(shap_values: np.ndarray) -> np.ndarray:
     Returns:
         Ranking vector, shape (n_features,), 1-indexed
     """
-    # Mean absolute SHAP value per feature
     mean_abs_shap = np.mean(np.abs(shap_values), axis=0)
-    # Hoà hạng (vd. các feature SHAP = 0 chưa từng được dùng) chia đều hạng trung bình,
-    # KHÔNG xếp theo thứ tự cột. Xếp theo cột thì khi tập feature bằng 0 khác nhau giữa
-    # 2 run, thứ tự cột quyết định feature nào "hơn" — tạo chênh lệch thứ hạng giả chỉ do
-    # cách sắp cột. (Feature bằng 0 ở MỌI run vẫn giữ hạng cố định và không đóng góp
-    # khoảng cách; trọng số 1/rank ở đuôi bảng vốn đã rất nhỏ.)
-    from scipy.stats import rankdata
+    return _ranks_from_mean_abs(mean_abs_shap)
 
-    return rankdata(-mean_abs_shap, method="average")
+
+def compute_condition_agreement_matrix(
+    mean_abs_shap_by_condition: Dict[str, np.ndarray],
+) -> pd.DataFrame:
+    """
+    Ma trận đồng thuận thứ hạng feature GIỮA các điều kiện (model, hoặc kỹ thuật imbalance,
+    hoặc bất kỳ nhãn nào) — dùng ĐÚNG công thức rank-weighted distance của CIES
+    (`compute_rank_weighted_distance`), không phải Spearman thường, để nhất quán về việc phạt
+    nặng hơn khi TOP feature bất đồng giữa 2 điều kiện, nhẹ hơn khi feature ít quan trọng bất
+    đồng. Khác CIES gốc ở chỗ so sánh GIỮA CÁC ĐIỀU KIỆN (vd. 5 kỹ thuật imbalance của cùng 1
+    model), không phải GIỮA CÁC LẦN BOOTSTRAP của cùng 1 điều kiện.
+
+    Args:
+        mean_abs_shap_by_condition: Dict tên điều kiện -> vector mean|SHAP| (đã trung bình qua
+            các run nếu có), cùng thứ tự feature.
+
+    Returns:
+        DataFrame vuông, giá trị = 1 − rank_weighted_distance (1 = đồng thuận tuyệt đối), đường
+        chéo = 1.0.
+    """
+    labels = list(mean_abs_shap_by_condition)
+    ranks = {lb: _ranks_from_mean_abs(mean_abs_shap_by_condition[lb]) for lb in labels}
+    n = len(labels)
+    m = np.eye(n)
+    for i in range(n):
+        for j in range(i + 1, n):
+            dist = compute_rank_weighted_distance(ranks[labels[i]], ranks[labels[j]])
+            m[i, j] = m[j, i] = 1.0 - dist
+    return pd.DataFrame(m, index=labels, columns=labels)
 
 
 def compute_stability_metric(
