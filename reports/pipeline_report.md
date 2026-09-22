@@ -101,6 +101,7 @@ Không sửa kết quả nào ở trên — chỉ bỏ phần chết/trùng lặ
 - `config.ULB_FILE` được định nghĩa nhưng notebook 02 hardcode `'creditcard.csv'` thay vì dùng — sửa notebook dùng hằng số, đúng nguyên tắc "không hardcode" ghi ngay trong docstring `config.py`.
 - `tune_all_models`: bỏ đoạn đọc `best_params.json` đầu hàm mà không dùng tới (mỗi lần ghi đã tự đọc lại qua `_merge_write`, đọc trước đó chỉ tốn công vô ích).
 - 6 import test không dùng trong `tests/test_pipeline.py` (`ONEHOT_COLS`, `TARGET_ENCODE_COLS`, `evaluate_model`, `sample_hyperparameters`, và `train_model`/`predict_proba` ở top-level — đã có bản import cục bộ riêng trong 2 test dùng chúng).
+- **Nhãn `model_kind` thay cho đoán qua key dict.** `train.py`/`shap_utils.py` từng phân biệt LR/ANN/model thường bằng 6 chỗ lặp lại `isinstance(model, dict) and "scaler"/"model" in model` — suy luận ngầm, dễ vỡ nếu thêm key trùng tên. Nay `build_model()` gắn `"kind": "lr"`/`"ann"` tường minh lúc tạo; `model_kind()` (public, `src/models/train.py`) là điểm đọc duy nhất, raise `ValueError` nếu dict thiếu nhãn thay vì đoán bừa. Đã kiểm lại đủ 5 model (build → train → predict_proba → SHAP) qua process riêng biệt, không gộp torch+xgboost+catboost vào 1 process (đúng ràng buộc cô lập của `isolation.py`).
 
 ## Việc tiếp theo
 

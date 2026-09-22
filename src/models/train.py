@@ -100,6 +100,32 @@ def _has_gpu() -> bool:
     return _has_gpu_cache
 
 
+# ===== Model kind dispatch =====
+# LR và ANN được bọc trong dict (cần thêm state: scaler, epochs...) — sklearn/xgb/catboost thì
+# không. Trước đây mỗi nơi cần phân biệt (train_model, predict_proba, shap_utils) tự đoán qua
+# việc dict có key "scaler" hay "model" hay không — 6 chỗ lặp lại cùng suy luận ngầm, dễ sai nếu
+# thêm key mới trùng tên. Nay build_model() gắn nhãn "kind" tường minh ngay lúc tạo, và mọi nơi
+# khác chỉ đọc nhãn đó qua model_kind().
+
+def model_kind(model: Any) -> str:
+    """
+    Phân loại 1 model đã tạo từ build_model(): "lr" | "ann" | "other" (sklearn/xgb/catboost).
+
+    Raises:
+        ValueError: model là dict nhưng thiếu/sai nhãn "kind" — nghĩa là dict đó không đến từ
+            build_model() (bug ở nơi gọi), KHÔNG đoán ngầm qua key nào có mặt.
+    """
+    if not isinstance(model, dict):
+        return "other"
+    kind = model.get("kind")
+    if kind not in ("lr", "ann"):
+        raise ValueError(
+            f"Model dict thiếu nhãn 'kind' hợp lệ (nhận '{kind}') — model phải được tạo từ "
+            f"build_model(), không tự dựng dict thủ công. Keys hiện có: {list(model.keys())}"
+        )
+    return kind
+
+
 # ===== Model Builder =====
 
 def build_model(
@@ -146,7 +172,7 @@ def build_model(
         # probability...) chênh lệch scale lớn khiến lbfgs khó hội tụ trong
         # max_iter (ConvergenceWarning). Chỉ LR cần: cây (RF/XGBoost/CatBoost)
         # bất biến với scaling, ANN đã có BatchNorm ngay sau input.
-        return {"model": LogisticRegression(**lr_params), "scaler": StandardScaler()}
+        return {"kind": "lr", "model": LogisticRegression(**lr_params), "scaler": StandardScaler()}
 
     elif model_name == "random_forest":
         from sklearn.ensemble import RandomForestClassifier
@@ -236,6 +262,7 @@ def build_model(
         torch.manual_seed(seed)
         model = ann_cls(input_dim=input_dim, dropout=dropout)
         return {
+            "kind": "ann",
             "model": model,
             "class_weights": class_weights,
             "seed": seed,
@@ -275,14 +302,16 @@ def train_model(
     Returns:
         Trained model
     """
+    kind = model_kind(model)
+
     # --- Logistic Regression (với StandardScaler) ---
-    if isinstance(model, dict) and "scaler" in model:
+    if kind == "lr":
         X_train_scaled = model["scaler"].fit_transform(X_train)
         model["model"].fit(X_train_scaled, y_train)
         return model
 
     # --- ANN (PyTorch) ---
-    if isinstance(model, dict) and "model" in model:
+    if kind == "ann":
         eff_epochs = epochs if epochs is not None else model.get("epochs", 30)
         eff_batch = batch_size if batch_size is not None else model.get("batch_size", 1024)
         eff_lr = learning_rate if learning_rate is not None else model.get("lr", 1e-3)
@@ -385,13 +414,15 @@ def predict_proba(model: Any, X: np.ndarray) -> np.ndarray:
     Returns:
         Array of fraud probabilities (shape: [n_samples])
     """
+    kind = model_kind(model)
+
     # --- Logistic Regression (với StandardScaler) ---
-    if isinstance(model, dict) and "scaler" in model:
+    if kind == "lr":
         X_scaled = model["scaler"].transform(X)
         return model["model"].predict_proba(X_scaled)[:, 1]
 
     # --- ANN ---
-    if isinstance(model, dict) and "model" in model:
+    if kind == "ann":
         import torch
 
         ann = model["model"]

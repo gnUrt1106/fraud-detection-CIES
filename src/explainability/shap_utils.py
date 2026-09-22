@@ -79,11 +79,13 @@ def _compute_shap_linear(
     model: Any, X_eval: np.ndarray, X_background: Optional[np.ndarray]
 ) -> np.ndarray:
     """SHAP cho Logistic Regression — LinearExplainer (exact)."""
-    # LR giờ được bọc {"model", "scaler"} (StandardScaler, xem train.py) — cần
+    from src.models.train import model_kind
+
+    # LR giờ được bọc {"kind": "lr", "model", "scaler"} (StandardScaler, xem train.py) — cần
     # unwrap và scale X_eval/X_background CÙNG scaler đã fit lúc train, nếu
     # không LinearExplainer sẽ đọc coef_ ở không gian đã scale nhưng nhận input
     # ở không gian gốc, ra SHAP values sai lệch hoàn toàn.
-    if isinstance(model, dict) and "scaler" in model:
+    if model_kind(model) == "lr":
         scaler = model["scaler"]
         model = model["model"]
         X_eval = scaler.transform(X_eval)
@@ -146,21 +148,21 @@ def _compute_shap_kernel(
     )
 
     import torch
+    from src.models.train import model_kind
 
     # Extract predict function từ ANN dict
-    if isinstance(model, dict) and "model" in model:
-        ann = model["model"]
-        device = model.get("device", torch.device("cpu"))
-        ann.eval()
-
-        def predict_fn(X):
-            with torch.no_grad():
-                X_tensor = torch.FloatTensor(X).to(device)
-                logits = ann(X_tensor)
-                probs = torch.sigmoid(logits).cpu().numpy().flatten()
-            return probs
-    else:
+    if model_kind(model) != "ann":
         raise ValueError("ANN model phải là dict từ build_model()")
+    ann = model["model"]
+    device = model.get("device", torch.device("cpu"))
+    ann.eval()
+
+    def predict_fn(X):
+        with torch.no_grad():
+            X_tensor = torch.FloatTensor(X).to(device)
+            logits = ann(X_tensor)
+            probs = torch.sigmoid(logits).cpu().numpy().flatten()
+        return probs
 
     # ANN được train trên input đã scale (xem train.py::_train_ann) — giải thích trong
     # không gian đã scale, giống LR.
@@ -200,8 +202,9 @@ def _compute_shap_deep(
     KernelExplainer và ghi log cảnh báo thay vì làm hỏng cả run CIES.
     """
     import torch
+    from src.models.train import model_kind
 
-    if not (isinstance(model, dict) and "model" in model):
+    if model_kind(model) != "ann":
         raise ValueError("ANN model phải là dict từ build_model()")
     ann = model["model"]
     device = model.get("device", torch.device("cpu"))
