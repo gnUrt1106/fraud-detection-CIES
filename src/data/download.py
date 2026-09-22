@@ -10,7 +10,6 @@ Yêu cầu:
     - Đã cấu hình Kaggle credentials (xem README.md)
 """
 
-import os
 import sys
 import shutil
 from pathlib import Path
@@ -18,7 +17,7 @@ from pathlib import Path
 # Thêm project root vào sys.path để import config
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from src.config import RAW_DATA_DIR, KAGGLE_DATASET, TRAIN_FILE, TEST_FILE
+from src.config import RAW_DATA_DIR, KAGGLE_DATASET_SPARKOV, TRAIN_FILE, TEST_FILE
 
 
 def _check_existing_data() -> bool:
@@ -84,12 +83,12 @@ def download_dataset():
         )
         sys.exit(1)
 
-    print(f"⬇️  Đang tải dataset '{KAGGLE_DATASET}' từ Kaggle...")
+    print(f"⬇️  Đang tải dataset '{KAGGLE_DATASET_SPARKOV}' từ Kaggle...")
     print("   (Lần đầu có thể mất vài phút tùy tốc độ mạng)\n")
 
     try:
         # kagglehub.dataset_download tải về cache và trả lại đường dẫn
-        cached_path = kagglehub.dataset_download(KAGGLE_DATASET)
+        cached_path = kagglehub.dataset_download(KAGGLE_DATASET_SPARKOV)
         cached_path = Path(cached_path)
         print(f"📦 Dataset đã tải về cache: {cached_path}")
 

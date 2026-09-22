@@ -18,8 +18,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 RAW_DATA_DIR = DATA_DIR / "raw"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 
-# ===== Models & Results =====
-MODELS_DIR = PROJECT_ROOT / "models"
+# ===== Results =====
 RESULTS_DIR = PROJECT_ROOT / "results"
 
 # ===== Báo cáo =====
@@ -30,9 +29,6 @@ PROFILING_DIR = REPORTS_DIR / "profiling"
 # ===== Kaggle Datasets =====
 KAGGLE_DATASET_SPARKOV = "kartik2112/fraud-detection"
 KAGGLE_DATASET_ULB = "mlg-ulb/creditcardfraud"
-
-# Backward compatibility
-KAGGLE_DATASET = KAGGLE_DATASET_SPARKOV
 
 # ===== Tên file dữ liệu Sparkov =====
 TRAIN_FILE = "fraudTrain.csv"
@@ -96,6 +92,5 @@ IMBALANCE_TECHNIQUES = [
 ]
 
 # ===== Đảm bảo các thư mục tồn tại =====
-for _dir in [RAW_DATA_DIR, PROCESSED_DATA_DIR, FIGURES_DIR, PROFILING_DIR,
-             MODELS_DIR, RESULTS_DIR]:
+for _dir in [RAW_DATA_DIR, PROCESSED_DATA_DIR, FIGURES_DIR, PROFILING_DIR, RESULTS_DIR]:
     _dir.mkdir(parents=True, exist_ok=True)

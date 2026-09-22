@@ -24,16 +24,16 @@ import pandas as pd
 import logging
 import json
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any
 from scipy.stats import spearmanr
 
 from src.config import (
-    SEED, N_RUNS, TARGET_COL, RESULTS_DIR,
+    N_RUNS, TARGET_COL, RESULTS_DIR,
     ONEHOT_COLS, TARGET_ENCODE_COLS,
 )
 from src.data.encoding import encode_train, encode_test
 from src.imbalance.resamplers import apply_imbalance, onehot_groups_from_columns
-from src.models.train import build_model, train_model, predict_proba
+from src.models.train import build_model, train_model
 from src.explainability.shap_utils import compute_shap
 
 logger = logging.getLogger(__name__)
@@ -190,7 +190,6 @@ def compute_feature_level_cies(
         DataFrame với cột: feature, mean_abs_shap, shap_cv (coefficient of variation),
         mean_rank, rank_std
     """
-    n_runs = len(shap_values_runs)
     n_features = shap_values_runs[0].shape[1]
 
     if feature_names is None:

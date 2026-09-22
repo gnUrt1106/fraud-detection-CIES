@@ -18,11 +18,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import numpy as np
 import pandas as pd
 
-from src.config import SEED, ONEHOT_COLS, TARGET_ENCODE_COLS
+from src.config import SEED
 from src.data.encoding import encode_train, encode_test, stratified_kfold_target_encode
 from src.imbalance.resamplers import apply_imbalance, get_class_weights, onehot_groups_from_columns
-from src.models.train import build_model, train_model, predict_proba
-from src.evaluation.metrics import evaluate_model
+from src.models.train import build_model
 from src.explainability.shap_utils import compute_shap
 from src.explainability.cies import (
     compute_rank_weighted_distance,
@@ -476,7 +475,7 @@ def test_end_to_end_cies():
 
 def test_optuna_tuning():
     print("\n--- Testing Optuna HPO Module (tune_model on sample data) ---")
-    from src.models.tune import tune_model, sample_hyperparameters
+    from src.models.tune import tune_model
     X = np.random.randn(150, 8)
     y = np.array([0] * 135 + [1] * 15)
 

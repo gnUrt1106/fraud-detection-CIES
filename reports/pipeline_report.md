@@ -91,6 +91,17 @@ Ba cách hợp lệ độc lập cho kết quả gần nhau nên không phải l
 
 **Cần chạy lại:** notebook 03, 04, 05 (mọi kết quả cũ không còn hợp lệ).
 
+## Dọn dẹp code (rà soát dư thừa, không đổi hành vi)
+
+Không sửa kết quả nào ở trên — chỉ bỏ phần chết/trùng lặp, xác nhận bằng `pyflakes` (0 cảnh báo trên `src` và `tests`) và `pytest` (21 test vẫn pass):
+- `format_metrics_table()` trong `metrics.py` — chưa từng được gọi ở notebook/test nào, đã xoá (34 dòng).
+- 7 import không dùng (`typing.Any`/`Tuple`, `SEED`, `predict_proba`, `classification_report`, `os`...) và 1 biến cục bộ chết (`n_runs` trong `compute_feature_level_cies`).
+- `config.MODELS_DIR` — tạo thư mục `models/` ở gốc repo nhưng không nơi nào dùng (không model nào được lưu ra đĩa); đã xoá hằng số và thư mục rỗng.
+- `config.KAGGLE_DATASET` — alias trùng với `KAGGLE_DATASET_SPARKOV`, chỉ `download.py` dùng; gộp lại dùng thẳng `KAGGLE_DATASET_SPARKOV`.
+- `config.ULB_FILE` được định nghĩa nhưng notebook 02 hardcode `'creditcard.csv'` thay vì dùng — sửa notebook dùng hằng số, đúng nguyên tắc "không hardcode" ghi ngay trong docstring `config.py`.
+- `tune_all_models`: bỏ đoạn đọc `best_params.json` đầu hàm mà không dùng tới (mỗi lần ghi đã tự đọc lại qua `_merge_write`, đọc trước đó chỉ tốn công vô ích).
+- 6 import test không dùng trong `tests/test_pipeline.py` (`ONEHOT_COLS`, `TARGET_ENCODE_COLS`, `evaluate_model`, `sample_hyperparameters`, và `train_model`/`predict_proba` ở top-level — đã có bản import cục bộ riêng trong 2 test dùng chúng).
+
 ## Việc tiếp theo
 
 1. Tune lại 5 model (100 trial, vùng mới) trên Kaggle theo đợt; RF chậm nhất (~1500 giây/trial ở lần 1).

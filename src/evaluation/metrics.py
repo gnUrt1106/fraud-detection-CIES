@@ -15,7 +15,6 @@ from sklearn.metrics import (
     f1_score,
     fbeta_score,
     precision_recall_curve,
-    classification_report,
     confusion_matrix,
 )
 
@@ -77,40 +76,3 @@ def evaluate_model(
     metrics["false_negatives"] = int(fn)
 
     return metrics
-
-
-def format_metrics_table(
-    results: Dict[str, Dict[str, float]],
-    primary_metric: str = "pr_auc",
-) -> str:
-    """
-    Format kết quả metrics thành bảng markdown.
-
-    Args:
-        results: Dict[combination_name] → Dict[metric_name] → value
-        primary_metric: Metric chính để sort (mặc định pr_auc)
-
-    Returns:
-        Bảng markdown string
-    """
-    if not results:
-        return "Chưa có kết quả."
-
-    # Sort by primary metric descending
-    sorted_results = sorted(
-        results.items(),
-        key=lambda x: x[1].get(primary_metric, 0),
-        reverse=True,
-    )
-
-    # Header
-    display_metrics = ["pr_auc", "f1", "f2", "roc_auc"]
-    header = "| Combination | " + " | ".join(m.upper() for m in display_metrics) + " |"
-    separator = "|---|" + "|".join(["---"] * len(display_metrics)) + "|"
-
-    rows = [header, separator]
-    for name, m in sorted_results:
-        values = " | ".join(f"{m.get(metric, 0):.4f}" for metric in display_metrics)
-        rows.append(f"| {name} | {values} |")
-
-    return "\n".join(rows)
