@@ -38,9 +38,50 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-21), không 
 | Hạng mục | Trạng thái |
 |---|---|
 | Tune lần 1 (30 trial, vùng hẹp) | LR / XGBoost / CatBoost / ANN xong (PR-AUC CV 0.319 / 0.929 / 0.926 / 0.892), RF xong 0.857 nhưng `max_depth` chạm biên 18. Nhiều tham số chạm biên (CatBoost `depth`, `iterations`; ANN `epochs`; LR `C`) |
-| Tune lần 2 (100 trial, vùng đã nới, cùng ngân sách cho mọi model) | Xong: LR 0.319, XGBoost 0.933, CatBoost 0.9271, RF 0.8872 (70 xong / 30 cắt). **ANN còn lại** (chạy nhiều phiên Kaggle với checkpoint SQLite). Đến khi ANN xong, `best_params.json` là hỗn hợp hai giao thức (ANN còn 30 trial cũ), chưa dùng cho benchmark |
-| Benchmark 25 tổ hợp (03), CIES Sparkov (04), CIES ULB (05) | **Chưa có kết quả** trên code/dữ liệu hiện tại |
+| Tune lần 2 (100 trial, vùng đã nới, cùng ngân sách cho mọi model) | Xong: LR 0.319, XGBoost 0.933, CatBoost 0.9271, RF 0.8872 (70 xong / 30 cắt). **ANN còn lại** (chạy nhiều phiên Kaggle với checkpoint SQLite, ~30/100 trial). `best_params.json` hiện là hỗn hợp hai giao thức cho riêng ANN (30 trial cũ), chưa dùng cho benchmark/CIES của ANN |
+| Benchmark 20/20 (4 model đã tune × 5 kỹ thuật, toàn bộ 1.48M dòng train) | **Xong** — xem bảng ở mục "Kết quả benchmark + CIES" |
+| CIES Sparkov 20/20 (4 model đã tune × 5 kỹ thuật, subsample 100k, N_RUNS=20) | **Xong** — xem bảng ở mục "Kết quả benchmark + CIES" |
+| ANN: benchmark + CIES | Chưa chạy, chờ tune xong (mỗi bên còn 5 tổ hợp) |
+| CIES ULB (05) | Chưa chạy |
 | Đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2) | Chưa làm |
+
+## Kết quả benchmark + CIES (4 model đã tune, đủ 5×5)
+
+Benchmark: train trên toàn bộ 1.481.915 dòng, đánh giá trên test cố định (370.479 dòng, không resample). CIES: bootstrap từ mẫu phân tầng 100.000 dòng, N_RUNS=20, `feature_level=True`.
+
+| Model | Kỹ thuật | PR-AUC | F1 | CIES | Spearman |
+|---|---|---|---|---|---|
+| Logistic Regression | smote | 0.2332 | 0.0902 | 0.8512 | 0.6047 |
+| Logistic Regression | smote_enn | 0.2269 | 0.0867 | 0.8494 | 0.6101 |
+| Logistic Regression | adasyn | 0.2190 | 0.0586 | 0.8526 | 0.6028 |
+| Logistic Regression | borderline_smote | 0.2581 | 0.1089 | 0.8402 | 0.5475 |
+| Logistic Regression | class_weighting | 0.2245 | 0.0798 | 0.8608 | 0.6122 |
+| Random Forest | smote | 0.8769 | 0.8347 | 0.9687 | 0.9501 |
+| Random Forest | smote_enn | 0.8545 | 0.7835 | 0.9675 | 0.9462 |
+| Random Forest | adasyn | 0.8763 | 0.8341 | 0.9694 | 0.9501 |
+| Random Forest | borderline_smote | 0.8664 | 0.8243 | 0.9644 | 0.9352 |
+| Random Forest | class_weighting | **0.9014** | 0.8411 | **0.9784** | 0.9666 |
+| XGBoost | smote | 0.9271 | 0.8570 | 0.9591 | 0.9285 |
+| XGBoost | smote_enn | 0.9039 | 0.7745 | 0.9573 | 0.9221 |
+| XGBoost | adasyn | 0.9252 | 0.8597 | 0.9591 | 0.9281 |
+| XGBoost | borderline_smote | 0.9259 | 0.8518 | 0.9559 | 0.9100 |
+| XGBoost | class_weighting | **0.9327** | 0.6809 | **0.9646** | 0.9239 |
+| CatBoost | smote | 0.9251 | 0.8470 | 0.9557 | 0.8792 |
+| CatBoost | smote_enn | 0.9050 | 0.7486 | 0.9539 | 0.8708 |
+| CatBoost | adasyn | 0.9290 | 0.8594 | 0.9550 | 0.8819 |
+| CatBoost | borderline_smote | 0.9258 | 0.8547 | 0.9546 | 0.8853 |
+| CatBoost | class_weighting | **0.9321** | 0.7529 | **0.9556** | 0.8619 |
+
+Nguồn: `results/model_benchmark_results.csv`, `results/cies_summary_results.json` (đã sắp theo thứ tự `MODEL_NAMES` × `IMBALANCE_TECHNIQUES`).
+
+**Nhận xét (dựa trên 4/5 model, chưa có ANN):**
+
+1. **Model quyết định CIES nhiều hơn kỹ thuật imbalance.** LR luôn thấp (0,84–0,86) bất kể kỹ thuật; 3 model cây/boosting đều cao (0,95–0,98). Trong cùng 1 model, chênh lệch CIES giữa 5 kỹ thuật rất nhỏ — CatBoost chỉ 0,0018 (0,9539–0,9557), XGBoost 0,0087, RF 0,0140, LR 0,0206 (theo tỷ lệ vẫn nhỏ). Tức là **đổi kỹ thuật imbalance gần như không ảnh hưởng độ ổn định giải thích của model cây/boosting trên Sparkov**, dù ảnh hưởng PR-AUC/F1 rõ hơn nhiều.
+2. **`class_weighting` cho PR-AUC và CIES cao nhất ở cả 3 model cây/boosting**, nhưng **F1 lại thấp nhất riêng ở XGBoost (0,68) và CatBoost (0,75)** — không xảy ra ở RF (F1 của RF+class_weighting vẫn cao nhất trong 5 kỹ thuật của RF). Cơ chế: `class_weighting` đẩy xác suất dự đoán lên cao để bù cho việc phạt nặng bỏ sót fraud trong hàm mất mát gradient boosting, nên ở ngưỡng cố định 0,5 sinh nhiều cảnh báo sai hơn (XGBoost: FP tăng từ ~260–350 lên 1.611; CatBoost: lên 1.045) dù đường cong PR-AUC tổng thể vẫn tốt. RF (bỏ phiếu theo cây, không gradient) không có hiệu ứng này.
+3. **CIES và Spearman đo cùng ý tưởng nhưng lệch nhau khác nhau tuỳ model.** LR lệch nhiều nhất (CIES ~0,85 nhưng Spearman ~0,55–0,61) — top feature ổn định nhưng phần đuôi (feature ít quan trọng) xáo trộn mạnh. CatBoost lệch nhiều thứ nhì (CIES ~0,955, Spearman ~0,86–0,88) dù CIES cao ngang XGBoost. RF lệch ít nhất (CIES và Spearman gần nhau, cả hai đều cao).
+4. **SMOTE-ENN là kỹ thuật kém nhất trên mọi mặt, ở mọi model** (PR-AUC, F1, và CIES đều thấp nhất hoặc gần thấp nhất trong 5 kỹ thuật của từng model) — mất thời gian nhất mà không mang lại lợi ích tương xứng trong lần chạy này.
+
+**Đây là kết luận sơ bộ**, dựa trên 1 seed và chưa có ANN — nên diễn giải là quan sát cần kiểm chứng thêm, không phải kết luận chắc chắn.
 
 ## Lệch so với spec và giới hạn
 
@@ -88,8 +129,9 @@ Ba cách hợp lệ độc lập cho kết quả gần nhau nên không phải l
 - **`daemon=True` ép joblib về `n_jobs=1`** → RF chậm; nay `daemon=False`.
 - **`tune_all_models` chỉ ghi file cuối vòng lặp** → nay lưu/merge từng model.
 - **Logistic Regression không hội tụ** vì feature chưa scale → thêm `StandardScaler`.
+- **`save_cies_results()` ghi đè cả file bằng list trong bộ nhớ riêng của tiến trình gọi nó** — an toàn với 1 tiến trình tuần tự (cách notebook 04/05 dùng), nhưng khi chạy nhiều tiến trình CIES song song (để tận CPU rảnh) thì tiến trình ghi sau xoá mất kết quả tiến trình khác vừa thêm — **đã xảy ra thật**, mất 1 tổ hợp đã xong. Thêm `merge_cies_result()` (đọc lại trước khi ghi, chỉ thay đúng 1 tổ hợp) cho trường hợp nhiều tiến trình cùng ghi.
 
-**Cần chạy lại:** notebook 03, 04, 05 (mọi kết quả cũ không còn hợp lệ).
+**Đã chạy lại theo code mới:** notebook 03 (benchmark) và 04 (CIES) — đủ 20/20 cho 4 model đã tune, xem mục "Kết quả benchmark + CIES" ở trên.
 
 ## Dọn dẹp code (rà soát dư thừa, không đổi hành vi)
 
@@ -105,8 +147,10 @@ Không sửa kết quả nào ở trên — chỉ bỏ phần chết/trùng lặ
 
 ## Việc tiếp theo
 
-1. Tune lại 5 model (100 trial, vùng mới) trên Kaggle theo đợt; RF chậm nhất (~1500 giây/trial ở lần 1).
-2. Chạy 03, 04, 05; mở rộng 04/05 lên 5×5 trước khi báo cáo.
-3. (Tuỳ chọn) chạy ablation `SNAP_SYNTHETIC_ONEHOT=True` trên vài tổ hợp để báo cáo như một phân tích bổ sung.
-4. Quyết định có tính thêm CIES đúng công thức gốc (nhiễu đầu vào) làm chỉ số phụ hay không; làm đối chứng KernelSHAP.
-5. Chạy lại notebook 06 với kết quả thật.
+1. Tune xong ANN trên Kaggle (~30/100 trial, checkpoint SQLite, chạy tiếp nhiều phiên).
+2. Chạy nốt 5 tổ hợp benchmark và 5 tổ hợp CIES của ANN cho đủ 25/25.
+3. Chạy notebook 05 (CIES ULB) — chưa chạy.
+4. (Tuỳ chọn) chạy ablation `SNAP_SYNTHETIC_ONEHOT=True` trên vài tổ hợp để báo cáo như một phân tích bổ sung.
+5. Quyết định có tính thêm CIES đúng công thức gốc (nhiễu đầu vào) làm chỉ số phụ hay không; làm đối chứng KernelSHAP.
+6. Chạy lại notebook 06 với kết quả thật (biểu đồ insight dataset, SHAP, CIES).
+7. Đối chiếu lại nhận xét sơ bộ ở mục "Kết quả benchmark + CIES" khi có đủ ANN và CIES ULB.

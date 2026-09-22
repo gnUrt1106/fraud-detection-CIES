@@ -1,10 +1,10 @@
 # ===== Data =====
 # Có dấu / ở đầu: CHỈ thư mục data/ ở gốc repo (dữ liệu thô/đã xử lý). Viết "data/" trần sẽ
 # khớp cả src/data/ và làm package src.data (encoding.py, download.py) không bao giờ vào git.
+# KHÔNG dùng "*.csv"/"*.parquet"/"*.feather" trần: /data/ đã ignore hết định dạng trong thư mục
+# đó rồi, còn để trần thì chặn nhầm cả results/model_benchmark_results.csv (kết quả thật, đáng
+# commit như cies_summary_results.json/best_params.json) — đã tái hiện: bug thật, không phải giả định.
 /data/
-*.csv
-*.parquet
-*.feather
 
 # ===== Environment =====
 .env

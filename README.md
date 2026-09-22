@@ -99,7 +99,8 @@ Repo phải ở chế độ Public để Kaggle `git clone` ẩn danh được.
 - [x] Đợt rà soát toàn bộ mã nguồn: đã sửa các lỗi nghiêm trọng (chi tiết ở [`reports/pipeline_report.md`](reports/pipeline_report.md)).
 - [x] Tune lại 4/5 model với vùng tìm đã nới, `N_TRIALS=100` (cùng ngân sách): LR 0.319, XGBoost 0.933, CatBoost 0.9271, Random Forest 0.8872 (local, 10 nhân).
 - [ ] **ANN** còn lại — đang chạy nhiều phiên Kaggle với checkpoint SQLite (`results/tuning_checkpoints/ann.db`), xem README mục "Chạy trên Kaggle" bước 5.
-- [ ] Chạy benchmark (03), CIES Sparkov (04), CIES ULB (05) trên tham số và code mới — **chưa có kết quả nào**.
+- [x] Benchmark (03) và CIES Sparkov (04) cho 4/5 model — **đủ 20/20 mỗi bên**, xem [`reports/pipeline_report.md`](reports/pipeline_report.md#kết-quả-benchmark--cies). Còn thiếu 5 tổ hợp mỗi bên cho ANN.
+- [ ] CIES ULB (05) — chưa chạy.
 - [ ] Thí nghiệm đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2).
 
 ## Lưu ý quan trọng
