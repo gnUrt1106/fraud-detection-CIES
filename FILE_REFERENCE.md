@@ -43,6 +43,7 @@ Danh mục theo trạng thái code hiện tại (chỉ liệt kê file nằm tro
 | `01_eda.ipynb` | Khám phá dữ liệu Sparkov + data profiling (`reports/profiling/`); xuất biểu đồ ra `reports/figures/` |
 | `02_preprocessing.ipynb` | Làm sạch, chia 80/20 stratified, encoding, lưu `data/processed/*.parquet` và `encoding_maps.joblib`; tải và chia ULB |
 | `kaggle_optuna_tuning.ipynb` | Tune trên Kaggle: clone repo, link `train_encoded.parquet` từ dataset input, chạy `tune_all_models`. Chọn model qua `MODELS_TO_TUNE` |
+| `kaggle_retune_benchmark_cies.ipynb` | Kaggle, 1 lần: retune (50 trial, `MODELS_SCOPE`) → benchmark → CIES Sparkov nối tiếp, mỗi giai đoạn tự resume qua nhiều phiên. Dùng sau khi sửa bug `age` (2026-09-23) để làm lại toàn bộ trên data đã đúng. Xem `KAGGLE_UPLOAD_README.md` |
 | `03_train_models.ipynb` | Benchmark 5 model × 5 kỹ thuật → `results/model_benchmark_results.csv` (lưu/resume từng tổ hợp, `timeout=None`) |
 | `04_cies_experiment.ipynb` | CIES trên Sparkov (đủ 5 model × 5 kỹ thuật, train subsample phân tầng `SUBSAMPLE_N=100.000` dòng; mục 8 kiểm tra độ nhạy theo cỡ mẫu) → `results/cies_summary_results.json` |
 | `05_cies_experiment_ulb.ipynb` | CIES trên ULB (đủ 5×5, toàn bộ train, `feature_level=False`) → `results/cies_summary_results_ulb.json` |

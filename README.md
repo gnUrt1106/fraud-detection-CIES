@@ -32,6 +32,7 @@ Cột `Time` của ULB bị loại (chỉ là thứ tự giao dịch); xem `ULB_
 │   ├── 01_eda.ipynb                 # Khám phá dữ liệu + data profiling
 │   ├── 02_preprocessing.ipynb       # Làm sạch, chia 80/20, encoding, xử lý ULB
 │   ├── kaggle_optuna_tuning.ipynb   # Tune hyperparameter bằng Optuna (chạy trên Kaggle)
+│   ├── kaggle_retune_benchmark_cies.ipynb  # Kaggle: retune(50 trial)+benchmark+CIES 1 lần (sau khi sửa bug age)
 │   ├── 03_train_models.ipynb        # Benchmark 5 model x 5 kỹ thuật
 │   ├── 04_cies_experiment.ipynb     # CIES trên Sparkov
 │   ├── 05_cies_experiment_ulb.ipynb # CIES trên ULB
