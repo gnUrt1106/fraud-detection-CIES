@@ -93,11 +93,12 @@ Repo phải ở chế độ Public để Kaggle `git clone` ẩn danh được.
 4. **Save Version → Save & Run All (Commit)**: chạy nền trên server Kaggle, tắt máy vẫn được. Tải `best_params.json` từ tab Output rồi đưa vào `results/`.
 5. **Model chạy quá 9 giờ/phiên (vd. ANN):** mỗi trial được lưu vào `results/tuning_checkpoints/<model>.db`. Hết `SESSION_BUDGET` (mặc định 7,5 giờ) notebook dừng mềm; phiên sau Add Input bằng *Notebook Output* của phiên trước rồi chạy lại — cell khôi phục sẽ chép checkpoint và chỉ chạy nốt số trial còn thiếu. Model chỉ được ghi vào `best_params.json` khi đủ `N_TRIALS`.
 
-## Trạng thái (cập nhật 2026-09-21)
+## Trạng thái (cập nhật 2026-09-22)
 
 - [x] Pipeline đầy đủ: encoding, 5 kỹ thuật imbalance, 5 model, metrics, SHAP, CIES, tune, trực quan hoá.
 - [x] Đợt rà soát toàn bộ mã nguồn: đã sửa các lỗi nghiêm trọng (chi tiết ở [`reports/pipeline_report.md`](reports/pipeline_report.md)).
-- [ ] Tune lại **cả 5 model** với vùng tìm đã nới và `N_TRIALS=100` cho mọi model (cùng ngân sách). Chạy theo đợt trên Kaggle; đợt 1 (`logistic_regression`, `xgboost`) là cấu hình sẵn trong notebook. `results/best_params.json` hiện còn tham số cũ (30 trial, vùng hẹp) của catboost/ann và chưa có random_forest cho tới khi chạy lại.
+- [x] Tune lại 4/5 model với vùng tìm đã nới, `N_TRIALS=100` (cùng ngân sách): LR 0.319, XGBoost 0.933, CatBoost 0.9271, Random Forest 0.8872 (local, 10 nhân).
+- [ ] **ANN** còn lại — đang chạy nhiều phiên Kaggle với checkpoint SQLite (`results/tuning_checkpoints/ann.db`), xem README mục "Chạy trên Kaggle" bước 5.
 - [ ] Chạy benchmark (03), CIES Sparkov (04), CIES ULB (05) trên tham số và code mới — **chưa có kết quả nào**.
 - [ ] Thí nghiệm đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2).
 
