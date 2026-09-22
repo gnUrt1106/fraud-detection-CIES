@@ -77,7 +77,7 @@ def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, An
         return {
             "lr": trial.suggest_float("lr", 1e-4, 1e-2, log=True),
             "dropout": trial.suggest_float("dropout", 0.1, 0.5),
-            "epochs": trial.suggest_int("epochs", 10, 60, step=5),
+            "epochs": trial.suggest_int("epochs", 10, 100, step=10),
             "batch_size": trial.suggest_categorical("batch_size", [256, 512, 1024]),
         }
 
