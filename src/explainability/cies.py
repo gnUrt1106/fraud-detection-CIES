@@ -340,7 +340,12 @@ def run_cies_experiment(
             trained_model = train_model(model, X_res, y_res, model_name=model_name)
 
             # 5. SHAP trên tập eval CỐ ĐỊNH
-            X_background = X_train[:min(200, len(X_train))]
+            # 100 dòng nền, không phải 200: shap.maskers.Independent (dùng cho LinearExplainer
+            # của LR) mặc định max_samples=100 và tự cắt bớt nếu đưa nhiều hơn — trước đây đưa
+            # 200 dòng thì bị cắt xuống 100 ở mọi run (in cảnh báo mỗi lần), nay đưa đúng 100
+            # ngay từ đầu để không còn thao tác cắt thừa. Việc cắt vốn tất định (random_state=0
+            # cố định trong shap.utils.sample), không phải nguồn nhiễu giữa các run.
+            X_background = X_train[:min(100, len(X_train))]
             shap_vals = compute_shap(
                 trained_model, model_name, X_eval,
                 X_background=X_background,
