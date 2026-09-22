@@ -6,7 +6,7 @@ Nhóm 2 (so sánh giữa model): mean|SHAP| chuẩn hoá, độ đồng thuận 
 Nhóm 3 (CIES): heatmap model × kỹ thuật, độ ổn định thứ hạng feature qua các
 bootstrap run, ma trận Spearman giữa các run, so sánh 2 dataset, trade-off với PR-AUC.
 
-Dữ liệu CIES lấy từ file JSON do `save_cies_results()` ghi; các biểu đồ theo run
+Dữ liệu CIES lấy từ file JSON do `merge_cies_result()` (hoặc `save_cies_results()`) ghi; các biểu đồ theo run
 cần trường `mean_abs_shap` trong `run_logs` (chỉ có ở kết quả chạy SAU khi
 `run_cies_experiment` bắt đầu lưu trường này).
 """
