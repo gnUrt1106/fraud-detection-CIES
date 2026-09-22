@@ -32,6 +32,7 @@ Cột `Time` của ULB bị loại (chỉ là thứ tự giao dịch); xem `ULB_
 │   ├── 01_eda.ipynb                 # Khám phá dữ liệu + data profiling
 │   ├── 02_preprocessing.ipynb       # Làm sạch, chia 80/20, encoding, xử lý ULB
 │   ├── kaggle_optuna_tuning.ipynb   # Tune hyperparameter bằng Optuna (chạy trên Kaggle)
+│   ├── colab_optuna_tuning.ipynb    # Tune trên Google Colab (checkpoint qua Google Drive)
 │   ├── 03_train_models.ipynb        # Benchmark 5 model x 5 kỹ thuật
 │   ├── 04_cies_experiment.ipynb     # CIES trên Sparkov
 │   ├── 05_cies_experiment_ulb.ipynb # CIES trên ULB
@@ -77,7 +78,7 @@ Chạy theo thứ tự. Các notebook mở bằng `jupyter lab`.
 
 1. **Tải dữ liệu Sparkov**: `python -m src.data.download` (bỏ qua nếu `data/raw/` đã có).
 2. **`02_preprocessing.ipynb`**: sinh `data/processed/*.parquet` (và tải/chia ULB).
-3. **Tune trên Kaggle** (`kaggle_optuna_tuning.ipynb`, bật GPU): ghi `results/best_params.json`. Xem mục [Chạy trên Kaggle](#chạy-trên-kaggle).
+3. **Tune** (`kaggle_optuna_tuning.ipynb` hoặc `colab_optuna_tuning.ipynb`, bật GPU): ghi `results/best_params.json`. Xem mục [Chạy trên Kaggle](#chạy-trên-kaggle) và [Chạy trên Colab](#chạy-trên-google-colab).
 4. **`03_train_models.ipynb`**, **`04_cies_experiment.ipynb`**, **`05_cies_experiment_ulb.ipynb`**: benchmark và CIES. Cả ba đều nạp tham số từ `best_params.json`; mỗi tổ hợp được lưu ngay khi xong nên chạy lại sẽ bỏ qua phần đã có.
 5. **`06_visualizations.ipynb`**: vẽ biểu đồ vào `reports/figures/` (phần CIES tự bỏ qua nếu chưa có kết quả).
 
@@ -92,6 +93,20 @@ Repo phải ở chế độ Public để Kaggle `git clone` ẩn danh được.
 3. Sửa `MODELS_TO_TUNE` trong cell config (kết quả tự merge vào `results/best_params.json` có sẵn trong repo).
 4. **Save Version → Save & Run All (Commit)**: chạy nền trên server Kaggle, tắt máy vẫn được. Tải `best_params.json` từ tab Output rồi đưa vào `results/`.
 5. **Model chạy quá 9 giờ/phiên (vd. ANN):** mỗi trial được lưu vào `results/tuning_checkpoints/<model>.db`. Hết `SESSION_BUDGET` (mặc định 7,5 giờ) notebook dừng mềm; phiên sau Add Input bằng *Notebook Output* của phiên trước rồi chạy lại — cell khôi phục sẽ chép checkpoint và chỉ chạy nốt số trial còn thiếu. Model chỉ được ghi vào `best_params.json` khi đủ `N_TRIALS`.
+
+### Chạy trên Google Colab
+
+Dùng khi cần thêm phiên GPU ngoài hạn mức Kaggle, hoặc tiếp tục 1 model đang tune dở. Colab đĩa bị
+xoá mỗi runtime nên `colab_optuna_tuning.ipynb` lưu checkpoint và `best_params.json` vào Google
+Drive (`MyDrive/cies-tuning/`) thay vì `results/` cục bộ.
+
+1. Bật GPU: **Runtime → Change runtime type → T4 GPU**.
+2. Gắn Google Drive (cell đầu notebook); upload `train_encoded.parquet` vào `MyDrive/cies-tuning/` một lần.
+3. Nếu tiếp tục checkpoint đã có từ Kaggle: tải `ann.db` từ tab Output của phiên Kaggle đó, upload vào `MyDrive/cies-tuning/tuning_checkpoints/`.
+4. Chạy hết notebook. `SESSION_BUDGET` mặc định 4 giờ (Colab miễn phí cần trình duyệt còn kết nối; đóng hẳn máy nhiều khả năng ngắt phiên — checkpoint không mất, chạy lại notebook để tiếp tục).
+5. Khi model đủ `N_TRIALS`: tải `best_params.json` từ Drive về, đưa vào `results/` để merge như kết quả Kaggle.
+
+**Chỉ tune 1 model ở 1 nơi tại 1 thời điểm** — chạy đồng thời Kaggle và Colab cho cùng model sẽ tạo 2 study SQLite tách rời, mỗi bên tự đếm đến `N_TRIALS` riêng, phá ngân sách 100 trial thống nhất.
 
 ## Trạng thái (cập nhật 2026-09-22)
 

@@ -43,6 +43,7 @@ Danh mục theo trạng thái code hiện tại (chỉ liệt kê file nằm tro
 | `01_eda.ipynb` | Khám phá dữ liệu Sparkov + data profiling (`reports/profiling/`); xuất biểu đồ ra `reports/figures/` |
 | `02_preprocessing.ipynb` | Làm sạch, chia 80/20 stratified, encoding, lưu `data/processed/*.parquet` và `encoding_maps.joblib`; tải và chia ULB |
 | `kaggle_optuna_tuning.ipynb` | Tune trên Kaggle: clone repo, link `train_encoded.parquet` từ dataset input, chạy `tune_all_models`. Chọn model qua `MODELS_TO_TUNE` |
+| `colab_optuna_tuning.ipynb` | Tune trên Google Colab (phiên GPU thêm, chạy song song với Kaggle): checkpoint và `best_params.json` lưu trên Google Drive vì đĩa Colab bị xoá mỗi runtime. Chỉ nên tune 1 model ở 1 nơi tại 1 thời điểm để không phá ngân sách n_trials |
 | `03_train_models.ipynb` | Benchmark 5 model × 5 kỹ thuật → `results/model_benchmark_results.csv` (lưu/resume từng tổ hợp, `timeout=None`) |
 | `04_cies_experiment.ipynb` | CIES trên Sparkov (đủ 5 model × 5 kỹ thuật, train subsample phân tầng `SUBSAMPLE_N=100.000` dòng; mục 8 kiểm tra độ nhạy theo cỡ mẫu) → `results/cies_summary_results.json` |
 | `05_cies_experiment_ulb.ipynb` | CIES trên ULB (đủ 5×5, toàn bộ train, `feature_level=False`) → `results/cies_summary_results_ulb.json` |
