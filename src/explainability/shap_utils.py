@@ -14,7 +14,7 @@ ANN dùng explainer xấp xỉ — ghi log riêng, không so sánh thô với Tr
 import numpy as np
 import shap
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,8 @@ def compute_shap(
     X_eval: np.ndarray,
     X_background: Optional[np.ndarray] = None,
     max_background_samples: int = 100,
-) -> np.ndarray:
+    return_explainer: bool = False,
+) -> Any:
     """
     Tính SHAP values cho tập eval CỐ ĐỊNH.
 
@@ -49,9 +50,14 @@ def compute_shap(
         X_eval: Feature matrix cần giải thích (CỐ ĐỊNH qua các CIES runs)
         X_background: Background data cho KernelExplainer (subsample từ train)
         max_background_samples: Số samples tối đa cho background (KernelExplainer)
+        return_explainer: True → trả thêm tên explainer THỰC SỰ đã dùng ("linear" | "tree" |
+            "deep" | "kernel"). ANN có thể lùi từ "deep" về "kernel" khi DeepExplainer lỗi — CIES
+            ghi lại tên này để biết điểm của ANN tính bằng explainer nào (Kernel có nhiễu lấy mẫu
+            riêng, làm CIES thấp giả tạo).
 
     Returns:
-        SHAP values array, shape (n_samples, n_features)
+        SHAP values array, shape (n_samples, n_features); hoặc (values, tên explainer) nếu
+        return_explainer=True
     """
     explainer_type = EXPLAINER_MAP.get(model_name)
 
@@ -61,18 +67,20 @@ def compute_shap(
             f"Chỉ hỗ trợ: {list(EXPLAINER_MAP.keys())}"
         )
 
+    used = explainer_type
     if explainer_type == "linear":
-        return _compute_shap_linear(model, X_eval, X_background)
+        values = _compute_shap_linear(model, X_eval, X_background)
     elif explainer_type == "tree":
-        return _compute_shap_tree(model, X_eval)
+        values = _compute_shap_tree(model, X_eval)
     elif explainer_type == "kernel":
-        return _compute_shap_kernel(
+        values = _compute_shap_kernel(
             model, X_eval, X_background, max_background_samples
         )
     elif explainer_type == "deep":
-        return _compute_shap_deep(model, X_eval, X_background)
+        values, used = _compute_shap_deep(model, X_eval, X_background)
     else:
         raise ValueError(f"Explainer type '{explainer_type}' không hỗ trợ")
+    return (values, used) if return_explainer else values
 
 
 def _compute_shap_linear(
@@ -193,9 +201,10 @@ def _compute_shap_deep(
     model: Any,
     X_eval: np.ndarray,
     X_background: Optional[np.ndarray],
-) -> np.ndarray:
+) -> Tuple[np.ndarray, str]:
     """
-    SHAP cho ANN — DeepExplainer (xấp xỉ dựa trên DeepLIFT, tất định).
+    SHAP cho ANN — DeepExplainer (xấp xỉ dựa trên DeepLIFT, tất định). Trả (values, "deep"), hoặc
+    (values, "kernel") nếu đã phải lùi về KernelExplainer.
 
     Giải thích logit (đầu ra trước sigmoid) — cùng thang log-odds với LR/XGBoost.
     Nếu DeepExplainer lỗi (vd. version shap/torch không hỗ trợ 1 layer), tự lùi về
@@ -222,7 +231,7 @@ def _compute_shap_deep(
         shap_values = explainer.shap_values(X_eval_tensor)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"DeepExplainer lỗi ({type(e).__name__}: {e}) — lùi về KernelExplainer.")
-        return _compute_shap_kernel(model, X_eval, X_background)
+        return _compute_shap_kernel(model, X_eval, X_background), "kernel"
 
     # shap>=0.4x trả ndarray (n_samples, n_features, n_outputs=1) thay vì list;
     # bản cũ trả list [array]. Luôn quy về (n_samples, n_features).
@@ -231,4 +240,4 @@ def _compute_shap_deep(
     shap_values = np.asarray(shap_values)
     if shap_values.ndim == 3:
         shap_values = shap_values[:, :, 0]
-    return shap_values
+    return shap_values, "deep"

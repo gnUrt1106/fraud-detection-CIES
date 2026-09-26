@@ -387,9 +387,9 @@ def run_cies_experiment(
             # ngay từ đầu để không còn thao tác cắt thừa. Việc cắt vốn tất định (random_state=0
             # cố định trong shap.utils.sample), không phải nguồn nhiễu giữa các run.
             X_background = X_train[:min(100, len(X_train))]
-            shap_vals = compute_shap(
+            shap_vals, explainer_used = compute_shap(
                 trained_model, model_name, X_eval,
-                X_background=X_background,
+                X_background=X_background, return_explainer=True,
             )
             # Model không học được gì (dự đoán hằng số) → SHAP toàn 0 → mọi thứ hạng
             # hoà nhau → CIES = 1.0 GIẢ (ổn định tuyệt đối vì không có gì để dao
@@ -409,6 +409,8 @@ def run_cies_experiment(
                 # thứ hạng feature qua các run (src/visualization/explain.py)
                 # mà không cần lưu nguyên ma trận SHAP (n_eval x n_features).
                 "mean_abs_shap": np.mean(np.abs(shap_vals), axis=0).tolist(),
+                # Explainer THỰC SỰ dùng — ANN lùi deep → kernel khi DeepExplainer lỗi
+                "explainer": explainer_used,
                 "status": "success",
             })
 

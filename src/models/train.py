@@ -170,8 +170,8 @@ def build_model(
             lr_params.update(params)
         # StandardScaler — feature chưa scale (amt, lat/long, hour, target-encode
         # probability...) chênh lệch scale lớn khiến lbfgs khó hội tụ trong
-        # max_iter (ConvergenceWarning). Chỉ LR cần: cây (RF/XGBoost/CatBoost)
-        # bất biến với scaling, ANN đã có BatchNorm ngay sau input.
+        # max_iter (ConvergenceWarning). Cây (RF/XGBoost/CatBoost) bất biến với scaling;
+        # ANN có StandardScaler riêng trong _train_ann (BatchNorm nằm SAU lớp Linear đầu).
         return {"kind": "lr", "model": LogisticRegression(**lr_params), "scaler": StandardScaler()}
 
     elif model_name == "random_forest":

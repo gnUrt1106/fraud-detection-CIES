@@ -280,6 +280,59 @@ def test_encode_train_handles_non_default_index():
     assert np.allclose(enc["merchant_encoded"].to_numpy(), ref["merchant_encoded"].to_numpy())
 
 
+def test_encode_test_handles_non_default_index():
+    """
+    Regression test: encode_test ghép cột one-hot (index 0..n-1 từ pd.Categorical) vào df_test theo
+    NHÃN index — df_test có index khác thì số dòng nhân đôi, nửa là NaN. Phải cho cùng kết quả như
+    khi df_test có index mặc định.
+    """
+    df = create_synthetic_data(400)
+    tr, te = df.iloc[:300], df.iloc[300:]                    # te có index 300..399
+    _, maps = encode_train(tr, target_col="is_fraud", onehot_cols=["gender", "category"],
+                           target_encode_cols=["merchant"], n_splits=3, random_state=SEED)
+    got = encode_test(te, maps, target_encode_cols=["merchant"])
+    ref = encode_test(te.reset_index(drop=True), maps, target_encode_cols=["merchant"])
+    assert len(got) == len(te) and not got.isna().any().any(), (len(got), int(got.isna().sum().sum()))
+    assert got.equals(ref)
+
+
+def test_cies_logs_the_explainer_actually_used():
+    """ANN lùi DeepExplainer → KernelExplainer khi Deep lỗi (vd. version shap khác trên Kaggle) mà
+    trước đây không để lại dấu vết trong kết quả. compute_shap(return_explainer=True) phải báo đúng
+    explainer đã dùng, và run_logs của CIES phải ghi lại nó."""
+    from src.explainability.cies import run_cies_experiment
+
+    df = create_synthetic_data(300)
+    res = run_cies_experiment(
+        model_name="logistic_regression", imbalance_technique="class_weighting",
+        df_train=df.iloc[:200].reset_index(drop=True), df_test_fixed_eval=df.iloc[200:].reset_index(drop=True),
+        target_col="is_fraud", onehot_cols=["gender", "category", "state"],
+        target_encode_cols=["merchant", "city", "job"], n_runs=2, params={"C": 1.0},
+    )
+    assert [x["explainer"] for x in res["run_logs"]] == ["linear", "linear"]
+
+    import subprocess, textwrap
+    code = textwrap.dedent(f"""
+        import sys; sys.path.insert(0, {str(Path(__file__).resolve().parent.parent)!r})
+        import numpy as np, shap
+        from src.models.train import build_model, train_model
+        from src.explainability.shap_utils import compute_shap
+        rng = np.random.RandomState(0)
+        X = rng.randn(300, 4); y = (X[:, 0] > 1).astype(int)
+        m = train_model(build_model("ann", input_dim=4, params={{"epochs": 2, "batch_size": 64}}), X, y, model_name="ann")
+        v, used = compute_shap(m, "ann", X[:5], X_background=X[:20], return_explainer=True)
+        assert used == "deep" and v.shape == (5, 4), used
+        def broken(*a, **k):
+            raise RuntimeError("giả lập DeepExplainer lỗi")
+        shap.DeepExplainer = broken
+        v, used = compute_shap(m, "ann", X[:5], X_background=X[:20], return_explainer=True)
+        assert used == "kernel" and v.shape == (5, 4), used
+        print("OK")
+    """)
+    res = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=240)
+    assert res.returncode == 0 and "OK" in res.stdout, res.stdout + res.stderr
+
+
 def test_cies_failure_path_returns_all_metric_keys():
     """Nhánh <2 run thành công phải trả đủ khoá — notebook đọc cies_metrics["mean_spearman"]."""
     import src.explainability.cies as cies_mod

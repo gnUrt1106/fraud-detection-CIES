@@ -2,13 +2,14 @@
 encoding.py — Encoding pipeline cho categorical features.
 
 Thứ tự pipeline (spec mục 3.3):
-    1. Split train/test (stratified theo target)
+    1. Split train/test THEO THỜI GIAN (src/data/preprocess.py)
     2. Encoding: fit trên train → transform test
     3. Imbalance handling: CHỈ áp dụng lên train, SAU khi encode
 
-Encoding strategy (spec mục 3.1):
-    - One-hot: gender, category, state (low cardinality)
-    - Stratified K-fold Target Encoding: merchant, city, job (high cardinality)
+Encoding strategy (spec mục 3.1, cột theo config.ONEHOT_COLS / TARGET_ENCODE_COLS):
+    - One-hot: gender, category (low cardinality)
+    - Stratified K-fold Target Encoding: merchant (high cardinality)
+    (state, city, job đã bị bỏ khỏi feature — là cột định danh khách hàng, xem AGENT_SPEC §8)
 
 RÀNG BUỘC:
     - PHẢI dùng StratifiedKFold, KHÔNG KFold thường
@@ -198,7 +199,10 @@ def encode_test(
     if target_encode_cols is None:
         target_encode_cols = TARGET_ENCODE_COLS
 
-    df_encoded = df_test.copy()
+    # reset_index: cột one-hot dựng từ pd.Categorical luôn có index 0..n-1, ghép (concat) theo NHÃN
+    # index — df_test có index khác (vd. 1 lát cắt .iloc[...] không reset) sẽ bị ghép lệch hàng,
+    # nhân đôi số dòng và sinh NaN. Giống encode_train: kết quả luôn có index 0..n-1.
+    df_encoded = df_test.reset_index(drop=True)
     global_mean = encoding_maps["global_mean"]
 
     # --- One-hot encoding ---
