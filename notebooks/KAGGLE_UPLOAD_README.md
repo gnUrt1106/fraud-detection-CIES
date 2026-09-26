@@ -34,10 +34,21 @@ Notebook Output của phiên vừa Save (không phải dataset gốc) → chạy
 tự tìm checkpoint Optuna + `best_params.json`/`model_benchmark_results.csv`/
 `cies_summary_results.json` dở dang từ phiên trước và tiếp tục đúng chỗ dừng.
 
+## Chạy một phần ở máy local, một phần trên Kaggle
+
+Có thể tune + chạy một số model ở máy local (vd. LR, XGBoost), còn lại trên Kaggle (vd. ANN):
+
+1. Chạy xong các model local, **commit và push** `results/` lên GitHub.
+2. Trên Kaggle đặt `MODELS_SCOPE` chỉ gồm model còn lại (vd. `["ann"]`). Notebook giữ nguyên kết quả của
+   repo cho các model ngoài `MODELS_SCOPE` và chỉ chạy các model trong đó.
+3. Trong lúc Kaggle chạy, không sửa kết quả local của các model ngoài `MODELS_SCOPE` (nếu có, push lại
+   trước khi mở phiên Kaggle mới — notebook luôn lấy bản mới nhất trong repo cho các model đó).
+
 ## Sau khi xong
 
 Tải `results/best_params.json`, `results/model_benchmark_results.csv`,
-`results/cies_summary_results.json` từ tab Output, ghi đè vào `results/` ở repo local, rồi:
+`results/cies_summary_results.json` từ tab Output — chúng đã gồm cả kết quả của repo lẫn của Kaggle —
+ghi đè vào `results/` ở repo local, rồi:
 
 ```bash
 python -m pytest tests -q
