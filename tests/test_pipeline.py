@@ -669,30 +669,35 @@ def test_tune_folds_encode_without_future_labels():
 
 def test_resample_cache_is_identical_and_keyed_on_everything_that_matters(tmp_path, monkeypatch):
     """
-    Cache resample: (1) giống hệt không cache; (2) lần 2 đọc file, không chạy lại resampler;
-    (3) đổi seed hoặc SNAP_SYNTHETIC_ONEHOT thì tính lại, không dùng nhầm bản cũ.
+    Cache resample (1 file parquet / kỹ thuật): (1) giống hệt không cache; (2) là 1 dataset đọc được
+    (tên cột + is_fraud); (3) lần 2 đọc file, không chạy lại resampler; (4) đổi seed hoặc
+    SNAP_SYNTHETIC_ONEHOT thì tính lại và ghi đè, không dùng nhầm bản cũ.
     """
     import src.imbalance.resamplers as rs
 
     rng = np.random.RandomState(0)
     X = rng.randn(300, 4)
     y = (rng.rand(300) < 0.1).astype(int)
+    names = ["a", "b", "c", "d"]
 
     ref_X, ref_y, _ = rs.apply_imbalance("smote_enn", X, y, seed=SEED)
-    X1, y1, _ = rs.apply_imbalance_cached("smote_enn", X, y, seed=SEED, cache_dir=tmp_path)
+    X1, y1, _ = rs.apply_imbalance_cached("smote_enn", X, y, seed=SEED, cache_dir=tmp_path, feature_names=names)
     assert np.array_equal(X1, ref_X) and np.array_equal(y1, ref_y)
+    saved = pd.read_parquet(tmp_path / "train_encoded_smote_enn.parquet")
+    assert list(saved.columns) == names + ["is_fraud"] and len(saved) == len(ref_y)
 
     calls = []
     real = rs.apply_imbalance
     monkeypatch.setattr(rs, "apply_imbalance", lambda *a, **k: calls.append(1) or real(*a, **k))
-    X2, y2, _ = rs.apply_imbalance_cached("smote_enn", X, y, seed=SEED, cache_dir=tmp_path)
+    X2, y2, _ = rs.apply_imbalance_cached("smote_enn", X, y, seed=SEED, cache_dir=tmp_path, feature_names=names)
     assert calls == [] and np.array_equal(X2, ref_X) and np.array_equal(y2, ref_y)
 
-    rs.apply_imbalance_cached("smote_enn", X, y, seed=SEED + 1, cache_dir=tmp_path)
+    rs.apply_imbalance_cached("smote_enn", X, y, seed=SEED + 1, cache_dir=tmp_path, feature_names=names)
+    assert len(calls) == 1, "đổi seed phải tính lại"
     monkeypatch.setattr(rs, "SNAP_SYNTHETIC_ONEHOT", not rs.SNAP_SYNTHETIC_ONEHOT)
-    rs.apply_imbalance_cached("smote_enn", X, y, seed=SEED, cache_dir=tmp_path)
-    assert len(calls) == 2, "đổi seed / SNAP phải tính lại"
-    assert len(list(tmp_path.glob("smote_enn_*.npz"))) == 3
+    rs.apply_imbalance_cached("smote_enn", X, y, seed=SEED + 1, cache_dir=tmp_path, feature_names=names)
+    assert len(calls) == 2, "đổi SNAP_SYNTHETIC_ONEHOT phải tính lại"
+    assert [f.name for f in tmp_path.iterdir()] == ["train_encoded_smote_enn.parquet"]
 
 
 def test_optuna_tuning():

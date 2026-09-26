@@ -16,6 +16,11 @@ dùng đúng dữ liệu hiện tại.
 
 Tổng ~123 MB — trong giới hạn Kaggle Dataset dễ dàng.
 
+**Nên upload thêm (tuỳ chọn):** 4 tập train đã resample trong `data/processed/resampled/`
+(`train_encoded_{smote,borderline_smote,adasyn,smote_enn}.parquet`, ~300 MB). Notebook tự dùng lại nếu
+dấu vân tay khớp (cùng dữ liệu, seed, version `imbalanced-learn`/`scikit-learn`) — tiết kiệm ~2,5 giờ
+SMOTE-ENN trên CPU mỗi lần benchmark. Không khớp thì notebook tự tính lại, kết quả vẫn đúng.
+
 ## Các bước
 
 1. Vào [kaggle.com/datasets](https://www.kaggle.com/datasets) → **New Dataset** (hoặc **New Version** nếu đã có dataset cũ).

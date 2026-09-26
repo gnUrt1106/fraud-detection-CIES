@@ -17,14 +17,18 @@ import os
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from typing import Tuple, Optional, Dict, List, Sequence
 
 import imblearn
+import sklearn
 from imblearn.over_sampling import SMOTE, ADASYN, BorderlineSMOTE
 from imblearn.combine import SMOTEENN
 from sklearn.utils.class_weight import compute_class_weight
 
-from src.config import SEED, ONEHOT_COLS, SNAP_SYNTHETIC_ONEHOT
+from src.config import SEED, ONEHOT_COLS, SNAP_SYNTHETIC_ONEHOT, TARGET_COL
+
+FINGERPRINT_KEY = b"cies_resample_fingerprint"
 
 
 def get_resampler(technique: str, seed: int = SEED):
@@ -153,7 +157,8 @@ def apply_imbalance(
 
 def _resample_fingerprint(technique, X, y, seed, onehot_groups) -> str:
     h = hashlib.sha1()
-    for part in (technique, seed, SNAP_SYNTHETIC_ONEHOT, onehot_groups, imblearn.__version__, X.shape, X.dtype, y.dtype):
+    for part in (technique, seed, SNAP_SYNTHETIC_ONEHOT, onehot_groups, imblearn.__version__, sklearn.__version__,
+                 X.shape, X.dtype, y.dtype):
         h.update(repr(part).encode())
     h.update(np.ascontiguousarray(X).tobytes())
     h.update(np.ascontiguousarray(y).tobytes())
@@ -167,26 +172,40 @@ def apply_imbalance_cached(
     seed: int = SEED,
     onehot_groups: Optional[Sequence[Sequence[int]]] = None,
     cache_dir: Optional[Path] = None,
+    feature_names: Optional[Sequence[str]] = None,
+    target_col: str = TARGET_COL,
+    name_prefix: str = "train_encoded_",
 ) -> Tuple[np.ndarray, np.ndarray, Optional[Dict[int, float]]]:
     """
-    `apply_imbalance`, nhưng lưu kết quả resample ra `cache_dir` để model khác dùng lại. Resample
-    chỉ phụ thuộc dữ liệu + kỹ thuật + seed (không phụ thuộc model), nên benchmark 5 model × 5 kỹ
-    thuật không phải tính lại cùng 1 phép SMOTE-ENN (hàng chục phút trên Sparkov) cho từng model.
-    Tên file chứa dấu vân tay của X, y, kỹ thuật, seed, SNAP_SYNTHETIC_ONEHOT, nhóm one-hot và
-    version imblearn — đổi bất kỳ thứ nào là tính lại, không bao giờ dùng nhầm bản cũ.
+    `apply_imbalance`, nhưng lưu kết quả resample thành `cache_dir/<name_prefix><kỹ thuật>.parquet`
+    (có tên cột, đọc/upload được như 1 dataset bình thường) để model khác dùng lại. Resample chỉ phụ
+    thuộc dữ liệu + kỹ thuật + seed (không phụ thuộc model), nên benchmark 5 model × 5 kỹ thuật không
+    phải tính lại cùng 1 phép SMOTE-ENN (~2,5 giờ trên Sparkov) cho từng model.
+
+    Metadata của file chứa dấu vân tay của X, y, kỹ thuật, seed, SNAP_SYNTHETIC_ONEHOT, nhóm one-hot
+    và version imblearn + scikit-learn (thuật toán láng giềng gần); khác dấu vân tay (dữ liệu hay cấu hình đã đổi) thì tính lại và ghi đè — không
+    bao giờ dùng nhầm bản cũ.
     """
     if cache_dir is None or technique == "class_weighting":
         return apply_imbalance(technique, X, y, seed=seed, onehot_groups=onehot_groups)
 
-    cache_dir = Path(cache_dir)
-    path = cache_dir / f"{technique}_{_resample_fingerprint(technique, X, y, seed, onehot_groups)}.npz"
-    if path.exists():
-        with np.load(path) as f:
-            return f["X"], f["y"], None
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    names = list(feature_names) if feature_names is not None else [f"f{i}" for i in range(X.shape[1])]
+    path = Path(cache_dir) / f"{name_prefix}{technique}.parquet"
+    fingerprint = _resample_fingerprint(technique, X, y, seed, onehot_groups)
+    if path.exists() and (pq.read_schema(path).metadata or {}).get(FINGERPRINT_KEY) == fingerprint.encode():
+        df = pq.read_table(path).to_pandas()
+        return df[names].to_numpy(dtype=X.dtype), df[target_col].to_numpy(dtype=y.dtype), None
 
     X_res, y_res, _ = apply_imbalance(technique, X, y, seed=seed, onehot_groups=onehot_groups)
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f"{path.stem}.{os.getpid()}.tmp.npz")
-    np.savez(tmp, X=X_res, y=y_res)
+    df = pd.DataFrame(X_res, columns=names)
+    df[target_col] = y_res
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    table = table.replace_schema_metadata({**(table.schema.metadata or {}), FINGERPRINT_KEY: fingerprint.encode()})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.stem}.{os.getpid()}.tmp")
+    pq.write_table(table, tmp)
     os.replace(tmp, path)
     return X_res, y_res, None

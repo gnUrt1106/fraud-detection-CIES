@@ -448,6 +448,7 @@ def train_and_evaluate_combo(
     seed: int = SEED,
     onehot_groups: Optional[Any] = None,
     resample_cache_dir: Optional[Any] = None,
+    feature_names: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
     Chạy trọn 1 tổ hợp (model × imbalance technique): imbalance → train →
@@ -467,6 +468,7 @@ def train_and_evaluate_combo(
         onehot_groups: Chỉ số cột từng nhóm one-hot (resamplers.onehot_groups_from_columns)
         resample_cache_dir: Thư mục cache dữ liệu đã resample (`apply_imbalance_cached`) để các
             model khác dùng lại; None = không cache
+        feature_names: Tên cột của X_train_raw (để file cache là 1 dataset đọc được)
 
     Returns:
         Dict: {"model", "imbalance_technique", **metrics}
@@ -476,7 +478,7 @@ def train_and_evaluate_combo(
 
     X_res, y_res, class_weights = apply_imbalance_cached(
         technique, X_train_raw, y_train_raw, seed=seed, onehot_groups=onehot_groups,
-        cache_dir=resample_cache_dir,
+        cache_dir=resample_cache_dir, feature_names=feature_names,
     )
     model = build_model(
         model_name=model_name,
