@@ -148,23 +148,33 @@ Cùng logic với cách chia train/test ("train quá khứ, chấm tương lai")
 
 ---
 
-## 8. Nới vùng tìm Optuna ở các tham số chạm biên (2026-09-26)
+## 8. Giữ vùng tìm Optuna ban đầu — đã thử nới biên, không cải thiện (2026-09-26)
 
-**Vấn đề.** Nếu giá trị tốt nhất nằm sát biên vùng tìm, rất có thể giá trị tốt hơn nằm ngoài vùng — Optuna không thể chọn nó. Quy ước kiểm tra: tham số "chạm biên" khi giá trị tốt nhất nằm ở ≤10–12% hoặc ≥88–90% khoảng (thang log với tham số log). Đo trên lần tune đầu tiên của thiết kế hiện tại (50 trial, 3 fold thời gian):
+**Vấn đề.** Nếu giá trị tốt nhất nằm sát biên vùng tìm, có thể giá trị tốt hơn nằm ngoài vùng. Lần tune đầu của thiết kế hiện tại có vài tham số sát biên (vị trí trong khoảng, thang log với tham số log):
 
-| Dataset | Model | Tham số | Giá trị tốt nhất | Vùng cũ | Vị trí | Vùng mới |
-|---|---|---|---|---|---|---|
-| Sparkov | XGBoost | `n_estimators` | 550 | 100–600 | 90% | 100–2000 |
-| Sparkov | XGBoost | `learning_rate` | 0,0137 | 0,01–0,3 (log) | 9% | 0,001–0,3 |
-| Sparkov | RF | `max_depth` | 27 | 6–30 | 88% | 6–50 |
-| ULB | LR | `C` | 0,00085 | 1e-4–1e4 (log) | 12% | 1e-6–1e4 |
-| Sparkov | LR | `C` | 0,214 | 1e-4–1e4 (log) | 42% | (không chạm biên) |
+| Dataset | Model | Tham số | Giá trị tốt nhất | Vùng tìm | Vị trí |
+|---|---|---|---|---|---|
+| Sparkov | XGBoost | `n_estimators` | 550 | 100–600 | 90% |
+| Sparkov | XGBoost | `learning_rate` | 0,0137 | 0,01–0,3 (log) | 9% |
+| Sparkov | RF | `max_depth` | 27 | 6–30 | 88% |
+| ULB | LR | `C` | 0,00085 | 1e-4–1e4 (log) | 12% |
 
-XGBoost chọn **nhiều cây + learning rate nhỏ** cùng lúc — hai tham số này bù cho nhau, nên cùng bị chặn ở biên. CatBoost (chưa tune xong) có cùng cặp `iterations`/`learning_rate` nên nới giống XGBoost. CatBoost giữ `depth ≤ 12` vì bộ nhớ tăng theo 2^depth.
+**Kiểm tra độ nhạy.** Tune lại với vùng nới rộng (`n_estimators`/`iterations` 100–2000, `learning_rate` 0,001–0,3, RF `max_depth` 6–50, LR `C` 1e-6–1e4), cùng 50 trial, 3 fold thời gian:
 
-**Quyết định.** Một vùng tìm **chung cho cả Sparkov và ULB** (`tune.py::sample_hyperparameters`), không đặt vùng riêng từng dataset — tránh câu hỏi "vì sao ULB được tìm rộng hơn". Dataset nào cần giá trị ở đầu nào thì vùng chung đã bao đủ. Tune lại các model bị ảnh hưởng (XGBoost, RF, CatBoost cho cả hai dataset; LR của ULB); LR Sparkov giữ kết quả cũ.
+| Dataset | Model | PR-AUC CV vùng ban đầu | PR-AUC CV vùng nới | Tham số vùng nới chọn |
+|---|---|---|---|---|
+| Sparkov | XGBoost | 0,9214 (550 cây, lr 0,0137) | 0,9212 (1850 cây, lr 0,0043; 45 trial) | nhiều cây hơn, lr nhỏ hơn |
+| ULB | LR | 0,8085 (`C`=0,00085) | 0,8089 (`C`=0,00084) | gần như cùng giá trị |
 
-**Đánh đổi.** Tối đa 2000 cây làm mỗi trial chậm hơn đáng kể (thời gian train tăng gần tuyến tính theo số cây). Sau khi tune lại cần chạy lại bước kiểm tra biên; nếu vẫn chạm biên mới thì ghi vào hạn chế thay vì nới mãi.
+- Nới biên, Optuna chuyển sang **nhiều cây + learning rate nhỏ hơn** — hai tham số bù cho nhau, PR-AUC **không đổi**. 15 trial tốt nhất của vùng nới chỉ chênh 0,0023 PR-AUC, từ 450 tới 2000 cây: đây là một dải phẳng, không phải tối ưu bị chặn ở biên.
+- LR ULB: vùng nới xuống tới 1e-6 nhưng vẫn chọn `C` ≈ 0,00084 (vị trí 29%) — tối ưu thật nằm trong vùng ban đầu.
+- **Chi phí:** trial XGBoost 1200–2000 cây mất trung bình 1,6 phút, so với 0,4 phút ở vùng ban đầu (~4×); benchmark và CIES (20 bootstrap × 5 kỹ thuật) chậm theo cùng tỉ lệ.
+
+**Quyết định.** Giữ vùng tìm ban đầu (`tune.py::sample_hyperparameters`), **chung cho cả Sparkov và ULB**. Nới biên không làm PR-AUC tốt hơn mà làm mọi bước sau chậm ~4×.
+
+**Trả lời khi bị hỏi.** *"Chúng tôi đã thử nới biên ở các tham số sát biên: model chuyển sang nhiều cây hơn với learning rate nhỏ hơn nhưng PR-AUC CV không đổi (0,9214 → 0,9212), còn thời gian train tăng ~4×, nên giữ vùng tìm ban đầu."*
+
+**Hạn chế còn lại.** RF Sparkov `max_depth=27` (88%) chưa được kiểm tra bằng vùng nới (lượt tune nới dừng trước RF). Kết quả vùng nới lưu tại `results/tuning_sensitivity_wide_space/` (ULB có thêm XGBoost 0,8133 và CatBoost 0,8111 để so với vùng ban đầu khi tune xong).
 
 ---
 
