@@ -276,6 +276,7 @@ def run_cies_experiment(
     target_encode_cols: Optional[list] = None,
     n_runs: int = N_RUNS,
     feature_level: bool = False,
+    params: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Chạy thí nghiệm CIES cho 1 tổ hợp (model × imbalance technique).
@@ -293,6 +294,8 @@ def run_cies_experiment(
         target_encode_cols: Cột target encoding (mặc định theo config)
         n_runs: Số lần lặp
         feature_level: Tính feature-level CIES (chỉ cho Sparkov)
+        params: Tham số model (vd. tune riêng cho ULB: `load_best_params(m, RESULTS_DIR /
+            "best_params_ulb.json")`); None = `build_model` tự nạp `results/best_params.json`
 
     Returns:
         Dict chứa:
@@ -372,6 +375,7 @@ def run_cies_experiment(
                 model_name,
                 input_dim=X_res.shape[1],
                 class_weights=class_weights,
+                params=params,
                 seed=seed,
             )
             trained_model = train_model(model, X_res, y_res, model_name=model_name)
@@ -459,6 +463,7 @@ def run_cies_experiment_isolated(
     n_runs: int = N_RUNS,
     feature_level: bool = False,
     timeout: Optional[float] = None,
+    params: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Wrapper chạy run_cies_experiment() trong 1 subprocess riêng biệt.
@@ -486,6 +491,7 @@ def run_cies_experiment_isolated(
         target_encode_cols=target_encode_cols,
         n_runs=n_runs,
         feature_level=feature_level,
+        params=params,
         timeout=timeout if timeout is not None else DEFAULT_TIMEOUT_SECONDS,
     )
 

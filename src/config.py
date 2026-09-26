@@ -22,6 +22,9 @@ RESAMPLE_CACHE_DIR = PROCESSED_DATA_DIR / "resampled"
 
 # ===== Results =====
 RESULTS_DIR = PROJECT_ROOT / "results"
+# Tham số tune riêng cho từng dataset (build_model mặc định nạp file của Sparkov)
+BEST_PARAMS_FILE = RESULTS_DIR / "best_params.json"
+BEST_PARAMS_ULB_FILE = RESULTS_DIR / "best_params_ulb.json"
 
 # ===== Báo cáo =====
 REPORTS_DIR = PROJECT_ROOT / "reports"

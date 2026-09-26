@@ -49,6 +49,8 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-26), không 
 
 ## Kết quả benchmark + CIES — thiết kế trước (chia ngẫu nhiên, còn cột định danh; sẽ thay khi chạy lại)
 
+> Cột "CIES ULB" trong bảng dưới được chạy bằng script đọc `ulb_train.parquet` mà **không bỏ cột `Time`** (log: 31 cột = V1..V28 + Amount + Time + Class), tức `Time` bị dùng làm feature — trái với `config.ULB_FEATURE_COLS` và notebook 05. Kết quả đã xoá; lần chạy lại chọn đúng V1..V28 + Amount.
+
 Benchmark (chỉ Sparkov): train trên toàn bộ 1.481.915 dòng, đánh giá trên test cố định (370.479 dòng, không resample). CIES Sparkov: bootstrap từ mẫu phân tầng 100.000 dòng, N_RUNS=20, `feature_level=True`. CIES ULB: bootstrap từ toàn bộ 227.845 dòng train, N_RUNS=20.
 
 | Model | Kỹ thuật | PR-AUC | F1 | CIES Sparkov | Spearman Sparkov | CIES ULB | Spearman ULB |

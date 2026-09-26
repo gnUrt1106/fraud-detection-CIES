@@ -700,6 +700,23 @@ def test_resample_cache_is_identical_and_keyed_on_everything_that_matters(tmp_pa
     assert [f.name for f in tmp_path.iterdir()] == ["train_encoded_smote_enn.parquet"]
 
 
+def test_cies_uses_explicit_params_per_dataset(monkeypatch):
+    """ULB tune riêng: run_cies_experiment(params=...) phải truyền đúng tham số đó vào build_model."""
+    import src.explainability.cies as cies_mod
+
+    seen = []
+    real = cies_mod.build_model
+    monkeypatch.setattr(cies_mod, "build_model", lambda *a, **k: seen.append(k.get("params")) or real(*a, **k))
+    df = create_synthetic_data(300)
+    cies_mod.run_cies_experiment(
+        model_name="logistic_regression", imbalance_technique="class_weighting",
+        df_train=df.iloc[:200].reset_index(drop=True), df_test_fixed_eval=df.iloc[200:].reset_index(drop=True),
+        target_col="is_fraud", onehot_cols=["gender", "category", "state"],
+        target_encode_cols=["merchant", "city", "job"], n_runs=2, params={"C": 0.5},
+    )
+    assert seen == [{"C": 0.5}, {"C": 0.5}]
+
+
 def test_optuna_tuning():
     print("\n--- Testing Optuna HPO Module (tune_model on sample data) ---")
     from src.models.tune import tune_model
