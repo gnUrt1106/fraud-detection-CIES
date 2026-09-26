@@ -39,7 +39,7 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-26), không 
 |---|---|
 | Tune lần 1 (30 trial, vùng hẹp) | LR / XGBoost / CatBoost / ANN xong (PR-AUC CV 0.319 / 0.929 / 0.926 / 0.892), RF xong 0.857 nhưng `max_depth` chạm biên 18. Nhiều tham số chạm biên (CatBoost `depth`, `iterations`; ANN `epochs`; LR `C`) |
 | Tune lần 2 (100 trial, vùng đã nới, cùng ngân sách cho mọi model) | Xong: LR 0.319, XGBoost 0.933, CatBoost 0.9271, RF 0.8872 (70 xong / 30 cắt). **ANN còn lại** (chạy nhiều phiên Kaggle với checkpoint SQLite, ~30/100 trial). `best_params.json` hiện là hỗn hợp hai giao thức cho riêng ANN (30 trial cũ), chưa dùng cho benchmark/CIES của ANN |
-| **Thiết kế hiện tại (2026-09-26)** | Chia theo thời gian + bỏ cột định danh khách hàng + tune validate theo thời gian (mục "Lệch so với spec" 9–10). `data/processed/` đã tạo lại theo thiết kế này. **Mọi file trong `results/` và bảng kết quả bên dưới vẫn là của thiết kế trước** (chia ngẫu nhiên theo dòng, còn cột định danh) — phải chạy lại toàn bộ: tune, benchmark, CIES Sparkov và CIES ULB |
+| **Thiết kế hiện tại (2026-09-26)** | Chia theo thời gian + bỏ cột định danh khách hàng + tune validate theo thời gian (mục "Lệch so với spec" 9–10). `data/processed/` đã tạo lại theo thiết kế này, kèm 4 tập train đã resample (`data/processed/resampled/train_encoded_<kỹ thuật>.parquet`). **`results/` đang trống**: kết quả của thiết kế trước đã xoá (bảng bên dưới giữ số cũ để tham khảo; file gốc xem lại bằng `git show d562d24:results/cies_summary_results.json`, `git show 0b86295:results/cies_summary_results_ulb.json`, `git show 074fc1f:results/model_benchmark_results.csv`). Phải chạy lại toàn bộ: tune, benchmark, CIES Sparkov, CIES ULB |
 | Benchmark 20/20 (4 model đã tune × 5 kỹ thuật, toàn bộ 1.48M dòng train) | **Xong** — bảng ở mục "Kết quả" |
 | CIES Sparkov 20/20 (4 model × 5 kỹ thuật, subsample 100k, N_RUNS=20) | **Xong** — bảng ở mục "Kết quả" |
 | CIES ULB 20/20 (4 model × 5 kỹ thuật, toàn bộ 227.845 dòng train, N_RUNS=20) | **Xong** — bảng ở mục "Kết quả". `random_forest`/`catboost × smote_enn` vượt timeout 1h mặc định, chạy lại với 3h |
@@ -148,7 +148,7 @@ Ba cách hợp lệ độc lập cho kết quả gần nhau nên không phải l
 - **Ghi file kết quả dùng chung không khoá** (`tune._merge_write`, `merge_cies_result`): `_merge_write` xoá trắng file rồi mới ghi, và cả hai coi JSON đọc lỗi là file rỗng — tiến trình đọc trúng lúc file đang ghi dở sẽ ghi lại file chỉ còn mục của nó. Stress test 8 tiến trình: bản cũ còn 24/200 mục, bản mới đủ 200/200. Nay đi qua `src/utils/jsonio.py::update_json` (khoá `fcntl`, ghi file tạm + `os.replace`, báo lỗi khi JSON hỏng).
 - **Notebook Kaggle sẽ bỏ qua gần hết việc** (phát hiện trước khi chạy): `git clone` mang theo kết quả đã commit nên benchmark/CIES tưởng 20/20 tổ hợp đã xong, ANN sẽ dùng tham số 30 trial cũ, và bước khôi phục không bao giờ chép tiến độ phiên trước. Nay mỗi phiên chỉ bỏ kết quả clone về của các model trong `MODELS_SCOPE` rồi khôi phục tiến độ phiên trước cho chúng, còn model ngoài phạm vi giữ bản trong repo (để chạy được nửa local nửa Kaggle); thêm ngân sách thời gian chung cho cả 3 giai đoạn.
 
-**Đã chạy lại theo code mới:** benchmark (03), CIES Sparkov (04), CIES ULB (05) — đủ 20/20 mỗi bên cho 4 model đã tune; notebook 06 vẽ lại toàn bộ hình. Xem mục "Kết quả" ở trên.
+**Trạng thái kết quả:** `results/` đang trống — mọi kết quả của thiết kế trước đã xoá, chờ chạy lại theo thiết kế hiện tại (xem bảng "Trạng thái chạy thực nghiệm").
 
 ## Dọn dẹp code (rà soát dư thừa, không đổi hành vi)
 

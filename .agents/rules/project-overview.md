@@ -39,5 +39,5 @@ Fraud Detection - CIES/
 - [x] Toàn bộ module `src/` và 7 notebook (01–06 + `kaggle_pipeline.ipynb`)
 - [x] Test suite (30 test, gồm hồi quy các lỗi đã sửa)
 - [x] Thiết kế hiện tại: chia train/test theo thời gian, không dùng cột định danh khách hàng, tune validate theo thời gian (xem `AGENT_SPEC.md` §8, §11)
-- [ ] Chạy lại toàn bộ theo thiết kế hiện tại: tune + benchmark + CIES Sparkov (`kaggle_pipeline.ipynb`), rồi CIES ULB (05) và trực quan (06) — mọi file trong `results/` hiện là của thiết kế trước
+- [ ] Chạy lại toàn bộ theo thiết kế hiện tại: tune + benchmark + CIES Sparkov (`kaggle_pipeline.ipynb` hoặc local), rồi CIES ULB (05) và trực quan (06) — `results/` đang trống
 - [ ] Thí nghiệm đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2)

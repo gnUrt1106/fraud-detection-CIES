@@ -13,7 +13,7 @@ Thiết kế hiện tại (chốt 2026-09-26, `AGENT_SPEC.md` §8 và §11):
 | Validation khi tune | 5-fold xáo trộn, trên dữ liệu đã encode sẵn | 3 fold theo thời gian (cửa sổ mở rộng), mỗi fold encode riêng |
 | Số trial Optuna | 100 | 50 |
 
-> **Lưu ý khi trình bày kết quả:** các file trong `results/` hiện vẫn là của thiết kế trước, cho tới khi chạy lại (xem `pipeline_report.md`). Mọi số PR-AUC trong tài liệu này là của **XGBoost + `class_weighting`, tham số tune cũ, 1 lần chia, 1 seed** — dùng để so sánh các lựa chọn với nhau, không phải kết quả cuối.
+> **Lưu ý khi trình bày kết quả:** `results/` hiện đang trống, chờ chạy lại theo thiết kế hiện tại. Mọi số PR-AUC trong tài liệu này là của **XGBoost + `class_weighting`, tham số tune cũ, 1 lần chia, 1 seed** — dùng để so sánh các lựa chọn với nhau, không phải kết quả cuối.
 
 ---
 
