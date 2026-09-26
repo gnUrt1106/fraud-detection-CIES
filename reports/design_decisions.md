@@ -165,16 +165,19 @@ Cùng logic với cách chia train/test ("train quá khứ, chấm tương lai")
 |---|---|---|---|---|
 | Sparkov | XGBoost | 0,9214 (550 cây, lr 0,0137) | 0,9212 (1850 cây, lr 0,0043; 45 trial) | nhiều cây hơn, lr nhỏ hơn |
 | ULB | LR | 0,8085 (`C`=0,00085) | 0,8089 (`C`=0,00084) | gần như cùng giá trị |
+| ULB | XGBoost | 0,8095 (550 cây, `max_depth`=3) | 0,8133 (800 cây, `max_depth`=7) | nhiều cây hơn, sâu hơn |
+| ULB | CatBoost | 0,8118 (400 iterations, `depth`=4) | 0,8111 (750 iterations, `depth`=4) | nhiều iterations hơn |
 
 - Nới biên, Optuna chuyển sang **nhiều cây + learning rate nhỏ hơn** — hai tham số bù cho nhau, PR-AUC **không đổi**. 15 trial tốt nhất của vùng nới chỉ chênh 0,0023 PR-AUC, từ 450 tới 2000 cây: đây là một dải phẳng, không phải tối ưu bị chặn ở biên.
+- ULB: XGBoost chênh +0,0038, CatBoost −0,0007 — cả hai nằm trong mức dao động giữa các trial của ULB (mỗi khối validation chỉ có 24–36 fraud; các trial hoàn tất của XGBoost dao động 0,79–0,81).
 - LR ULB: vùng nới xuống tới 1e-6 nhưng vẫn chọn `C` ≈ 0,00084 (vị trí 29%) — tối ưu thật nằm trong vùng ban đầu.
 - **Chi phí:** trial XGBoost 1200–2000 cây mất trung bình 1,6 phút, so với 0,4 phút ở vùng ban đầu (~4×); benchmark và CIES (20 bootstrap × 5 kỹ thuật) chậm theo cùng tỉ lệ.
 
 **Quyết định.** Giữ vùng tìm ban đầu (`tune.py::sample_hyperparameters`), **chung cho cả Sparkov và ULB**. Nới biên không làm PR-AUC tốt hơn mà làm mọi bước sau chậm ~4×.
 
-**Trả lời khi bị hỏi.** *"Chúng tôi đã thử nới biên ở các tham số sát biên: model chuyển sang nhiều cây hơn với learning rate nhỏ hơn nhưng PR-AUC CV không đổi (0,9214 → 0,9212), còn thời gian train tăng ~4×, nên giữ vùng tìm ban đầu."*
+**Trả lời khi bị hỏi.** *"Chúng tôi đã thử nới biên ở các tham số sát biên: model chuyển sang nhiều cây hơn với learning rate nhỏ hơn nhưng PR-AUC CV không đổi trên Sparkov (0,9214 → 0,9212); trên ULB chênh không quá 0,004, nằm trong mức dao động do mỗi khối validation chỉ có 24–36 fraud. Thời gian train tăng ~4×, nên giữ vùng tìm ban đầu."*
 
-**Hạn chế còn lại.** RF Sparkov `max_depth=27` (88%) chưa được kiểm tra bằng vùng nới (lượt tune nới dừng trước RF). Kết quả vùng nới lưu tại `results/tuning_sensitivity_wide_space/` (ULB có thêm XGBoost 0,8133 và CatBoost 0,8111 để so với vùng ban đầu khi tune xong).
+**Hạn chế còn lại.** RF Sparkov `max_depth=27` (88%) chưa được kiểm tra bằng vùng nới (lượt tune nới dừng trước RF). Một số tham số chạm biên **dưới** mà cả hai vùng đều không nới: ULB XGBoost `max_depth=3`, `colsample_bytree=0,607`; ULB CatBoost `depth=4` (vùng nới cũng chọn 4). Kết quả vùng nới lưu tại `results/tuning_sensitivity_wide_space/`.
 
 ---
 
