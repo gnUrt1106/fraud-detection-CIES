@@ -59,7 +59,7 @@ fraud-detection-cies/
 ├── notebooks/
 │   ├── 01_eda.ipynb
 │   ├── 02_preprocessing.ipynb
-│   ├── kaggle_optuna_tuning.ipynb   # tune Optuna trên Kaggle (xem mục 11)
+│   ├── kaggle_pipeline.ipynb        # tune → benchmark → CIES trên Kaggle (xem mục 11)
 │   ├── 03_train_models.ipynb
 │   ├── 04_cies_experiment.ipynb
 │   ├── 05_cies_experiment_ulb.ipynb # CIES trên dataset phụ
@@ -329,7 +329,7 @@ Mục này ghi lại những chỗ code hiện tại **khác hoặc vượt** so
 | §1.3 / §7.2 Phạm vi chạy | Cả 5 model × 5 kỹ thuật ở cả 2 dataset; không tự giảm để tiết kiệm thời gian | Notebook 04 và 05 chạy đủ 5×5; Sparkov subsample phân tầng 100.000 dòng (`SUBSAMPLE_N`), ULB dùng toàn bộ | **Lệch nhẹ** — chỉ subsample Sparkov; đã kiểm tra độ nhạy 10k–100k trên `xgboost × class_weighting`, CIES 0,951–0,965 (xem `pipeline_report.md`) |
 | §8 Chia train/test | Stratified random split, cấm chia theo thời gian | Chia theo thời gian (Sparkov: file gốc; ULB: theo `Time`) | **Người dùng chốt 2026-09-26** sau khi đo: chia ngẫu nhiên rò rỉ theo đợt hack thẻ. Chi tiết và số đo ở `reports/pipeline_report.md` |
 | §3.1 Feature/encoding | One-hot `state`; target encoding `city`, `job` | Bỏ `state`, `city`, `job`, `lat`/`long`, `city_pop`, `merch_lat`/`merch_long`, `zip` (định danh khách hàng); còn `amt`, `category`, `merchant`, `hour`, `day_of_week`, `age`, `gender` | **Người dùng chốt 2026-09-26** (XGBoost, chia theo thời gian: PR-AUC 0,24 khi giữ, 0,88 khi bỏ) |
-| §5/§7 Validation khi tune | (không quy định) | Validation theo thời gian, cửa sổ mở rộng 3 fold, thay 5-fold xáo trộn | **Người dùng chốt 2026-09-26** — nhất quán với cách chia train/test |
+| §5/§7 Validation khi tune | (không quy định) | Validation theo thời gian, cửa sổ mở rộng 3 fold, thay 5-fold xáo trộn; mỗi fold fit encoding riêng trên dòng trước khối validation | **Người dùng chốt 2026-09-26** — nhất quán với cách chia train/test |
 | §9 Môi trường | Local dùng subsample nhỏ; train thật trên Kaggle | Tune chạy trên Kaggle GPU (repo public, dataset `cies-processed`); mỗi tổ hợp chạy trong subprocess `spawn`; `timeout=None` cho tune và benchmark | Đúng tinh thần spec |
 
 ### Quy ước kỹ thuật thêm

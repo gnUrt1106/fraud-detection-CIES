@@ -431,9 +431,10 @@ def test_tune_checkpoint_resume(tmp_path):
     rng = np.random.default_rng(0)
     X = rng.normal(size=(300, 5))
     y = (X[:, 0] + rng.normal(scale=0.5, size=300) > 0.8).astype(int)
+    df = pd.DataFrame(X, columns=[f"f{i}" for i in range(5)]).assign(is_fraud=y)
     db = tmp_path / "lr.db"
 
-    r1 = tune_model("logistic_regression", X, y, n_trials=3, n_splits=3, storage_path=db)
+    r1 = tune_model("logistic_regression", df, n_trials=3, n_splits=3, storage_path=db)
     assert r1["complete"] and r1["n_trials"] == 3
 
     # Giả lập phiên bị ngắt giữa 1 trial: study có 1 trial RUNNING.
@@ -441,7 +442,7 @@ def test_tune_checkpoint_resume(tmp_path):
     study.ask()
     assert any(t.state == optuna.trial.TrialState.RUNNING for t in study.trials)
 
-    r2 = tune_model("logistic_regression", X, y, n_trials=5, n_splits=3, storage_path=db)
+    r2 = tune_model("logistic_regression", df, n_trials=5, n_splits=3, storage_path=db)
     assert r2["complete"] and r2["n_trials"] == 5
 
     study = optuna.load_study(study_name="logistic_regression", storage=f"sqlite:///{db}")
@@ -452,7 +453,7 @@ def test_tune_checkpoint_resume(tmp_path):
     assert sum(t.state == optuna.trial.TrialState.FAIL for t in study.trials) == 1
 
     # Chạy lại khi đã đủ: không chạy thêm trial nào.
-    r3 = tune_model("logistic_regression", X, y, n_trials=5, n_splits=3, storage_path=db)
+    r3 = tune_model("logistic_regression", df, n_trials=5, n_splits=3, storage_path=db)
     assert r3["n_trials"] == 5
 
 
@@ -635,6 +636,37 @@ def test_time_series_folds_never_validate_on_the_past():
     assert np.array_equal(vals, np.arange(600, 900))
 
 
+def test_tune_folds_encode_without_future_labels():
+    """
+    Target encoding trong mỗi fold tune chỉ fit trên dòng TRƯỚC khối validation. Merchant m1 chỉ bị
+    lừa đảo ở giai đoạn sau (dòng >= 600): ở fold 1 (train = dòng 0..599), m1 phải được mã hoá
+    thấp. Encode 1 lần trên cả tập (cách cũ) thì m1 đã mang sẵn tỷ lệ fraud của tương lai.
+    """
+    from src.models.tune import encode_time_folds
+    from src.data.encoding import encode_train
+
+    n = 900
+    idx = np.arange(n)
+    merchant = np.where(idx % 2 == 0, "m1", "m2")
+    y = np.zeros(n, dtype=int)
+    y[(idx < 600) & (merchant == "m2") & (idx % 10 == 1)] = 1   # quá khứ: fraud chỉ ở m2
+    y[(idx >= 600) & (merchant == "m1") & (idx % 4 == 0)] = 1   # tương lai: m1 bị lợi dụng mạnh
+    y[(idx >= 600) & (merchant == "m2") & (idx % 10 == 1)] = 1
+    df = pd.DataFrame({"merchant": merchant, "amt": np.arange(n, dtype=float), "is_fraud": y})
+
+    folds, feats = encode_time_folds(df, "is_fraud", n_splits=3, onehot_cols=[], target_encode_cols=["merchant"])
+    col = feats.index("merchant_encoded")
+    X_tr, _, _, _ = folds[0]
+    m1_rows = merchant[:600] == "m1"
+    per_fold = X_tr[m1_rows, col].mean()
+
+    leaky, _ = encode_train(df, "is_fraud", onehot_cols=[], target_encode_cols=["merchant"])
+    leaky_m1 = leaky["merchant_encoded"].to_numpy()[:600][m1_rows].mean()
+
+    assert per_fold < X_tr[~m1_rows, col].mean(), "m1 chưa từng bị fraud trong fold train -> phải thấp hơn m2"
+    assert leaky_m1 > 3 * per_fold, (leaky_m1, per_fold)
+
+
 def test_optuna_tuning():
     print("\n--- Testing Optuna HPO Module (tune_model on sample data) ---")
     from src.models.tune import tune_model
@@ -643,9 +675,10 @@ def test_optuna_tuning():
     # Fold validation theo thời gian lấy khối cuối dữ liệu: fraud phải rải khắp các dòng như dữ
     # liệu thật, không dồn hết về cuối mảng.
     y = rng.permutation(np.array([0] * 135 + [1] * 15))
+    df = pd.DataFrame(X, columns=[f"f{i}" for i in range(8)]).assign(is_fraud=y)
 
     # Test tuning XGBoost with 2 trials
-    res = tune_model("xgboost", X, y, n_trials=2, n_splits=2, seed=SEED)
+    res = tune_model("xgboost", df, n_trials=2, n_splits=2, seed=SEED)
     assert "best_params" in res
     assert "best_pr_auc" in res
     assert res["n_trials"] == 2

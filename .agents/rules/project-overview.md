@@ -25,7 +25,7 @@ Fraud Detection - CIES/
 │   ├── visualization/            # dataset.py, explain.py
 │   └── utils/isolation.py        # run_isolated: subprocess spawn, timeout
 │
-├── notebooks/                    # 01 EDA, 02 tiền xử lý, kaggle_optuna_tuning,
+├── notebooks/                    # 01 EDA, 02 tiền xử lý, kaggle_pipeline,
 │                                 # 03 benchmark, 04 CIES Sparkov, 05 CIES ULB, 06 trực quan
 ├── data/                         # raw/, processed/ — KHÔNG nằm trong git (ignore /data/)
 ├── results/                      # best_params.json và kết quả benchmark/CIES

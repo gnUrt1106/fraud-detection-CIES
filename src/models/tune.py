@@ -19,10 +19,11 @@ from typing import Dict, Any, Optional
 
 import numpy as np
 import optuna
+import pandas as pd
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import average_precision_score
 
-from src.config import SEED, RESULTS_DIR, MODEL_NAMES
+from src.config import SEED, RESULTS_DIR, MODEL_NAMES, TARGET_COL
 from src.models.train import build_model, train_model, predict_proba
 
 logger = logging.getLogger(__name__)
@@ -100,10 +101,46 @@ def time_series_folds(n_samples: int, n_splits: int = 3):
     return list(splitter.split(np.arange(n_samples)))
 
 
+def encode_time_folds(
+    df_train: pd.DataFrame,
+    target_col: str = TARGET_COL,
+    n_splits: int = 3,
+    seed: int = SEED,
+    onehot_cols: Optional[list] = None,
+    target_encode_cols: Optional[list] = None,
+):
+    """
+    Encode riêng từng fold theo thời gian: encoding (one-hot, target encoding) fit CHỈ trên các dòng
+    trước khối validation, rồi áp cho khối validation — như cách train/test được encode. Encode 1
+    lần trên cả tập train rồi mới cắt fold thì target encoding của dòng train dùng cả nhãn của giai
+    đoạn validation phía sau (nhìn trước tương lai). Encoding không phụ thuộc tham số model nên chỉ
+    cần tính 1 lần mỗi fold và dùng lại cho mọi trial.
+
+    Returns:
+        (folds, feature_names): folds là list (X_tr, y_tr, X_val, y_val).
+    """
+    from src.data.encoding import encode_train, encode_test
+
+    folds, feats = [], None
+    for tr_idx, val_idx in time_series_folds(len(df_train), n_splits):
+        part_tr = df_train.iloc[tr_idx].reset_index(drop=True)
+        part_val = df_train.iloc[val_idx].reset_index(drop=True)
+        enc_tr, maps = encode_train(part_tr, target_col, onehot_cols=onehot_cols,
+                                    target_encode_cols=target_encode_cols, random_state=seed)
+        enc_val = encode_test(part_val, maps, target_encode_cols=target_encode_cols)
+        feats = [c for c in enc_tr.columns if c != target_col]
+        y_val = enc_val[target_col].to_numpy()
+        if not y_val.any():
+            raise ValueError("Một khối validation theo thời gian không có fraud nào — PR-AUC không xác định")
+        folds.append((enc_tr[feats].to_numpy(dtype=float), enc_tr[target_col].to_numpy(),
+                      enc_val[feats].to_numpy(dtype=float), y_val))
+    return folds, feats
+
+
 def tune_model(
     model_name: str,
-    X: np.ndarray,
-    y: np.ndarray,
+    df_train: pd.DataFrame,
+    target_col: str = TARGET_COL,
     n_trials: int = 100,
     n_splits: int = 3,
     timeout: Optional[int] = None,
@@ -112,15 +149,17 @@ def tune_model(
     n_startup_trials: int = 5,
     storage_path: Optional[Path] = None,
     optimize_timeout: Optional[float] = None,
+    onehot_cols: Optional[list] = None,
+    target_encode_cols: Optional[list] = None,
 ) -> Dict[str, Any]:
     """
-    Tối ưu hóa siêu tham số cho 1 model bằng Optuna, validation theo thời gian (`time_series_folds`).
-    Metric tối ưu: PR-AUC (Average Precision), trung bình qua các fold.
+    Tối ưu hóa siêu tham số cho 1 model bằng Optuna, validation theo thời gian (`time_series_folds`),
+    mỗi fold encode riêng (`encode_time_folds`). Metric tối ưu: PR-AUC, trung bình qua các fold.
 
     Args:
         model_name: Tên model (logistic_regression, random_forest, xgboost, catboost, ann)
-        X: Feature matrix, các dòng ĐÃ SẮP THEO THỜI GIAN
-        y: Target array (cùng thứ tự với X)
+        df_train: Tập train CHƯA encode (vd. `train_raw.parquet`), các dòng ĐÃ SẮP THEO THỜI GIAN
+        target_col: Tên cột nhãn
         n_trials: Số lần thử (trials)
         n_splits: Số fold validation theo thời gian
         timeout: Thời gian tối đa (giây)
@@ -140,6 +179,7 @@ def tune_model(
             chạy lại). Trial COMPLETE và PRUNED đều tính vào n_trials.
         optimize_timeout: Giây tối đa cho lượt chạy này (mềm: dừng SAU khi trial hiện tại xong).
             Dùng với storage_path để chia nhiều phiên Kaggle; không làm đổi ngân sách n_trials.
+        onehot_cols, target_encode_cols: Cột encode (mặc định theo config).
 
     Returns:
         Dict chứa best_params, best_score (PR-AUC), số trials hoàn thành và
@@ -147,23 +187,17 @@ def tune_model(
         "complete": False — khi đó chạy lại để tiếp tục.
     """
     logger.info(f"Bắt đầu Optuna HPO cho '{model_name}' ({n_trials} trials, {n_splits} folds)...")
-    folds = time_series_folds(len(X), n_splits)
-    for _, val_idx in folds:
-        if not y[val_idx].any():
-            raise ValueError("Một khối validation theo thời gian không có fraud nào — PR-AUC không xác định")
+    folds, _ = encode_time_folds(df_train, target_col, n_splits, seed, onehot_cols, target_encode_cols)
 
     def objective(trial: optuna.Trial) -> float:
         params = sample_hyperparameters(trial, model_name)
         val_pr_aucs = []
 
-        for fold_idx, (train_idx, val_idx) in enumerate(folds):
-            X_train_fold, X_val_fold = X[train_idx], X[val_idx]
-            y_train_fold, y_val_fold = y[train_idx], y[val_idx]
-
+        for fold_idx, (X_train_fold, y_train_fold, X_val_fold, y_val_fold) in enumerate(folds):
             # Build model với tham số thử nghiệm của trial
             model = build_model(
                 model_name=model_name,
-                input_dim=X.shape[1],
+                input_dim=X_train_fold.shape[1],
                 params=params,
                 seed=seed,
             )
@@ -298,8 +332,8 @@ def _merge_write(out_file: Path, model_name: str, entry: Dict[str, Any]) -> Dict
 
 
 def tune_all_models(
-    X: np.ndarray,
-    y: np.ndarray,
+    df_train: pd.DataFrame,
+    target_col: str = TARGET_COL,
     models: Optional[list] = None,
     n_trials: int = 100,
     n_splits: int = 3,
@@ -314,8 +348,9 @@ def tune_all_models(
     Tối ưu hóa siêu tham số cho toàn bộ danh sách models và lưu kết quả ra file JSON.
 
     Args:
-        X: Feature matrix
-        y: Target array
+        df_train: Tập train CHƯA encode, sắp theo thời gian (vd. `train_raw.parquet`) — mỗi fold
+            được encode riêng trong `tune_model`
+        target_col: Tên cột nhãn
         models: Danh sách model (mặc định lấy MODEL_NAMES từ config)
         n_trials: Số trials cho mỗi model
         n_splits: Số fold validation theo thời gian
@@ -378,8 +413,8 @@ def tune_all_models(
             res = run_isolated(
                 tune_model,
                 model_name=model_name,
-                X=X,
-                y=y,
+                df_train=df_train,
+                target_col=target_col,
                 n_trials=n_trials,
                 n_splits=n_splits,
                 seed=seed,

@@ -34,7 +34,6 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 ├── notebooks/
 │   ├── 01_eda.ipynb                 # Khám phá dữ liệu + data profiling
 │   ├── 02_preprocessing.ipynb       # Chia theo thời gian, bỏ cột định danh khách hàng, encoding, xử lý ULB
-│   ├── kaggle_optuna_tuning.ipynb   # Tune hyperparameter bằng Optuna (chạy trên Kaggle)
 │   ├── kaggle_pipeline.ipynb        # Kaggle: tune (50 trial) → benchmark → CIES nối tiếp, tự resume nhiều phiên
 │   ├── 03_train_models.ipynb        # Benchmark 5 model x 5 kỹ thuật
 │   ├── 04_cies_experiment.ipynb     # CIES trên Sparkov
@@ -49,7 +48,7 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 │   ├── explainability/       # shap_utils.py, cies.py
 │   ├── visualization/        # dataset.py, explain.py
 │   └── utils/                # isolation.py (subprocess riêng mỗi tổ hợp), jsonio.py (ghi file kết quả an toàn)
-├── tests/test_pipeline.py    # 29 test, gồm hồi quy cho các lỗi đã sửa
+├── tests/test_pipeline.py    # 30 test, gồm hồi quy cho các lỗi đã sửa
 ├── results/                  # best_params.json và kết quả benchmark/CIES
 ├── reports/                  # figures/, profiling/, tài liệu và sơ đồ kiến trúc
 ├── AGENT_SPEC.md  AGENTS.md  FILE_REFERENCE.md
@@ -81,7 +80,7 @@ Chạy theo thứ tự. Các notebook mở bằng `jupyter lab`.
 
 1. **Tải dữ liệu Sparkov**: `python -m src.data.download` (bỏ qua nếu `data/raw/` đã có).
 2. **`02_preprocessing.ipynb`**: sinh `data/processed/*.parquet` (và tải/chia ULB).
-3. **Tune** (`kaggle_optuna_tuning.ipynb`, bật GPU): ghi `results/best_params.json`. Xem mục [Chạy trên Kaggle](#chạy-trên-kaggle).
+3. **Tune + benchmark + CIES Sparkov trên Kaggle** (`kaggle_pipeline.ipynb`, bật GPU): ghi `results/best_params.json`, `model_benchmark_results.csv`, `cies_summary_results.json`. Xem mục [Chạy trên Kaggle](#chạy-trên-kaggle). Chạy local thay thế: tune bằng `src.models.tune.tune_all_models(train_raw)`, rồi notebook 03, 04.
 4. **`03_train_models.ipynb`**, **`04_cies_experiment.ipynb`**, **`05_cies_experiment_ulb.ipynb`**: benchmark và CIES. Cả ba đều nạp tham số từ `best_params.json`; mỗi tổ hợp được lưu ngay khi xong nên chạy lại sẽ bỏ qua phần đã có.
 5. **`06_visualizations.ipynb`**: vẽ biểu đồ vào `reports/figures/` (phần CIES tự bỏ qua nếu chưa có kết quả).
 
@@ -91,11 +90,13 @@ Chạy test: `python -m pytest tests -q`.
 
 Repo phải ở chế độ Public để Kaggle `git clone` ẩn danh được.
 
-1. Upload `data/processed/train_encoded.parquet` thành một Kaggle Dataset (tên `cies-processed`) và Add Input vào notebook.
+Notebook: `notebooks/kaggle_pipeline.ipynb` (tune → benchmark → CIES Sparkov). Các bước upload dữ liệu và chạy nhiều phiên: [`notebooks/KAGGLE_UPLOAD_README.md`](notebooks/KAGGLE_UPLOAD_README.md).
+
+1. Upload 4 file `data/processed/{train,test}_{encoded,raw}.parquet` thành một Kaggle Dataset và Add Input vào notebook.
 2. Bật **Internet: On** và **Accelerator: GPU**.
-3. Sửa `MODELS_TO_TUNE` trong cell config (kết quả tự merge vào `results/best_params.json` có sẵn trong repo).
-4. **Save Version → Save & Run All (Commit)**: chạy nền trên server Kaggle, tắt máy vẫn được. Tải `best_params.json` từ tab Output rồi đưa vào `results/`.
-5. **Model chạy quá 9 giờ/phiên (vd. ANN):** mỗi trial được lưu vào `results/tuning_checkpoints/<model>.db`. Hết `SESSION_BUDGET` (mặc định 7,5 giờ) notebook dừng mềm; phiên sau Add Input bằng *Notebook Output* của phiên trước rồi chạy lại — cell khôi phục sẽ chép checkpoint và chỉ chạy nốt số trial còn thiếu. Model chỉ được ghi vào `best_params.json` khi đủ `N_TRIALS`.
+3. Sửa `MODELS_SCOPE` trong cell config nếu chỉ muốn chạy một số model.
+4. **Save Version → Save & Run All (Commit)**: chạy nền trên server Kaggle, tắt máy vẫn được. Tải 3 file kết quả từ tab Output rồi đưa vào `results/`.
+5. **Quá 9 giờ/phiên:** mỗi trial được lưu vào `results/tuning_checkpoints/<model>.db`, benchmark/CIES lưu từng tổ hợp; hết `TOTAL_BUDGET` (mặc định 7,5 giờ) notebook dừng mềm. Phiên sau Add Input bằng *Notebook Output* của phiên trước rồi chạy lại — chỉ chạy nốt phần còn thiếu. Model chỉ được ghi vào `best_params.json` khi đủ `N_TRIALS`.
 
 ## Trạng thái (cập nhật 2026-09-26)
 
