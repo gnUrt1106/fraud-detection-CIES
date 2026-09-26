@@ -60,6 +60,7 @@ Danh mục theo trạng thái code hiện tại (chỉ liệt kê file nằm tro
 | `reports/system_architecture.html` | Sơ đồ kiến trúc hệ thống (3 góc nhìn, bảng tra cứu module, giới hạn đã biết) |
 | `reports/pipeline_report.md` | Bảng giải thích từng bước pipeline, trạng thái chạy, lệch so với spec, nhật ký sửa lỗi |
 | `reports/literature_support.md` | Nguồn cho từng quyết định thiết kế, so sánh CIES repo với bài gốc, danh sách chỗ chưa có nguồn |
+| `reports/design_decisions.md` | Lý do + số đo cho các quyết định thiết kế hiện tại (chia theo thời gian, bỏ cột định danh khách hàng, `age`, tune theo thời gian, 50 trial), phương án đã loại và câu hỏi dễ gặp — dùng khi báo cáo |
 | `reports/benchmark_literature.md` | Kết quả PR-AUC/F1 từ các paper dùng Sparkov (2024–2026), cột CIES = N/A minh hoạ khoảng trống nghiên cứu |
 | `reports/figures/` | Biểu đồ PNG: 9 ảnh EDA (`01_..09_`) và các ảnh insight/SHAP/CIES từ notebook 06 |
 | `reports/profiling/sparkov_profile_report.html` | Báo cáo data profiling tự động |

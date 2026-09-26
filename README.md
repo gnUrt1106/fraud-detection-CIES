@@ -8,7 +8,7 @@ Chỉ số đo là **CIES (Credibility Index via Explanation Stability)**: huấ
 - **5 kỹ thuật imbalance**: SMOTE, SMOTE-ENN, ADASYN, Borderline-SMOTE, Class Weighting.
 - **2 dataset**: Sparkov (chính) và ULB Credit Card Fraud (phụ, để kiểm chứng xu hướng có khái quát hoá không).
 
-Đặc tả nghiên cứu và các ràng buộc thiết kế nằm ở [`AGENT_SPEC.md`](AGENT_SPEC.md). Sơ đồ kiến trúc hệ thống: [`reports/system_architecture.html`](reports/system_architecture.html) (mở bằng trình duyệt).
+Đặc tả nghiên cứu và các ràng buộc thiết kế nằm ở [`AGENT_SPEC.md`](AGENT_SPEC.md); lý do và số đo cho từng quyết định thiết kế (chia theo thời gian, bỏ feature định danh, cách tune) ở [`reports/design_decisions.md`](reports/design_decisions.md). Sơ đồ kiến trúc hệ thống: [`reports/system_architecture.html`](reports/system_architecture.html) (mở bằng trình duyệt).
 
 ## Dữ liệu
 
