@@ -129,7 +129,7 @@ Ba cách hợp lệ độc lập cho kết quả gần nhau nên không phải l
 
 - **`.gitignore` nuốt `src/data/`** (`data/` trần) → clone mới không import được CIES. Nay chỉ ignore `/data/`.
 - **ANN không scale input** (feature cỡ 1e9, 1e6): PR-AUC 0.16 so với 0.74 khi scale. Nay `StandardScaler` (`input_scaler`) áp cho cả predict và SHAP. Mọi số ANN cũ không hợp lệ.
-- **ANN crash khi `len(train) % batch_size == 1`** (`BatchNorm1d`) → `drop_last`.
+- **ANN crash khi `len(train) % batch_size == 1`** (`BatchNorm1d`) → bỏ batch lẻ 1 mẫu.
 - **`scale_pos_weight` của XGBoost tính ngược** (~0.0017 thay vì ~577): PR-AUC `xgboost × class_weighting` trên ULB 0.877 → 0.704 khi sai.
 - **Trọng số khoảng cách CIES gán theo chỉ số cột** thay vì thứ hạng: cùng một cú đổi chỗ top-2 cho 0.122 hoặc 0.030. Mọi `cies_score` cũ không hợp lệ.
 - **Model hằng số → SHAP toàn 0 → CIES giả = 1.0**: nay run như vậy bị loại.

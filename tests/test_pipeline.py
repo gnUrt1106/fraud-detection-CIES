@@ -324,6 +324,44 @@ def test_ann_scaling_and_batch_of_one():
     assert res.returncode == 0 and "OK" in res.stdout, res.stdout + res.stderr
 
 
+def test_ann_epoch_sees_every_row_once_and_is_reproducible():
+    """ANN cắt batch thẳng từ tensor (thay DataLoader chậm 2,2–2,5×): mỗi epoch phải đi qua mọi dòng
+    đúng 1 lần (trừ batch lẻ 1 mẫu mà BatchNorm không nhận), và cùng seed phải ra cùng model."""
+    import subprocess, textwrap
+    code = textwrap.dedent(f"""
+        import sys; sys.path.insert(0, {str(Path(__file__).resolve().parent.parent)!r})
+        import numpy as np
+        from src.models.train import build_model, train_model, predict_proba
+        rng = np.random.RandomState(0)
+        for n, bs, expected in [(5000, 1024, [1024] * 4 + [904]), (1025, 1024, [1024])]:
+            X = rng.randn(n, 4); y = (rng.rand(n) < 0.3).astype(int)
+            m = build_model("ann", input_dim=4, params={{"epochs": 2, "batch_size": bs}})
+            seen = []
+            net = m["model"]
+            net.register_forward_pre_hook(lambda mod, inp: seen.append(len(inp[0])) if mod.training else None)
+            train_model(m, X, y, model_name="ann")
+            assert seen == expected * 2, (n, bs, seen)
+        X = rng.randn(3000, 4); y = (X[:, 0] > 0.8).astype(int)
+        p1, p2 = [predict_proba(train_model(build_model("ann", input_dim=4, params={{"epochs": 3, "batch_size": 256}}, seed=7),
+                                            X, y, model_name="ann"), X) for _ in range(2)]
+        assert np.array_equal(p1, p2), "cùng seed phải cho cùng dự đoán"
+        print("OK")
+    """)
+    res = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=240)
+    assert res.returncode == 0 and "OK" in res.stdout, res.stdout + res.stderr
+
+
+def test_ann_search_space_uses_large_batches():
+    """Batch 256 trên Sparkov (~0,58% fraud) chỉ có ~1,5 fraud/batch và mỗi trial tốn 30–60 phút."""
+    import optuna
+    from src.models.tune import sample_hyperparameters
+
+    trial = optuna.create_study().ask()
+    sample_hyperparameters(trial, "ann")
+    assert min(trial.distributions["batch_size"].choices) >= 1024
+    assert trial.distributions["epochs"].high <= 50
+
+
 def test_cies_vs_prauc_merges_on_model_and_technique():
     """Benchmark đặt tên cột 'imbalance_technique'; ghép phải theo (model, technique), không tích Descartes."""
     import matplotlib

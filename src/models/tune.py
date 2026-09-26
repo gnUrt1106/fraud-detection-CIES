@@ -78,8 +78,11 @@ def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, An
         return {
             "lr": trial.suggest_float("lr", 1e-4, 1e-2, log=True),
             "dropout": trial.suggest_float("dropout", 0.1, 0.5),
-            "epochs": trial.suggest_int("epochs", 10, 100, step=10),
-            "batch_size": trial.suggest_categorical("batch_size", [256, 512, 1024]),
+            # Batch lớn: Sparkov ~0,58% fraud → batch 256 chỉ có ~1,5 fraud (nhiều batch không có
+            # vụ nào), batch 2048 có ~12; BatchNorm cũng ổn định hơn. Mạng nhỏ (~13k tham số) nên
+            # batch nhỏ chỉ tốn thêm bước chứ không học tốt hơn — xem design_decisions.md mục 9.
+            "epochs": trial.suggest_int("epochs", 5, 50, step=5),
+            "batch_size": trial.suggest_categorical("batch_size", [1024, 2048, 4096]),
         }
 
     else:

@@ -181,6 +181,35 @@ Cùng logic với cách chia train/test ("train quá khứ, chấm tương lai")
 
 ---
 
+## 9. ANN: giữ cấu trúc mạng, dùng batch lớn và ít epoch hơn (2026-09-26)
+
+**Vấn đề.** Tune ANN trên CPU không xong nổi 1 trial trong 20 phút; trên Kaggle (GPU) lần tune trước mất nhiều phiên 7,5 giờ mới được ~30 trial. Đo 1 epoch trên 200k dòng ngẫu nhiên × 21 feature (CPU, torch 2.14, 6 luồng):
+
+| Batch | Bước/epoch | DataLoader (cũ) | Cắt thẳng từ tensor (mới) |
+|---|---|---|---|
+| 256 | 782 | 2,32 s | 2,41 s |
+| 1024 | 196 | 2,45 s | 1,10 s |
+| 2048 | 98 | 2,23 s | 0,90 s |
+| 4096 | 49 | 1,94 s | 0,77 s |
+
+- Mạng nhỏ (21 → 128 → 64 → 32 → 1, ~13,6k tham số): mỗi bước train gần như không có phép tính, thời gian là chi phí cố định mỗi bước (Python, autograd, Adam). Batch nhỏ = nhiều bước = chậm; GPU cũng không giúp vì phép tính quá nhỏ.
+- `DataLoader(TensorDataset)` lấy từng dòng rồi ghép: 47–53% thời gian epoch ở batch 1024–4096.
+- Vùng tìm cũ (batch 256–1024, 10–100 epoch) × 3 fold (~3 triệu dòng/epoch): ~30 phút/trial trung bình, ~60 phút nếu 100 epoch.
+
+**Quyết định.**
+- **Cấu trúc mạng giữ nguyên, không tune.** ~13,6k tham số so với ~1 triệu dòng: đủ học tương tác giữa feature, khó học thuộc. Không đưa số lớp/số nơ-ron vào 50 trial để vùng tìm không bị loãng.
+- **`batch_size` ∈ {1024, 2048, 4096}** (cũ: 256, 512, 1024). Lý do chính là mất cân bằng: Sparkov ~0,58% fraud → batch 256 chỉ có ~1,5 fraud (nhiều batch không có vụ nào), batch 2048 có ~12. BatchNorm cũng ổn định hơn với batch lớn.
+- **`epochs` 5–50** (cũ: 10–100). Batch 2048 trên ~1 triệu dòng ≈ 560 bước/epoch; 20 epoch ≈ 11k bước, đủ cho mạng nhỏ này.
+- `lr` 1e-4–1e-2 (log) và `dropout` 0,1–0,5 giữ nguyên.
+- **Cắt batch thẳng từ tensor** thay `DataLoader` (`train.py::_train_ann`): cùng model, loss, dữ liệu; mỗi epoch vẫn đi qua mọi dòng đúng 1 lần theo 1 hoán vị ngẫu nhiên (có test).
+- Vùng tìm chung cho Sparkov và ULB, như các model khác.
+
+**Vì sao không dùng early stopping.** CIES đo độ ổn định SHAP qua 20 lần bootstrap. Early stopping làm mỗi lần dừng ở một epoch khác → SHAP dao động vì số epoch chứ không vì kỹ thuật imbalance. Số epoch cố định (được tune) giữ phép đo công bằng.
+
+**Chưa đo:** thời gian thật của 1 trial với vùng tìm mới (dự kiến ~5–8 phút/trial, suy từ bảng trên). Số đo ở bảng lấy khi máy đang chạy song song CIES ULB.
+
+---
+
 ## Nguồn
 
 - Le Borgne, Siblini, Lebichot, Bontempi — *Reproducible Machine Learning for Credit Card Fraud Detection – Practical Handbook*. Baseline (chia theo thời gian, delay period, bỏ thẻ đã bị lộ): <https://fraud-detection-handbook.github.io/fraud-detection-handbook/Chapter_3_GettingStarted/BaselineModeling.html>; chiến lược validation: <https://fraud-detection-handbook.github.io/fraud-detection-handbook/Chapter_5_ModelValidationAndSelection/ValidationStrategies.html>
