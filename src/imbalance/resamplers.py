@@ -12,9 +12,14 @@ class_weighting là algorithm-level — KHÔNG resample dữ liệu,
 truyền class_weight vào model.fit.
 """
 
+import hashlib
+import os
+from pathlib import Path
+
 import numpy as np
 from typing import Tuple, Optional, Dict, List, Sequence
 
+import imblearn
 from imblearn.over_sampling import SMOTE, ADASYN, BorderlineSMOTE
 from imblearn.combine import SMOTEENN
 from sklearn.utils.class_weight import compute_class_weight
@@ -144,3 +149,44 @@ def apply_imbalance(
         X_resampled = snap_onehot_groups(X_resampled, onehot_groups)
 
     return X_resampled, y_resampled, None
+
+
+def _resample_fingerprint(technique, X, y, seed, onehot_groups) -> str:
+    h = hashlib.sha1()
+    for part in (technique, seed, SNAP_SYNTHETIC_ONEHOT, onehot_groups, imblearn.__version__, X.shape, X.dtype, y.dtype):
+        h.update(repr(part).encode())
+    h.update(np.ascontiguousarray(X).tobytes())
+    h.update(np.ascontiguousarray(y).tobytes())
+    return h.hexdigest()[:16]
+
+
+def apply_imbalance_cached(
+    technique: str,
+    X: np.ndarray,
+    y: np.ndarray,
+    seed: int = SEED,
+    onehot_groups: Optional[Sequence[Sequence[int]]] = None,
+    cache_dir: Optional[Path] = None,
+) -> Tuple[np.ndarray, np.ndarray, Optional[Dict[int, float]]]:
+    """
+    `apply_imbalance`, nhưng lưu kết quả resample ra `cache_dir` để model khác dùng lại. Resample
+    chỉ phụ thuộc dữ liệu + kỹ thuật + seed (không phụ thuộc model), nên benchmark 5 model × 5 kỹ
+    thuật không phải tính lại cùng 1 phép SMOTE-ENN (hàng chục phút trên Sparkov) cho từng model.
+    Tên file chứa dấu vân tay của X, y, kỹ thuật, seed, SNAP_SYNTHETIC_ONEHOT, nhóm one-hot và
+    version imblearn — đổi bất kỳ thứ nào là tính lại, không bao giờ dùng nhầm bản cũ.
+    """
+    if cache_dir is None or technique == "class_weighting":
+        return apply_imbalance(technique, X, y, seed=seed, onehot_groups=onehot_groups)
+
+    cache_dir = Path(cache_dir)
+    path = cache_dir / f"{technique}_{_resample_fingerprint(technique, X, y, seed, onehot_groups)}.npz"
+    if path.exists():
+        with np.load(path) as f:
+            return f["X"], f["y"], None
+
+    X_res, y_res, _ = apply_imbalance(technique, X, y, seed=seed, onehot_groups=onehot_groups)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.stem}.{os.getpid()}.tmp.npz")
+    np.savez(tmp, X=X_res, y=y_res)
+    os.replace(tmp, path)
+    return X_res, y_res, None

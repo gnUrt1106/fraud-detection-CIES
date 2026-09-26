@@ -667,6 +667,34 @@ def test_tune_folds_encode_without_future_labels():
     assert leaky_m1 > 3 * per_fold, (leaky_m1, per_fold)
 
 
+def test_resample_cache_is_identical_and_keyed_on_everything_that_matters(tmp_path, monkeypatch):
+    """
+    Cache resample: (1) giống hệt không cache; (2) lần 2 đọc file, không chạy lại resampler;
+    (3) đổi seed hoặc SNAP_SYNTHETIC_ONEHOT thì tính lại, không dùng nhầm bản cũ.
+    """
+    import src.imbalance.resamplers as rs
+
+    rng = np.random.RandomState(0)
+    X = rng.randn(300, 4)
+    y = (rng.rand(300) < 0.1).astype(int)
+
+    ref_X, ref_y, _ = rs.apply_imbalance("smote_enn", X, y, seed=SEED)
+    X1, y1, _ = rs.apply_imbalance_cached("smote_enn", X, y, seed=SEED, cache_dir=tmp_path)
+    assert np.array_equal(X1, ref_X) and np.array_equal(y1, ref_y)
+
+    calls = []
+    real = rs.apply_imbalance
+    monkeypatch.setattr(rs, "apply_imbalance", lambda *a, **k: calls.append(1) or real(*a, **k))
+    X2, y2, _ = rs.apply_imbalance_cached("smote_enn", X, y, seed=SEED, cache_dir=tmp_path)
+    assert calls == [] and np.array_equal(X2, ref_X) and np.array_equal(y2, ref_y)
+
+    rs.apply_imbalance_cached("smote_enn", X, y, seed=SEED + 1, cache_dir=tmp_path)
+    monkeypatch.setattr(rs, "SNAP_SYNTHETIC_ONEHOT", not rs.SNAP_SYNTHETIC_ONEHOT)
+    rs.apply_imbalance_cached("smote_enn", X, y, seed=SEED, cache_dir=tmp_path)
+    assert len(calls) == 2, "đổi seed / SNAP phải tính lại"
+    assert len(list(tmp_path.glob("smote_enn_*.npz"))) == 3
+
+
 def test_optuna_tuning():
     print("\n--- Testing Optuna HPO Module (tune_model on sample data) ---")
     from src.models.tune import tune_model

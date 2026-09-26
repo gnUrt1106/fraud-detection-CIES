@@ -17,6 +17,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 RAW_DATA_DIR = DATA_DIR / "raw"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
+# Cache dữ liệu đã resample cho benchmark (src/imbalance/resamplers.py::apply_imbalance_cached)
+RESAMPLE_CACHE_DIR = PROCESSED_DATA_DIR / "resampled"
 
 # ===== Results =====
 RESULTS_DIR = PROJECT_ROOT / "results"
