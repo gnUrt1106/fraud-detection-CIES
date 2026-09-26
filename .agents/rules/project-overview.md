@@ -17,13 +17,13 @@ Fraud Detection - CIES/
 │
 ├── src/
 │   ├── config.py                 # Đường dẫn, hằng số, danh sách model/kỹ thuật, công tắc
-│   ├── data/                     # download.py, encoding.py
+│   ├── data/                     # download.py, preprocess.py (chia theo thời gian), encoding.py
 │   ├── imbalance/resamplers.py   # 5 kỹ thuật + ép one-hot hợp lệ
-│   ├── models/                   # train.py (5 model), tune.py (Optuna)
+│   ├── models/                   # train.py (5 model), tune.py (Optuna, fold theo thời gian)
 │   ├── evaluation/metrics.py     # PR-AUC chính, F1, F2, ROC-AUC, Precision@Recall
 │   ├── explainability/           # shap_utils.py, cies.py
 │   ├── visualization/            # dataset.py, explain.py
-│   └── utils/isolation.py        # run_isolated: subprocess spawn, timeout
+│   └── utils/                    # isolation.py (run_isolated), jsonio.py (ghi file kết quả an toàn)
 │
 ├── notebooks/                    # 01 EDA, 02 tiền xử lý, kaggle_pipeline,
 │                                 # 03 benchmark, 04 CIES Sparkov, 05 CIES ULB, 06 trực quan
@@ -31,15 +31,13 @@ Fraud Detection - CIES/
 ├── results/                      # best_params.json và kết quả benchmark/CIES
 ├── reports/                      # figures/, profiling/, system_architecture.html,
 │                                 # pipeline_report.md, benchmark_literature.md
-├── tests/test_pipeline.py        # 21 test
+├── tests/test_pipeline.py        # 30 test
 └── .agents/rules/               # Hướng dẫn cho agent
 ```
 
-## Tiến độ hiện tại (2026-09-21)
-- [x] Toàn bộ module `src/` và 7 notebook
-- [x] Test suite (21 test, gồm hồi quy các lỗi đã sửa)
-- [x] Đợt rà soát mã nguồn, sửa lỗi (xem `reports/pipeline_report.md`)
-- [x] Tune Optuna: Logistic Regression, XGBoost, CatBoost, ANN
-- [ ] Tune Optuna: Random Forest
-- [ ] Chạy lại benchmark (03) và CIES (04, 05) trên code/tham số mới
+## Tiến độ hiện tại (2026-09-26)
+- [x] Toàn bộ module `src/` và 7 notebook (01–06 + `kaggle_pipeline.ipynb`)
+- [x] Test suite (30 test, gồm hồi quy các lỗi đã sửa)
+- [x] Thiết kế hiện tại: chia train/test theo thời gian, không dùng cột định danh khách hàng, tune validate theo thời gian (xem `AGENT_SPEC.md` §8, §11)
+- [ ] Chạy lại toàn bộ theo thiết kế hiện tại: tune + benchmark + CIES Sparkov (`kaggle_pipeline.ipynb`), rồi CIES ULB (05) và trực quan (06) — mọi file trong `results/` hiện là của thiết kế trước
 - [ ] Thí nghiệm đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2)

@@ -39,3 +39,7 @@
 - **`.gitignore`**: dùng `/data/`, không dùng `data/` trần (sẽ nuốt `src/data/`).
 - **Thư viện lấy mẫu có hoàn lại** (bootstrap) tạo dòng trùng: khi làm out-of-fold phải gom bản sao vào cùng fold (`groups`).
 - **Notebook Kaggle**: `!pip install "pkg>=x"` phải có ngoặc kép; luôn có `timeout` hợp lý hoặc chủ động chấp nhận `None`.
+- **Không chia giao dịch ngẫu nhiên theo dòng**: fraud đến theo đợt trên cùng thẻ, nên các dòng của 1 đợt rơi vào cả train lẫn test. Chia theo thời gian (`src/data/preprocess.py`).
+- **Không đưa cột định danh khách hàng vào model** (`config.CUSTOMER_IDENTITY_COLS`): model học thuộc "khách nào từng bị hack" — khi chia theo thời gian, PR-AUC sụp từ 0,88 xuống 0,24.
+- **Validation khi tune phải theo thời gian và encode riêng từng fold** (`tune.py::encode_time_folds`): encode 1 lần trên cả tập train rồi mới cắt fold thì target encoding thấy nhãn của giai đoạn validation.
+- **File kết quả dùng chung** (`results/*.json`) ghi qua `src/utils/jsonio.py::update_json` (khoá + ghi atomic): đọc–rồi–ghi không khoá mất 176/200 kết quả khi 8 tiến trình ghi cùng lúc.

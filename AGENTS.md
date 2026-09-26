@@ -21,4 +21,5 @@ Tra cứu nhanh: `FILE_REFERENCE.md` (chức năng từng file), `reports/system
 - Gán `Series`/cột vào DataFrame khác index phải theo vị trí (`.to_numpy()`), không theo nhãn index.
 - Trong notebook Kaggle, `!pip install` phải đặt spec trong ngoặc kép (`"optuna>=3.4.0"`), nếu không `>` thành chuyển hướng file.
 - Không đổi công thức CIES, danh sách 5 kỹ thuật, hay cách encoding mà không hỏi người dùng — chúng ảnh hưởng tính hợp lệ của thí nghiệm.
+- **Chia train/test theo thời gian, không đưa cột định danh khách hàng vào model** (`AGENT_SPEC.md` §8): chia ngẫu nhiên theo dòng + feature định danh từng cho PR-AUC ảo. Tune cũng validate theo thời gian, encode riêng từng fold.
 - Cập nhật tài liệu (`README.md`, `FILE_REFERENCE.md`, `reports/pipeline_report.md`) khi thay đổi hành vi hoặc cấu trúc.

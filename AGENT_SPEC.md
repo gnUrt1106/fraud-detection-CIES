@@ -68,6 +68,7 @@ fraud-detection-cies/
 │   ├── config.py
 │   ├── data/
 │   │   ├── download.py
+│   │   ├── preprocess.py        # sắp/chia theo thời gian, bỏ cột định danh khách hàng (xem mục 8)
 │   │   └── encoding.py          # Stratified K-fold Target Encoding, one-hot
 │   ├── imbalance/
 │   │   └── resamplers.py        # wrapper cho 5 kỹ thuật, KHÔNG thêm kỹ thuật khác
@@ -81,7 +82,8 @@ fraud-detection-cies/
 │   │   └── metrics.py           # PR-AUC chính, không dùng ROC-AUC làm metric quyết định
 │   ├── visualization/           # dataset.py, explain.py
 │   └── utils/
-│       └── isolation.py         # chạy mỗi model/tổ hợp trong subprocess riêng
+│       ├── isolation.py         # chạy mỗi model/tổ hợp trong subprocess riêng
+│       └── jsonio.py            # ghi file kết quả dùng chung: khoá + ghi atomic
 ├── results/                     # best_params.json, kết quả benchmark/CIES
 ├── reports/
 │   ├── figures/
