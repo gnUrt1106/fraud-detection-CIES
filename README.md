@@ -45,8 +45,8 @@ Cột `Time` của ULB bị loại (chỉ là thứ tự giao dịch); xem `ULB_
 │   ├── evaluation/           # metrics.py
 │   ├── explainability/       # shap_utils.py, cies.py
 │   ├── visualization/        # dataset.py, explain.py
-│   └── utils/                # isolation.py (chạy mỗi tổ hợp trong subprocess riêng)
-├── tests/test_pipeline.py    # 21 test, gồm hồi quy cho các lỗi đã sửa
+│   └── utils/                # isolation.py (subprocess riêng mỗi tổ hợp), jsonio.py (ghi file kết quả an toàn)
+├── tests/test_pipeline.py    # 26 test, gồm hồi quy cho các lỗi đã sửa
 ├── results/                  # best_params.json và kết quả benchmark/CIES
 ├── reports/                  # figures/, profiling/, tài liệu và sơ đồ kiến trúc
 ├── AGENT_SPEC.md  AGENTS.md  FILE_REFERENCE.md
@@ -94,14 +94,12 @@ Repo phải ở chế độ Public để Kaggle `git clone` ẩn danh được.
 4. **Save Version → Save & Run All (Commit)**: chạy nền trên server Kaggle, tắt máy vẫn được. Tải `best_params.json` từ tab Output rồi đưa vào `results/`.
 5. **Model chạy quá 9 giờ/phiên (vd. ANN):** mỗi trial được lưu vào `results/tuning_checkpoints/<model>.db`. Hết `SESSION_BUDGET` (mặc định 7,5 giờ) notebook dừng mềm; phiên sau Add Input bằng *Notebook Output* của phiên trước rồi chạy lại — cell khôi phục sẽ chép checkpoint và chỉ chạy nốt số trial còn thiếu. Model chỉ được ghi vào `best_params.json` khi đủ `N_TRIALS`.
 
-## Trạng thái (cập nhật 2026-09-22)
+## Trạng thái (cập nhật 2026-09-26)
 
 - [x] Pipeline đầy đủ: encoding, 5 kỹ thuật imbalance, 5 model, metrics, SHAP, CIES, tune, trực quan hoá.
-- [x] Đợt rà soát toàn bộ mã nguồn: đã sửa các lỗi nghiêm trọng (chi tiết ở [`reports/pipeline_report.md`](reports/pipeline_report.md)).
-- [x] Tune lại 4/5 model với vùng tìm đã nới, `N_TRIALS=100` (cùng ngân sách): LR 0.319, XGBoost 0.933, CatBoost 0.9271, Random Forest 0.8872 (local, 10 nhân).
-- [ ] **ANN** còn lại — đang chạy nhiều phiên Kaggle với checkpoint SQLite (`results/tuning_checkpoints/ann.db`), xem README mục "Chạy trên Kaggle" bước 5.
-- [x] Benchmark (03) và CIES Sparkov (04) cho 4/5 model — **đủ 20/20 mỗi bên**, xem [`reports/pipeline_report.md`](reports/pipeline_report.md#kết-quả-benchmark--cies). Còn thiếu 5 tổ hợp mỗi bên cho ANN.
-- [ ] CIES ULB (05) — chưa chạy.
+- [x] Các đợt rà soát toàn bộ mã nguồn: đã sửa các lỗi nghiêm trọng, gần nhất là bug `age` và lỗi ghi đè file kết quả khi nhiều tiến trình cùng ghi (chi tiết ở [`reports/pipeline_report.md`](reports/pipeline_report.md)).
+- [x] Benchmark (03), CIES Sparkov (04), CIES ULB (05) cho 4/5 model — **đủ 20/20 mỗi bên**, trên data đã sửa `age`, bảng kết quả và nhận xét ở mục "Kết quả" của [`reports/pipeline_report.md`](reports/pipeline_report.md).
+- [ ] **Tune lại cả 5 model** (50 trial) trên data đã sửa `age` — tham số hiện tại tune trên data cũ (LR/XGBoost/CatBoost/RF 100 trial, ANN mới 30 trial). Chạy `notebooks/kaggle_retune_benchmark_cies.ipynb` trên Kaggle: retune → benchmark → CIES nối tiếp, gồm cả 5 tổ hợp còn thiếu mỗi bên của ANN.
 - [ ] Thí nghiệm đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2).
 
 ## Lưu ý quan trọng
