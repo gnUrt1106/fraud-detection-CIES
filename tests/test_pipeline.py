@@ -777,18 +777,13 @@ def test_cies_uses_explicit_params_per_dataset(monkeypatch):
     assert seen == [{"C": 0.5}, {"C": 0.5}]
 
 
-def test_ulb_notebook_uses_ulb_params_and_own_resample_cache():
-    """Notebook 05 từng gọi CIES không truyền params → build_model nạp tham số của Sparkov cho ULB.
-
-    Benchmark và CIES của ULB phải truyền tham số ULB tường minh, và cache resample của ULB phải ở
-    thư mục riêng (cache đặt tên file theo kỹ thuật — chung thư mục thì ghi đè cache của Sparkov).
-    """
+def _notebook_calls(name):
+    """(code, {tên hàm: [keyword args]}) của các cell code trong notebook; dòng lệnh shell `!` bị bỏ."""
     import ast
-    from src.config import RESAMPLE_CACHE_DIR, RESAMPLE_CACHE_ULB_DIR
-
-    assert RESAMPLE_CACHE_ULB_DIR != RESAMPLE_CACHE_DIR
-    nb = json.loads((Path(__file__).resolve().parent.parent / "notebooks" / "05_cies_experiment_ulb.ipynb").read_text())
+    nb = json.loads((Path(__file__).resolve().parent.parent / "notebooks" / name).read_text())
     code = "\n".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code")
+    code = "\n".join(l[: len(l) - len(l.lstrip())] + "pass" if l.lstrip().startswith("!") else l
+                     for l in code.splitlines())
     calls = {}
     for node in ast.walk(ast.parse(code)):
         if isinstance(node, ast.Call):
@@ -796,12 +791,43 @@ def test_ulb_notebook_uses_ulb_params_and_own_resample_cache():
             fn = node.func.id if isinstance(node.func, ast.Name) else None
             key = "train_and_evaluate_combo" if "train_and_evaluate_combo" in names else fn
             calls.setdefault(key, []).append({k.arg: ast.unparse(k.value) for k in node.keywords})
+    return code, calls
+
+
+def test_ulb_notebook_uses_ulb_params_and_own_resample_cache():
+    """Notebook 05 từng gọi CIES không truyền params → build_model nạp tham số của Sparkov cho ULB.
+
+    Benchmark và CIES của ULB phải truyền tham số ULB tường minh, và cache resample của ULB phải ở
+    thư mục riêng (cache đặt tên file theo kỹ thuật — chung thư mục thì ghi đè cache của Sparkov).
+    """
+    from src.config import RESAMPLE_CACHE_DIR, RESAMPLE_CACHE_ULB_DIR
+
+    assert RESAMPLE_CACHE_ULB_DIR != RESAMPLE_CACHE_DIR
+    code, calls = _notebook_calls("05_cies_experiment_ulb.ipynb")
     assert calls["run_cies_experiment_isolated"] and calls["train_and_evaluate_combo"]
     for kw in calls["run_cies_experiment_isolated"] + calls["train_and_evaluate_combo"]:
         assert kw.get("params") == "ulb_params(model_name)", kw
     for kw in calls["train_and_evaluate_combo"]:
         assert kw.get("resample_cache_dir") == "RESAMPLE_CACHE_ULB_DIR", kw
     assert "BEST_PARAMS_ULB_FILE" in code
+
+
+def test_kaggle_notebook_ulb_part_uses_ulb_params_and_cache():
+    """Phần ULB của notebook Kaggle: mọi lời gọi có target ULB phải kèm tham số ULB + cache ULB;
+    phần Sparkov không được dùng nhầm cache ULB. Pip phải ghim sklearn (dấu vân tay cache resample)."""
+    code, calls = _notebook_calls("kaggle_pipeline.ipynb")
+    cies_ulb = [kw for kw in calls["run_cies_experiment_isolated"] if kw.get("target_col") == "ULB_TARGET_COL"]
+    bench = calls["train_and_evaluate_combo"]
+    bench_ulb = [kw for kw in bench if kw.get("resample_cache_dir") == "RESAMPLE_CACHE_ULB_DIR"]
+    assert len(cies_ulb) == 1 and len(bench_ulb) == 1
+    for kw in cies_ulb + bench_ulb:
+        assert kw.get("params") == "ulb_params(model_name)", kw
+    assert [kw.get("resample_cache_dir") for kw in bench if kw not in bench_ulb] == ["RESAMPLE_CACHE_DIR"]
+    tune_ulb = [kw for kw in calls["tune_all_models"] if kw.get("target_col") == "ULB_TARGET_COL"]
+    assert tune_ulb and tune_ulb[0]["filename"] == "BEST_PARAMS_ULB_FILE.name" and tune_ulb[0]["checkpoint_dir"] == "CKPT_ULB_DIR"
+    import sklearn
+    nb = json.loads((Path(__file__).resolve().parent.parent / "notebooks" / "kaggle_pipeline.ipynb").read_text())
+    assert f'"scikit-learn=={sklearn.__version__}"' in "".join("".join(c["source"]) for c in nb["cells"])
 
 
 def test_optuna_tuning():

@@ -44,7 +44,7 @@ Danh mục theo trạng thái code hiện tại (chỉ liệt kê file nằm tro
 |------|-----------|
 | `01_eda.ipynb` | Khám phá dữ liệu Sparkov + data profiling (`reports/profiling/`); xuất biểu đồ ra `reports/figures/` |
 | `02_preprocessing.ipynb` | Chia train/test theo thời gian (Sparkov: file gốc; ULB: theo `Time`), bỏ cột định danh khách hàng (`src/data/preprocess.py`), encoding, lưu `data/processed/*.parquet` (giữ thứ tự thời gian) và `encoding_maps.joblib` |
-| `kaggle_pipeline.ipynb` | Kaggle: tune (50 trial, `MODELS_SCOPE`) → benchmark → CIES Sparkov nối tiếp; với model trong `MODELS_SCOPE` bỏ kết quả clone từ repo và khôi phục tiến độ phiên trước, model ngoài `MODELS_SCOPE` giữ bản trong repo (chạy được nửa local nửa Kaggle), tự resume qua nhiều phiên, ngân sách thời gian chung. Hướng dẫn upload dữ liệu: `KAGGLE_UPLOAD_README.md` |
+| `kaggle_pipeline.ipynb` | Kaggle: tune (50 trial, `MODELS_SCOPE`) → benchmark → CIES cho Sparkov, rồi cho ULB nếu `RUN_ULB` (tham số ULB riêng, cache resample `resampled_ulb/`); với model trong `MODELS_SCOPE` bỏ kết quả clone từ repo và khôi phục tiến độ phiên trước, model ngoài `MODELS_SCOPE` giữ bản trong repo (chạy được nửa local nửa Kaggle), tự resume qua nhiều phiên, ngân sách thời gian chung. Hướng dẫn upload dữ liệu: `KAGGLE_UPLOAD_README.md` |
 | `03_train_models.ipynb` | Benchmark 5 model × 5 kỹ thuật → `results/model_benchmark_results.csv` (lưu/resume từng tổ hợp, `timeout=None`) |
 | `04_cies_experiment.ipynb` | CIES trên Sparkov (đủ 5 model × 5 kỹ thuật, train subsample phân tầng `SUBSAMPLE_N=100.000` dòng; mục 8 kiểm tra độ nhạy theo cỡ mẫu) → `results/cies_summary_results.json` |
 | `05_cies_experiment_ulb.ipynb` | Toàn bộ ULB: tune (→ `results/best_params_ulb.json`), benchmark (→ `results/model_benchmark_results_ulb.csv`, cache resample `data/processed/resampled_ulb/`) và CIES đủ 5×5 trên toàn bộ train, `feature_level=False` (→ `results/cies_summary_results_ulb.json`). Benchmark và CIES dùng tham số ULB, không dùng của Sparkov |
@@ -64,7 +64,7 @@ Danh mục theo trạng thái code hiện tại (chỉ liệt kê file nằm tro
 | `reports/benchmark_literature.md` | Kết quả PR-AUC/F1 từ các paper dùng Sparkov (2024–2026), cột CIES = N/A minh hoạ khoảng trống nghiên cứu |
 | `reports/figures/` | Biểu đồ PNG: 9 ảnh EDA (`01_..09_`) và các ảnh insight/SHAP/CIES từ notebook 06 |
 | `reports/profiling/sparkov_profile_report.html` | Báo cáo data profiling tự động |
-| `tests/test_pipeline.py` | 36 test (gồm tiền xử lý Sparkov + chia theo thời gian, fold tune theo thời gian và encode riêng từng fold, checkpoint tune, merge kết quả khi nhiều tiến trình ghi song song, file kết quả hỏng không bị ghi đè, độ đồng thuận giữa kỹ thuật): encoding chống rò rỉ (fold prior, index không mặc định, nhóm bootstrap), CatBoost không `cat_features`, 5 kỹ thuật imbalance và one-hot hợp lệ sau resample, công thức CIES (hạng thay vì vị trí cột, hoà hạng), hình dạng SHAP của Tree/ANN, `scale_pos_weight`, ANN (scale, batch 1 mẫu), end-to-end CIES |
+| `tests/test_pipeline.py` | 37 test (gồm tiền xử lý Sparkov + chia theo thời gian, fold tune theo thời gian và encode riêng từng fold, checkpoint tune, merge kết quả khi nhiều tiến trình ghi song song, file kết quả hỏng không bị ghi đè, độ đồng thuận giữa kỹ thuật): encoding chống rò rỉ (fold prior, index không mặc định, nhóm bootstrap), CatBoost không `cat_features`, 5 kỹ thuật imbalance và one-hot hợp lệ sau resample, công thức CIES (hạng thay vì vị trí cột, hoà hạng), hình dạng SHAP của Tree/ANN, `scale_pos_weight`, ANN (scale, batch 1 mẫu), end-to-end CIES |
 
 ---
 

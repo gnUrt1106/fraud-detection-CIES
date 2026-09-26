@@ -34,7 +34,7 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 ├── notebooks/
 │   ├── 01_eda.ipynb                 # Khám phá dữ liệu + data profiling
 │   ├── 02_preprocessing.ipynb       # Chia theo thời gian, bỏ cột định danh khách hàng, encoding, xử lý ULB
-│   ├── kaggle_pipeline.ipynb        # Kaggle: tune (50 trial) → benchmark → CIES nối tiếp, tự resume nhiều phiên
+│   ├── kaggle_pipeline.ipynb        # Kaggle: tune (50 trial) → benchmark → CIES, Sparkov rồi ULB, tự resume nhiều phiên
 │   ├── 03_train_models.ipynb        # Benchmark 5 model x 5 kỹ thuật
 │   ├── 04_cies_experiment.ipynb     # CIES trên Sparkov
 │   ├── 05_cies_experiment_ulb.ipynb # ULB: tune + benchmark + CIES
@@ -90,7 +90,7 @@ Chạy test: `python -m pytest tests -q`.
 
 Repo phải ở chế độ Public để Kaggle `git clone` ẩn danh được.
 
-Notebook: `notebooks/kaggle_pipeline.ipynb` (tune → benchmark → CIES Sparkov). Các bước upload dữ liệu và chạy nhiều phiên: [`notebooks/KAGGLE_UPLOAD_README.md`](notebooks/KAGGLE_UPLOAD_README.md).
+Notebook: `notebooks/kaggle_pipeline.ipynb` (tune → benchmark → CIES cho Sparkov, rồi ULB nếu `RUN_ULB = True`). Các bước upload dữ liệu và chạy nhiều phiên: [`notebooks/KAGGLE_UPLOAD_README.md`](notebooks/KAGGLE_UPLOAD_README.md).
 
 1. Upload 4 file `data/processed/{train,test}_{encoded,raw}.parquet` thành một Kaggle Dataset và Add Input vào notebook.
 2. Bật **Internet: On** và **Accelerator: GPU**.
