@@ -37,7 +37,7 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 │   ├── kaggle_pipeline.ipynb        # Kaggle: tune (50 trial) → benchmark → CIES nối tiếp, tự resume nhiều phiên
 │   ├── 03_train_models.ipynb        # Benchmark 5 model x 5 kỹ thuật
 │   ├── 04_cies_experiment.ipynb     # CIES trên Sparkov
-│   ├── 05_cies_experiment_ulb.ipynb # CIES trên ULB
+│   ├── 05_cies_experiment_ulb.ipynb # ULB: tune + benchmark + CIES
 │   └── 06_visualizations.ipynb      # Biểu đồ insight dataset, SHAP, CIES
 ├── src/
 │   ├── config.py             # Đường dẫn, hằng số, danh sách model/kỹ thuật, công tắc
@@ -81,7 +81,7 @@ Chạy theo thứ tự. Các notebook mở bằng `jupyter lab`.
 1. **Tải dữ liệu Sparkov**: `python -m src.data.download` (bỏ qua nếu `data/raw/` đã có).
 2. **`02_preprocessing.ipynb`**: sinh `data/processed/*.parquet` (và tải/chia ULB).
 3. **Tune + benchmark + CIES Sparkov trên Kaggle** (`kaggle_pipeline.ipynb`, bật GPU): ghi `results/best_params.json`, `model_benchmark_results.csv`, `cies_summary_results.json`. Xem mục [Chạy trên Kaggle](#chạy-trên-kaggle). Chạy local thay thế: tune bằng `src.models.tune.tune_all_models(train_raw)`, rồi notebook 03, 04.
-4. **`03_train_models.ipynb`**, **`04_cies_experiment.ipynb`**, **`05_cies_experiment_ulb.ipynb`**: benchmark và CIES. Cả ba đều nạp tham số từ `best_params.json`; mỗi tổ hợp được lưu ngay khi xong nên chạy lại sẽ bỏ qua phần đã có.
+4. **`03_train_models.ipynb`**, **`04_cies_experiment.ipynb`**, **`05_cies_experiment_ulb.ipynb`**: benchmark và CIES. 03 và 04 nạp tham số Sparkov từ `best_params.json`; 05 tune riêng cho ULB (`best_params_ulb.json`) rồi chạy benchmark và CIES ULB bằng tham số đó; mỗi tổ hợp được lưu ngay khi xong nên chạy lại sẽ bỏ qua phần đã có.
 5. **`06_visualizations.ipynb`**: vẽ biểu đồ vào `reports/figures/` (phần CIES tự bỏ qua nếu chưa có kết quả).
 
 Chạy test: `python -m pytest tests -q`.

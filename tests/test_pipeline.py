@@ -717,6 +717,33 @@ def test_cies_uses_explicit_params_per_dataset(monkeypatch):
     assert seen == [{"C": 0.5}, {"C": 0.5}]
 
 
+def test_ulb_notebook_uses_ulb_params_and_own_resample_cache():
+    """Notebook 05 từng gọi CIES không truyền params → build_model nạp tham số của Sparkov cho ULB.
+
+    Benchmark và CIES của ULB phải truyền tham số ULB tường minh, và cache resample của ULB phải ở
+    thư mục riêng (cache đặt tên file theo kỹ thuật — chung thư mục thì ghi đè cache của Sparkov).
+    """
+    import ast
+    from src.config import RESAMPLE_CACHE_DIR, RESAMPLE_CACHE_ULB_DIR
+
+    assert RESAMPLE_CACHE_ULB_DIR != RESAMPLE_CACHE_DIR
+    nb = json.loads((Path(__file__).resolve().parent.parent / "notebooks" / "05_cies_experiment_ulb.ipynb").read_text())
+    code = "\n".join("".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code")
+    calls = {}
+    for node in ast.walk(ast.parse(code)):
+        if isinstance(node, ast.Call):
+            names = [a.id for a in node.args if isinstance(a, ast.Name)]
+            fn = node.func.id if isinstance(node.func, ast.Name) else None
+            key = "train_and_evaluate_combo" if "train_and_evaluate_combo" in names else fn
+            calls.setdefault(key, []).append({k.arg: ast.unparse(k.value) for k in node.keywords})
+    assert calls["run_cies_experiment_isolated"] and calls["train_and_evaluate_combo"]
+    for kw in calls["run_cies_experiment_isolated"] + calls["train_and_evaluate_combo"]:
+        assert kw.get("params") == "ulb_params(model_name)", kw
+    for kw in calls["train_and_evaluate_combo"]:
+        assert kw.get("resample_cache_dir") == "RESAMPLE_CACHE_ULB_DIR", kw
+    assert "BEST_PARAMS_ULB_FILE" in code
+
+
 def test_optuna_tuning():
     print("\n--- Testing Optuna HPO Module (tune_model on sample data) ---")
     from src.models.tune import tune_model

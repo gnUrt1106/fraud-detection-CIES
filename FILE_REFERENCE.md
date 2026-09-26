@@ -47,7 +47,7 @@ Danh mục theo trạng thái code hiện tại (chỉ liệt kê file nằm tro
 | `kaggle_pipeline.ipynb` | Kaggle: tune (50 trial, `MODELS_SCOPE`) → benchmark → CIES Sparkov nối tiếp; với model trong `MODELS_SCOPE` bỏ kết quả clone từ repo và khôi phục tiến độ phiên trước, model ngoài `MODELS_SCOPE` giữ bản trong repo (chạy được nửa local nửa Kaggle), tự resume qua nhiều phiên, ngân sách thời gian chung. Hướng dẫn upload dữ liệu: `KAGGLE_UPLOAD_README.md` |
 | `03_train_models.ipynb` | Benchmark 5 model × 5 kỹ thuật → `results/model_benchmark_results.csv` (lưu/resume từng tổ hợp, `timeout=None`) |
 | `04_cies_experiment.ipynb` | CIES trên Sparkov (đủ 5 model × 5 kỹ thuật, train subsample phân tầng `SUBSAMPLE_N=100.000` dòng; mục 8 kiểm tra độ nhạy theo cỡ mẫu) → `results/cies_summary_results.json` |
-| `05_cies_experiment_ulb.ipynb` | CIES trên ULB (đủ 5×5, toàn bộ train, `feature_level=False`) → `results/cies_summary_results_ulb.json` |
+| `05_cies_experiment_ulb.ipynb` | Toàn bộ ULB: tune (→ `results/best_params_ulb.json`), benchmark (→ `results/model_benchmark_results_ulb.csv`, cache resample `data/processed/resampled_ulb/`) và CIES đủ 5×5 trên toàn bộ train, `feature_level=False` (→ `results/cies_summary_results_ulb.json`). Benchmark và CIES dùng tham số ULB, không dùng của Sparkov |
 | `06_visualizations.ipynb` | Biểu đồ insight dataset, SHAP và CIES → `reports/figures/` |
 
 ---

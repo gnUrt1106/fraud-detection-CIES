@@ -19,6 +19,9 @@ RAW_DATA_DIR = DATA_DIR / "raw"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 # Cache dữ liệu đã resample cho benchmark (src/imbalance/resamplers.py::apply_imbalance_cached)
 RESAMPLE_CACHE_DIR = PROCESSED_DATA_DIR / "resampled"
+# Cache của ULB phải ở thư mục riêng: file cache đặt tên theo kỹ thuật, dùng chung thư mục thì
+# dataset này ghi đè cache của dataset kia (fingerprint lệch → tính lại → ghi đè).
+RESAMPLE_CACHE_ULB_DIR = PROCESSED_DATA_DIR / "resampled_ulb"
 
 # ===== Results =====
 RESULTS_DIR = PROJECT_ROOT / "results"
