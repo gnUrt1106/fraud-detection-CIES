@@ -148,6 +148,26 @@ Cùng logic với cách chia train/test ("train quá khứ, chấm tương lai")
 
 ---
 
+## 8. Nới vùng tìm Optuna ở các tham số chạm biên (2026-09-26)
+
+**Vấn đề.** Nếu giá trị tốt nhất nằm sát biên vùng tìm, rất có thể giá trị tốt hơn nằm ngoài vùng — Optuna không thể chọn nó. Quy ước kiểm tra: tham số "chạm biên" khi giá trị tốt nhất nằm ở ≤10–12% hoặc ≥88–90% khoảng (thang log với tham số log). Đo trên lần tune đầu tiên của thiết kế hiện tại (50 trial, 3 fold thời gian):
+
+| Dataset | Model | Tham số | Giá trị tốt nhất | Vùng cũ | Vị trí | Vùng mới |
+|---|---|---|---|---|---|---|
+| Sparkov | XGBoost | `n_estimators` | 550 | 100–600 | 90% | 100–2000 |
+| Sparkov | XGBoost | `learning_rate` | 0,0137 | 0,01–0,3 (log) | 9% | 0,001–0,3 |
+| Sparkov | RF | `max_depth` | 27 | 6–30 | 88% | 6–50 |
+| ULB | LR | `C` | 0,00085 | 1e-4–1e4 (log) | 12% | 1e-6–1e4 |
+| Sparkov | LR | `C` | 0,214 | 1e-4–1e4 (log) | 42% | (không chạm biên) |
+
+XGBoost chọn **nhiều cây + learning rate nhỏ** cùng lúc — hai tham số này bù cho nhau, nên cùng bị chặn ở biên. CatBoost (chưa tune xong) có cùng cặp `iterations`/`learning_rate` nên nới giống XGBoost. CatBoost giữ `depth ≤ 12` vì bộ nhớ tăng theo 2^depth.
+
+**Quyết định.** Một vùng tìm **chung cho cả Sparkov và ULB** (`tune.py::sample_hyperparameters`), không đặt vùng riêng từng dataset — tránh câu hỏi "vì sao ULB được tìm rộng hơn". Dataset nào cần giá trị ở đầu nào thì vùng chung đã bao đủ. Tune lại các model bị ảnh hưởng (XGBoost, RF, CatBoost cho cả hai dataset; LR của ULB); LR Sparkov giữ kết quả cũ.
+
+**Đánh đổi.** Tối đa 2000 cây làm mỗi trial chậm hơn đáng kể (thời gian train tăng gần tuyến tính theo số cây). Sau khi tune lại cần chạy lại bước kiểm tra biên; nếu vẫn chạm biên mới thì ghi vào hạn chế thay vì nới mãi.
+
+---
+
 ## Nguồn
 
 - Le Borgne, Siblini, Lebichot, Bontempi — *Reproducible Machine Learning for Credit Card Fraud Detection – Practical Handbook*. Baseline (chia theo thời gian, delay period, bỏ thẻ đã bị lộ): <https://fraud-detection-handbook.github.io/fraud-detection-handbook/Chapter_3_GettingStarted/BaselineModeling.html>; chiến lược validation: <https://fraud-detection-handbook.github.io/fraud-detection-handbook/Chapter_5_ModelValidationAndSelection/ValidationStrategies.html>

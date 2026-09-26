@@ -717,6 +717,39 @@ def test_cies_uses_explicit_params_per_dataset(monkeypatch):
     assert seen == [{"C": 0.5}, {"C": 0.5}]
 
 
+def test_search_space_covers_previously_binding_values():
+    """Lần tune trước chọn giá trị sát biên cũ; vùng tìm mới phải chứa chúng ở giữa, không sát biên.
+
+    Sparkov: XGBoost n_estimators=550 (90% của [100, 600]), learning_rate=0.0137 (9% thang log
+    của [0.01, 0.3]); RF max_depth=27 (88% của [6, 30]). ULB: LR C=0.00085 (12% của [1e-4, 1e4]).
+    """
+    import optuna
+    from src.models.tune import sample_hyperparameters
+
+    def position(dist, value):
+        lo, hi = dist.low, dist.high
+        if getattr(dist, "log", False):
+            lo, hi, value = np.log(lo), np.log(hi), np.log(value)
+        return (value - lo) / (hi - lo)
+
+    study = optuna.create_study()
+    binding = {
+        "xgboost": {"n_estimators": 550, "learning_rate": 0.0137},
+        "catboost": {"iterations": 550, "learning_rate": 0.0137},
+        "random_forest": {"max_depth": 27},
+        "logistic_regression": {"C": 0.00085},
+    }
+    for model_name, values in binding.items():
+        trial = study.ask()
+        sample_hyperparameters(trial, model_name)
+        for param, value in values.items():
+            pos = position(trial.distributions[param], value)
+            assert 0.15 < pos < 0.85, (model_name, param, round(pos, 3))
+    trial = study.ask()
+    sample_hyperparameters(trial, "catboost")
+    assert trial.distributions["depth"].high <= 12  # bộ nhớ CatBoost tăng theo 2^depth
+
+
 def test_optuna_tuning():
     print("\n--- Testing Optuna HPO Module (tune_model on sample data) ---")
     from src.models.tune import tune_model

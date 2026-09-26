@@ -37,10 +37,14 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, Any]:
     """
     Định nghĩa không gian tìm kiếm siêu tham số (Search Space) cho từng model.
+
+    Dùng chung cho Sparkov và ULB. Các biên C, max_depth của RF, n_estimators/iterations và
+    learning_rate đã được nới vì lần tune trước chọn giá trị sát biên cũ (<=12% hoặc >=88% khoảng)
+    — xem reports/design_decisions.md mục 8. CatBoost giữ depth <= 12 (bộ nhớ tăng theo 2^depth).
     """
     if model_name == "logistic_regression":
         return {
-            "C": trial.suggest_float("C", 1e-4, 1e4, log=True),
+            "C": trial.suggest_float("C", 1e-6, 1e4, log=True),
             "max_iter": 2000,
             "solver": "lbfgs",
         }
@@ -48,16 +52,16 @@ def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, An
     elif model_name == "random_forest":
         return {
             "n_estimators": trial.suggest_int("n_estimators", 100, 300, step=50),
-            "max_depth": trial.suggest_int("max_depth", 6, 30),
+            "max_depth": trial.suggest_int("max_depth", 6, 50),
             "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
             "min_samples_leaf": trial.suggest_int("min_samples_leaf", 1, 10),
         }
 
     elif model_name == "xgboost":
         return {
-            "n_estimators": trial.suggest_int("n_estimators", 100, 600, step=50),
+            "n_estimators": trial.suggest_int("n_estimators", 100, 2000, step=50),
             "max_depth": trial.suggest_int("max_depth", 3, 16),
-            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+            "learning_rate": trial.suggest_float("learning_rate", 0.001, 0.3, log=True),
             "subsample": trial.suggest_float("subsample", 0.6, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
             "eval_metric": "aucpr",
@@ -66,9 +70,9 @@ def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, An
     elif model_name == "catboost":
         # RÀNG BUỘC: KHÔNG dùng cat_features
         return {
-            "iterations": trial.suggest_int("iterations", 100, 600, step=50),
+            "iterations": trial.suggest_int("iterations", 100, 2000, step=50),
             "depth": trial.suggest_int("depth", 4, 12),
-            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+            "learning_rate": trial.suggest_float("learning_rate", 0.001, 0.3, log=True),
             "l2_leaf_reg": trial.suggest_float("l2_leaf_reg", 0.1, 30.0, log=True),
             "eval_metric": "PRAUC",
             "verbose": 0,
