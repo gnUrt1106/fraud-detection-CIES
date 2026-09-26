@@ -326,7 +326,9 @@ def _merge_write(out_file: Path, model_name: str, entry: Dict[str, Any]) -> Dict
 
     def _set(current: Dict[str, Any]) -> Dict[str, Any]:
         current[model_name] = entry
-        return current
+        # Giữ file theo thứ tự MODEL_NAMES, không theo thứ tự tune xong
+        rank = {m: i for i, m in enumerate(MODEL_NAMES)}
+        return dict(sorted(current.items(), key=lambda kv: rank.get(kv[0], len(rank))))
 
     return update_json(out_file, _set, default=dict)
 

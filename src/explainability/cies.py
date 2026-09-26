@@ -24,12 +24,12 @@ import pandas as pd
 import logging
 import json
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from scipy.stats import spearmanr
 
 from src.config import (
     N_RUNS, TARGET_COL, RESULTS_DIR,
-    ONEHOT_COLS, TARGET_ENCODE_COLS,
+    ONEHOT_COLS, TARGET_ENCODE_COLS, MODEL_NAMES, IMBALANCE_TECHNIQUES,
 )
 from src.data.encoding import encode_train, encode_test
 from src.imbalance.resamplers import apply_imbalance, onehot_groups_from_columns
@@ -542,6 +542,13 @@ def save_cies_results(
     logger.info(f"CIES results saved to: {filepath}")
 
 
+def combo_order_key(model_name: Any, technique: Any) -> Tuple[int, int]:
+    """Vị trí của (model, kỹ thuật) theo MODEL_NAMES × IMBALANCE_TECHNIQUES; tên lạ xếp cuối."""
+    m = MODEL_NAMES.index(model_name) if model_name in MODEL_NAMES else len(MODEL_NAMES)
+    t = IMBALANCE_TECHNIQUES.index(technique) if technique in IMBALANCE_TECHNIQUES else len(IMBALANCE_TECHNIQUES)
+    return m, t
+
+
 def merge_cies_result(
     result: Dict[str, Any],
     output_path: Optional[Path] = None,
@@ -565,7 +572,8 @@ def merge_cies_result(
 
     def _replace(current: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         kept = [r for r in current if (r.get("model_name"), r.get("imbalance_technique")) != key]
-        return kept + [result]
+        # Giữ file theo thứ tự MODEL_NAMES × IMBALANCE_TECHNIQUES, không theo thứ tự chạy
+        return sorted(kept + [result], key=lambda r: combo_order_key(r.get("model_name"), r.get("imbalance_technique")))
 
     merged = update_json(filepath, _replace, default=list, serializer=_serialize_cies)
     logger.info(f"CIES result ({key[0]} x {key[1]}) merged vào: {filepath}")

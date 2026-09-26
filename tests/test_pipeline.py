@@ -541,6 +541,28 @@ def test_merge_cies_result_keeps_concurrent_writes(tmp_path):
     assert xgb["cies_metrics"]["cies_score"] == 0.99
 
 
+def test_result_files_stay_in_config_order_whatever_the_run_order(tmp_path):
+    """File CIES và best_params được ghi theo thứ tự chạy xong → lộn xộn khi chạy song song/chạy lại.
+
+    Mỗi lần ghi phải sắp theo MODEL_NAMES × IMBALANCE_TECHNIQUES (tên lạ xếp cuối).
+    """
+    from src.explainability.cies import merge_cies_result
+    from src.models.tune import _merge_write
+
+    for m, t in [("random_forest", "smote"), ("logistic_regression", "class_weighting"),
+                 ("unknown_model", "smote"), ("logistic_regression", "smote"), ("random_forest", "adasyn")]:
+        merge_cies_result({"model_name": m, "imbalance_technique": t, "cies_metrics": {}}, tmp_path, filename="c.json")
+    saved = json.load(open(tmp_path / "c.json", encoding="utf-8"))
+    assert [(r["model_name"], r["imbalance_technique"]) for r in saved] == [
+        ("logistic_regression", "smote"), ("logistic_regression", "class_weighting"),
+        ("random_forest", "smote"), ("random_forest", "adasyn"), ("unknown_model", "smote")]
+
+    for m in ["catboost", "logistic_regression", "xgboost", "random_forest"]:
+        _merge_write(tmp_path / "p.json", m, {"best_params": {}})
+    assert list(json.load(open(tmp_path / "p.json", encoding="utf-8"))) == [
+        "logistic_regression", "random_forest", "xgboost", "catboost"]
+
+
 def test_merge_cies_result_parallel_processes_lose_nothing(tmp_path):
     """
     Nhiều TIẾN TRÌNH ghi cùng lúc (như 2 script CIES chia model chạy song song). Bản cũ (đọc → ghi,
