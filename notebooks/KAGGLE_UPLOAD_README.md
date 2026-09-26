@@ -1,8 +1,9 @@
-# Upload dữ liệu cho `kaggle_retune_benchmark_cies.ipynb`
+# Upload dữ liệu cho `kaggle_pipeline.ipynb`
 
-Sau khi sửa bug `age` (xem commit `a93e1d7`), 4 file dưới đây trong `data/processed/` đã được
-tái tạo lại đúng ở máy local. Upload đúng 4 file này thành 1 Kaggle Dataset để notebook Kaggle
-dùng — **không dùng lại dataset cũ** (dữ liệu cũ vẫn còn bug `age`).
+`kaggle_pipeline.ipynb` cần 4 file đã tiền xử lý trong `data/processed/` (tạo bằng
+`notebooks/02_preprocessing.ipynb` ở máy local). Upload đúng 4 file này thành 1 Kaggle Dataset.
+Mỗi khi chạy lại `02_preprocessing.ipynb`, upload bản mới (tạo version mới của dataset) để Kaggle
+dùng đúng dữ liệu hiện tại.
 
 ## File cần upload (từ `data/processed/`)
 
@@ -17,12 +18,12 @@ Tổng ~123 MB — trong giới hạn Kaggle Dataset dễ dàng.
 
 ## Các bước
 
-1. Vào [kaggle.com/datasets](https://www.kaggle.com/datasets) → **New Dataset**.
+1. Vào [kaggle.com/datasets](https://www.kaggle.com/datasets) → **New Dataset** (hoặc **New Version** nếu đã có dataset cũ).
 2. Kéo thả (hoặc chọn file) đúng 4 file ở bảng trên từ `data/processed/`.
-3. Đặt tên dataset, ví dụ `cies-processed-v2` (đặt **Private** nếu không muốn công khai dữ liệu thô).
+3. Đặt tên dataset, ví dụ `cies-processed` (đặt **Private** nếu không muốn công khai dữ liệu).
 4. Create → đợi upload xong.
-5. Mở `notebooks/kaggle_retune_benchmark_cies.ipynb` trên Kaggle (Import Notebook từ GitHub) →
-   **Add Input** → chọn dataset vừa tạo (`cies-processed-v2`).
+5. Mở `notebooks/kaggle_pipeline.ipynb` trên Kaggle (Import Notebook từ GitHub) →
+   **Add Input** → chọn dataset vừa tạo.
 6. Bật **Internet: On**, khuyến nghị bật **Accelerator: GPU**.
 7. Chạy từ đầu — cell "Chuẩn bị dữ liệu" tự tìm và symlink cả 4 file.
 

@@ -39,12 +39,11 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-26), không 
 |---|---|
 | Tune lần 1 (30 trial, vùng hẹp) | LR / XGBoost / CatBoost / ANN xong (PR-AUC CV 0.319 / 0.929 / 0.926 / 0.892), RF xong 0.857 nhưng `max_depth` chạm biên 18. Nhiều tham số chạm biên (CatBoost `depth`, `iterations`; ANN `epochs`; LR `C`) |
 | Tune lần 2 (100 trial, vùng đã nới, cùng ngân sách cho mọi model) | Xong: LR 0.319, XGBoost 0.933, CatBoost 0.9271, RF 0.8872 (70 xong / 30 cắt). **ANN còn lại** (chạy nhiều phiên Kaggle với checkpoint SQLite, ~30/100 trial). `best_params.json` hiện là hỗn hợp hai giao thức cho riêng ANN (30 trial cũ), chưa dùng cho benchmark/CIES của ANN |
-| Sửa bug `age` (2026-09-23) | `age` từng tính `2020 − năm sinh` (hardcode) thay vì năm giao dịch — lệch +1 tuổi ở ~50% dòng (năm 2019). Đã sửa, tái tạo `data/processed/`, chạy lại benchmark + CIES Sparkov bên dưới **bằng tham số tune CŨ** (tune trên `age` lỗi). So với trước khi sửa: PR-AUC lệch tối đa 0,0038 (TB 0,0011), CIES lệch tối đa 0,0051 (TB 0,0011) |
-| Bỏ `zip` khỏi feature (2026-09-26) | Đã sửa `preprocess_features` và tạo lại `data/processed/`. **Mọi bảng kết quả bên dưới vẫn tính khi còn `zip`** — sẽ tính lại trong đợt retune trên Kaggle |
-| Benchmark 20/20 (4 model đã tune × 5 kỹ thuật, toàn bộ 1.48M dòng train) | **Xong** (data đã sửa `age`) — bảng ở mục "Kết quả" |
-| CIES Sparkov 20/20 (4 model × 5 kỹ thuật, subsample 100k, N_RUNS=20) | **Xong** (data đã sửa `age`) — bảng ở mục "Kết quả" |
+| Dữ liệu hiện tại | `data/processed/` đã bỏ `zip` (mục "Lệch so với spec" 9). **Các bảng kết quả bên dưới vẫn tính khi còn `zip`** — sẽ tính lại trong đợt tune trên Kaggle |
+| Benchmark 20/20 (4 model đã tune × 5 kỹ thuật, toàn bộ 1.48M dòng train) | **Xong** — bảng ở mục "Kết quả" |
+| CIES Sparkov 20/20 (4 model × 5 kỹ thuật, subsample 100k, N_RUNS=20) | **Xong** — bảng ở mục "Kết quả" |
 | CIES ULB 20/20 (4 model × 5 kỹ thuật, toàn bộ 227.845 dòng train, N_RUNS=20) | **Xong** — bảng ở mục "Kết quả". `random_forest`/`catboost × smote_enn` vượt timeout 1h mặc định, chạy lại với 3h |
-| Tune lại cả 5 model trên data đã sửa (50 trial) | Dự kiến chạy trên Kaggle qua `notebooks/kaggle_retune_benchmark_cies.ipynb` (retune → benchmark → CIES nối tiếp) |
+| Tune cả 5 model trên dữ liệu hiện tại (50 trial) | Dự kiến chạy trên Kaggle qua `notebooks/kaggle_pipeline.ipynb` (tune → benchmark → CIES nối tiếp) |
 | ANN: benchmark + CIES | Chưa chạy, chờ tune xong |
 | Đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2) | Chưa làm |
 
@@ -86,11 +85,11 @@ Nguồn: `results/model_benchmark_results.csv`, `results/cies_summary_results.js
 5. **Với 3 model cây/boosting, SMOTE-ENN cho PR-AUC thấp nhất và F1 thấp nhất hoặc nhì**, lại tốn thời gian nhất (benchmark CatBoost × SMOTE-ENN trên 1.48M dòng mất ~80 phút, chủ yếu ở bước ENN). **Không đúng với LR**: PR-AUC/F1 của SMOTE-ENN ở LR đứng thứ 3/5, CIES đứng thứ 2/5.
 6. **Đổi kỹ thuật imbalance gần như không đổi feature nào được coi là quan trọng.** Độ đồng thuận thứ hạng feature giữa 5 kỹ thuật (cùng model, rank-weighted distance như CIES, trên mean\|SHAP\| trung bình 20 run) thấp nhất 0,931 trên Sparkov và 0,915 trên ULB, trung bình 0,956–0,980 ở mọi model. Lưu ý đây là câu hỏi khác với CIES: CIES đo ổn định **giữa các lần bootstrap** của cùng 1 kỹ thuật; LR có đồng thuận giữa kỹ thuật cao (0,98 trên Sparkov) dù CIES thấp — tức độ bất ổn của LR đến từ dữ liệu, không từ kỹ thuật. Hình: `reports/figures/technique_agreement_*.png`.
 
-**Đây là kết luận sơ bộ**: 1 seed, chưa có ANN, tham số tune trên dữ liệu trước khi sửa `age` — nên diễn giải là quan sát cần kiểm chứng thêm.
+**Đây là kết luận sơ bộ**: 1 seed, chưa có ANN, tham số chưa tune lại trên dữ liệu hiện tại — nên diễn giải là quan sát cần kiểm chứng thêm.
 
 ## Lệch so với spec và giới hạn
 
-1. **Notebook 04/05 chạy đủ 5×5.** Sparkov subsample **phân tầng 100.000 dòng** (`SUBSAMPLE_N`, ≈521 fraud, giữ tỷ lệ 0,52%) vì train đầy đủ 1.48M dòng quá nặng cho 20 run/tổ hợp; mẫu 10.000 cũ chỉ có ~59 fraud (bootstrap còn ~37 fraud khác nhau) nên CIES sẽ đo nhiễu mẫu nhỏ. Kiểm tra độ nhạy (notebook 04 mục 8, `xgboost × class_weighting` và `random_forest × smote`; đo **trước khi sửa bug `age`** — 2 file kết quả `results/cies_sensitivity_subsample*.json` đã bỏ khỏi repo ở commit `a93e1d7`, xem lại bằng `git show a93e1d7^:results/cies_sensitivity_subsample.json`, chạy lại mục 8 nếu cần số trên data mới): CIES tăng dần theo cỡ mẫu ở cả hai tổ hợp, không bão hoà rõ ở 100k — XGBoost 0,951/0,957/0,956/0,965, RF+SMOTE 0,941/0,959/0,961/0,969 (10k/30k/50k/100k; 52/156/261/521 fraud); nhiễu giữa các run (std khoảng cách hạng) giảm dần theo cỡ mẫu ở cả hai (RF+SMOTE: 0,0106→0,0034). Hai tổ hợp độc lập nhất quán về xu hướng nên chọn 100k làm cỡ mẫu chuẩn; chưa kiểm tra SMOTE-ENN, CatBoost, ANN.
+1. **Notebook 04/05 chạy đủ 5×5.** Sparkov subsample **phân tầng 100.000 dòng** (`SUBSAMPLE_N`, ≈521 fraud, giữ tỷ lệ 0,52%) vì train đầy đủ 1.48M dòng quá nặng cho 20 run/tổ hợp; mẫu 10.000 cũ chỉ có ~59 fraud (bootstrap còn ~37 fraud khác nhau) nên CIES sẽ đo nhiễu mẫu nhỏ. Kiểm tra độ nhạy (notebook 04 mục 8, `xgboost × class_weighting` và `random_forest × smote`; đo trên phiên bản dữ liệu trước — 2 file kết quả `results/cies_sensitivity_subsample*.json` không còn trong repo, xem lại bằng `git show a93e1d7^:results/cies_sensitivity_subsample.json`; chạy lại mục 8 nếu cần số trên dữ liệu hiện tại): CIES tăng dần theo cỡ mẫu ở cả hai tổ hợp, không bão hoà rõ ở 100k — XGBoost 0,951/0,957/0,956/0,965, RF+SMOTE 0,941/0,959/0,961/0,969 (10k/30k/50k/100k; 52/156/261/521 fraud); nhiễu giữa các run (std khoảng cách hạng) giảm dần theo cỡ mẫu ở cả hai (RF+SMOTE: 0,0106→0,0034). Hai tổ hợp độc lập nhất quán về xu hướng nên chọn 100k làm cỡ mẫu chuẩn; chưa kiểm tra SMOTE-ENN, CatBoost, ANN.
 2. **ULB chưa có benchmark PR-AUC/F1 riêng**, chỉ có CIES; không cần encoding vì feature đã là số, và bỏ cột `Time`.
 3. **Tune tách khỏi imbalance**: tham số tối ưu cho trường hợp không xử lý mất cân bằng, dùng chung cho cả 5 kỹ thuật.
 4. **CIES của repo là biến thể của CIES gốc** (arXiv:2603.05024): gốc nhiễu hoá đầu vào lúc suy luận, so độ lớn SHAP, chuẩn hoá theo độ lớn giải thích gốc; repo nhiễu hoá dữ liệu huấn luyện và so thứ hạng. Bảng so sánh chi tiết và nguồn cho các quyết định khác: [`literature_support.md`](literature_support.md).
@@ -139,9 +138,9 @@ Ba cách hợp lệ độc lập cho kết quả gần nhau nên không phải l
 - **`save_cies_results()` ghi đè cả file bằng list trong bộ nhớ riêng của tiến trình gọi nó** — an toàn với 1 tiến trình tuần tự, nhưng khi chạy nhiều tiến trình CIES song song thì tiến trình ghi sau xoá mất kết quả tiến trình khác vừa thêm — **đã xảy ra thật**, mất 1 tổ hợp đã xong. Thêm `merge_cies_result()` (chỉ thay đúng 1 tổ hợp); notebook 04/05 nay cũng ghi qua hàm này.
 - **`age` tính bằng `2020 − năm sinh` (hardcode)** thay vì năm giao dịch: dữ liệu trải 2019–2020, ~50% dòng (năm 2019) bị thừa 1 tuổi. `age` xếp hạng 4–20/79 theo SHAP nên không bỏ qua được. Đã sửa, chạy lại benchmark + CIES Sparkov (lệch ≤ 0,005 so với trước). ULB không bị ảnh hưởng.
 - **Ghi file kết quả dùng chung không khoá** (`tune._merge_write`, `merge_cies_result`): `_merge_write` xoá trắng file rồi mới ghi, và cả hai coi JSON đọc lỗi là file rỗng — tiến trình đọc trúng lúc file đang ghi dở sẽ ghi lại file chỉ còn mục của nó. Stress test 8 tiến trình: bản cũ còn 24/200 mục, bản mới đủ 200/200. Nay đi qua `src/utils/jsonio.py::update_json` (khoá `fcntl`, ghi file tạm + `os.replace`, báo lỗi khi JSON hỏng).
-- **Notebook Kaggle retune sẽ bỏ qua gần hết việc** (phát hiện trước khi chạy): `git clone` mang theo kết quả đã commit nên benchmark/CIES tưởng 20/20 tổ hợp đã xong, ANN sẽ dùng tham số 30 trial cũ, và bước khôi phục không bao giờ chép tiến độ phiên trước. Nay bỏ kết quả clone về 1 lần mỗi phiên rồi mới khôi phục; thêm ngân sách thời gian chung cho cả 3 giai đoạn.
+- **Notebook Kaggle sẽ bỏ qua gần hết việc** (phát hiện trước khi chạy): `git clone` mang theo kết quả đã commit nên benchmark/CIES tưởng 20/20 tổ hợp đã xong, ANN sẽ dùng tham số 30 trial cũ, và bước khôi phục không bao giờ chép tiến độ phiên trước. Nay bỏ kết quả clone về 1 lần mỗi phiên rồi mới khôi phục; thêm ngân sách thời gian chung cho cả 3 giai đoạn.
 
-**Đã chạy lại theo code mới:** benchmark (03) và CIES Sparkov (04) trên data đã sửa `age`, CIES ULB (05) — đủ 20/20 mỗi bên cho 4 model đã tune; notebook 06 vẽ lại toàn bộ hình. Xem mục "Kết quả" ở trên.
+**Đã chạy lại theo code mới:** benchmark (03), CIES Sparkov (04), CIES ULB (05) — đủ 20/20 mỗi bên cho 4 model đã tune; notebook 06 vẽ lại toàn bộ hình. Xem mục "Kết quả" ở trên.
 
 ## Dọn dẹp code (rà soát dư thừa, không đổi hành vi)
 
@@ -157,9 +156,9 @@ Không sửa kết quả nào ở trên — chỉ bỏ phần chết/trùng lặ
 
 ## Việc tiếp theo
 
-1. Tune lại cả 5 model (50 trial) trên data đã sửa `age`, rồi benchmark + CIES Sparkov bằng tham số mới — chạy `notebooks/kaggle_retune_benchmark_cies.ipynb` trên Kaggle (xem `notebooks/KAGGLE_UPLOAD_README.md`). Gồm cả ANN (benchmark + CIES còn thiếu 5 tổ hợp mỗi bên), cho đủ 25/25.
+1. Tune cả 5 model (50 trial) trên dữ liệu hiện tại, rồi benchmark + CIES Sparkov bằng tham số mới — chạy `notebooks/kaggle_pipeline.ipynb` trên Kaggle (xem `notebooks/KAGGLE_UPLOAD_README.md`). Gồm cả ANN (benchmark + CIES còn thiếu 5 tổ hợp mỗi bên), cho đủ 25/25.
 2. CIES ULB cho ANN (5 tổ hợp) sau khi ANN tune xong.
-3. Quyết định có chuyển sang chia train/test theo thẻ (`cc_num`) hay không (mục "Lệch so với spec" 10) — nên chốt trước đợt retune để chỉ chạy 1 lần.
+3. Quyết định có chuyển sang chia train/test theo thẻ (`cc_num`) hay không (mục "Lệch so với spec" 10) — nên chốt trước đợt tune trên Kaggle để chỉ chạy 1 lần.
 4. (Tuỳ chọn) ablation `SNAP_SYNTHETIC_ONEHOT=True` trên vài tổ hợp.
 5. Quyết định có tính thêm CIES đúng công thức gốc (nhiễu đầu vào) làm chỉ số phụ hay không; làm đối chứng KernelSHAP.
 6. Chạy nhiều seed cho vài tổ hợp để biết chênh lệch CIES 0,002–0,01 giữa các kỹ thuật (vd. Borderline-SMOTE luôn thấp nhất) có vượt nhiễu hay không.

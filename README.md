@@ -32,7 +32,7 @@ Cột `Time` của ULB bị loại (chỉ là thứ tự giao dịch); xem `ULB_
 │   ├── 01_eda.ipynb                 # Khám phá dữ liệu + data profiling
 │   ├── 02_preprocessing.ipynb       # Làm sạch, chia 80/20, encoding, xử lý ULB
 │   ├── kaggle_optuna_tuning.ipynb   # Tune hyperparameter bằng Optuna (chạy trên Kaggle)
-│   ├── kaggle_retune_benchmark_cies.ipynb  # Kaggle: retune(50 trial)+benchmark+CIES 1 lần (sau khi sửa bug age)
+│   ├── kaggle_pipeline.ipynb        # Kaggle: tune (50 trial) → benchmark → CIES nối tiếp, tự resume nhiều phiên
 │   ├── 03_train_models.ipynb        # Benchmark 5 model x 5 kỹ thuật
 │   ├── 04_cies_experiment.ipynb     # CIES trên Sparkov
 │   ├── 05_cies_experiment_ulb.ipynb # CIES trên ULB
@@ -97,9 +97,9 @@ Repo phải ở chế độ Public để Kaggle `git clone` ẩn danh được.
 ## Trạng thái (cập nhật 2026-09-26)
 
 - [x] Pipeline đầy đủ: encoding, 5 kỹ thuật imbalance, 5 model, metrics, SHAP, CIES, tune, trực quan hoá.
-- [x] Các đợt rà soát toàn bộ mã nguồn: đã sửa các lỗi nghiêm trọng, gần nhất là bug `age` và lỗi ghi đè file kết quả khi nhiều tiến trình cùng ghi (chi tiết ở [`reports/pipeline_report.md`](reports/pipeline_report.md)).
-- [x] Benchmark (03), CIES Sparkov (04), CIES ULB (05) cho 4/5 model — **đủ 20/20 mỗi bên**, trên data đã sửa `age`, bảng kết quả và nhận xét ở mục "Kết quả" của [`reports/pipeline_report.md`](reports/pipeline_report.md).
-- [ ] **Tune lại cả 5 model** (50 trial) trên data đã sửa `age` — tham số hiện tại tune trên data cũ (LR/XGBoost/CatBoost/RF 100 trial, ANN mới 30 trial). Chạy `notebooks/kaggle_retune_benchmark_cies.ipynb` trên Kaggle: retune → benchmark → CIES nối tiếp, gồm cả 5 tổ hợp còn thiếu mỗi bên của ANN.
+- [x] Các đợt rà soát toàn bộ mã nguồn: đã sửa các lỗi nghiêm trọng (chi tiết ở [`reports/pipeline_report.md`](reports/pipeline_report.md)).
+- [x] Benchmark (03), CIES Sparkov (04), CIES ULB (05) cho 4/5 model — **đủ 20/20 mỗi bên**, bảng kết quả và nhận xét ở mục "Kết quả" của [`reports/pipeline_report.md`](reports/pipeline_report.md).
+- [ ] **Tune cả 5 model** (50 trial) trên dữ liệu hiện tại — tham số trong `best_params.json` được tune trên phiên bản dữ liệu trước (LR/XGBoost/CatBoost/RF 100 trial, ANN 30 trial). Chạy `notebooks/kaggle_pipeline.ipynb` trên Kaggle: tune → benchmark → CIES nối tiếp, gồm cả 5 tổ hợp còn thiếu mỗi bên của ANN.
 - [ ] Thí nghiệm đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2).
 
 ## Lưu ý quan trọng
