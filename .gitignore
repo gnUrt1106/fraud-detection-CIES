@@ -51,3 +51,4 @@ catboost_info/
 # Khoá + file tạm của src/utils/jsonio.py::update_json
 /results/*.lock
 /results/*.tmp
+/results/tuning_checkpoints_ulb/

@@ -1,0 +1,47 @@
+{
+  "logistic_regression": {
+    "model_name": "logistic_regression",
+    "best_pr_auc": 0.808869899352931,
+    "best_params": {
+      "C": 0.0008383503180307937,
+      "max_iter": 2000,
+      "solver": "lbfgs"
+    },
+    "n_trials": 50,
+    "n_completed_trials": 22,
+    "n_pruned_trials": 28,
+    "complete": true
+  },
+  "xgboost": {
+    "model_name": "xgboost",
+    "best_pr_auc": 0.8132559773857985,
+    "best_params": {
+      "n_estimators": 800,
+      "max_depth": 7,
+      "learning_rate": 0.10691987354401478,
+      "subsample": 0.8743556506810045,
+      "colsample_bytree": 0.7024171342808433,
+      "eval_metric": "aucpr"
+    },
+    "n_trials": 50,
+    "n_completed_trials": 19,
+    "n_pruned_trials": 31,
+    "complete": true
+  },
+  "catboost": {
+    "model_name": "catboost",
+    "best_pr_auc": 0.8110958811693291,
+    "best_params": {
+      "iterations": 750,
+      "depth": 4,
+      "learning_rate": 0.021647567332414807,
+      "l2_leaf_reg": 1.4266106225735853,
+      "eval_metric": "PRAUC",
+      "verbose": 0
+    },
+    "n_trials": 50,
+    "n_completed_trials": 24,
+    "n_pruned_trials": 26,
+    "complete": true
+  }
+}

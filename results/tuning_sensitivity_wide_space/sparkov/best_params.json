@@ -1,0 +1,15 @@
+{
+  "logistic_regression": {
+    "model_name": "logistic_regression",
+    "best_pr_auc": 0.24598864675187335,
+    "best_params": {
+      "C": 0.21406798995349918,
+      "max_iter": 2000,
+      "solver": "lbfgs"
+    },
+    "n_trials": 50,
+    "n_completed_trials": 17,
+    "n_pruned_trials": 33,
+    "complete": true
+  }
+}

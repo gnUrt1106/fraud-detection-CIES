@@ -1,0 +1,61 @@
+{
+  "logistic_regression": {
+    "model_name": "logistic_regression",
+    "best_pr_auc": 0.8085327650394726,
+    "best_params": {
+      "C": 0.0008478865150214705,
+      "max_iter": 2000,
+      "solver": "lbfgs"
+    },
+    "n_trials": 50,
+    "n_completed_trials": 24,
+    "n_pruned_trials": 26,
+    "complete": true
+  },
+  "random_forest": {
+    "model_name": "random_forest",
+    "best_pr_auc": 0.7937890207134156,
+    "best_params": {
+      "n_estimators": 250,
+      "max_depth": 9,
+      "min_samples_split": 7,
+      "min_samples_leaf": 4
+    },
+    "n_trials": 50,
+    "n_completed_trials": 29,
+    "n_pruned_trials": 21,
+    "complete": true
+  },
+  "xgboost": {
+    "model_name": "xgboost",
+    "best_pr_auc": 0.8094538779155324,
+    "best_params": {
+      "n_estimators": 550,
+      "max_depth": 3,
+      "learning_rate": 0.0962658937649771,
+      "subsample": 0.9584732843514783,
+      "colsample_bytree": 0.6070115979104177,
+      "eval_metric": "aucpr"
+    },
+    "n_trials": 50,
+    "n_completed_trials": 20,
+    "n_pruned_trials": 30,
+    "complete": true
+  },
+  "catboost": {
+    "model_name": "catboost",
+    "best_pr_auc": 0.8118220731931997,
+    "best_params": {
+      "iterations": 400,
+      "depth": 4,
+      "learning_rate": 0.04892101071331708,
+      "l2_leaf_reg": 2.035534257491703,
+      "eval_metric": "PRAUC",
+      "verbose": 0
+    },
+    "n_trials": 50,
+    "n_completed_trials": 21,
+    "n_pruned_trials": 29,
+    "complete": true
+  }
+}

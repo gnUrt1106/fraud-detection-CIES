@@ -39,12 +39,11 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-26), không 
 |---|---|
 | Tune lần 1 (30 trial, vùng hẹp) | LR / XGBoost / CatBoost / ANN xong (PR-AUC CV 0.319 / 0.929 / 0.926 / 0.892), RF xong 0.857 nhưng `max_depth` chạm biên 18. Nhiều tham số chạm biên (CatBoost `depth`, `iterations`; ANN `epochs`; LR `C`) |
 | Tune lần 2 (100 trial, vùng đã nới, cùng ngân sách cho mọi model) | Xong: LR 0.319, XGBoost 0.933, CatBoost 0.9271, RF 0.8872 (70 xong / 30 cắt). **ANN còn lại** (chạy nhiều phiên Kaggle với checkpoint SQLite, ~30/100 trial). `best_params.json` hiện là hỗn hợp hai giao thức cho riêng ANN (30 trial cũ), chưa dùng cho benchmark/CIES của ANN |
-| **Thiết kế hiện tại (2026-09-26)** | Chia theo thời gian + bỏ cột định danh khách hàng + tune validate theo thời gian (mục "Lệch so với spec" 9–10). `data/processed/` đã tạo lại theo thiết kế này, kèm 4 tập train đã resample (`data/processed/resampled/train_encoded_<kỹ thuật>.parquet`). **`results/` đang trống**: kết quả của thiết kế trước đã xoá (bảng bên dưới giữ số cũ để tham khảo; file gốc xem lại bằng `git show d562d24:results/cies_summary_results.json`, `git show 0b86295:results/cies_summary_results_ulb.json`, `git show 074fc1f:results/model_benchmark_results.csv`). Phải chạy lại toàn bộ: tune, benchmark, CIES Sparkov, CIES ULB |
-| Benchmark 20/20 (4 model đã tune × 5 kỹ thuật, toàn bộ 1.48M dòng train) | **Xong** — bảng ở mục "Kết quả" |
-| CIES Sparkov 20/20 (4 model × 5 kỹ thuật, subsample 100k, N_RUNS=20) | **Xong** — bảng ở mục "Kết quả" |
-| CIES ULB 20/20 (4 model × 5 kỹ thuật, toàn bộ 227.845 dòng train, N_RUNS=20) | **Xong** — bảng ở mục "Kết quả". `random_forest`/`catboost × smote_enn` vượt timeout 1h mặc định, chạy lại với 3h |
-| Tune cả 5 model trên dữ liệu hiện tại (50 trial) | Dự kiến chạy trên Kaggle qua `notebooks/kaggle_pipeline.ipynb` (tune → benchmark → CIES nối tiếp) |
-| ANN: benchmark + CIES | Chưa chạy, chờ tune xong |
+| **Thiết kế hiện tại (2026-09-26)** | Chia theo thời gian + bỏ cột định danh khách hàng + tune validate theo thời gian (mục "Lệch so với spec" 9–10). `data/processed/` đã tạo lại theo thiết kế này, kèm 4 tập train đã resample (`data/processed/resampled/train_encoded_<kỹ thuật>.parquet`). Kết quả của thiết kế trước: bảng "thiết kế trước" bên dưới; file gốc xem bằng `git show d562d24:results/cies_summary_results.json`, `git show 0b86295:results/cies_summary_results_ulb.json`, `git show 074fc1f:results/model_benchmark_results.csv` |
+| Tune (50 trial, 3 fold thời gian, vùng tìm ban đầu) | **Xong 4 model × 2 dataset** (chạy local). PR-AUC CV Sparkov: LR 0,2460 · RF 0,9122 · XGBoost 0,9214 · CatBoost 0,9242; ULB: LR 0,8085 · RF 0,7938 · XGBoost 0,8095 · CatBoost 0,8118. Kiểm tra nới biên: `design_decisions.md` mục 8 |
+| Benchmark Sparkov + ULB | **Xong 20/25 mỗi dataset** (4 model × 5 kỹ thuật) — `model_benchmark_results.csv`, `model_benchmark_results_ulb.csv` |
+| CIES Sparkov (subsample 100k, N_RUNS=20) + ULB (toàn bộ 227.846 dòng, N_RUNS=20) | **Xong 20/25 mỗi dataset** — `cies_summary_results.json`, `cies_summary_results_ulb.json` |
+| ANN: tune + benchmark + CIES, cả 2 dataset | Chờ chạy trên Kaggle (`kaggle_pipeline.ipynb`, `MODELS_SCOPE = ["ann"]`, `RUN_ULB = True`); vùng tìm ANN mới: `design_decisions.md` mục 9 |
 | Đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2) | Chưa làm |
 
 ## Kết quả benchmark + CIES — thiết kế trước (chia ngẫu nhiên, còn cột định danh; sẽ thay khi chạy lại)
@@ -151,7 +150,7 @@ Ba cách hợp lệ độc lập cho kết quả gần nhau nên không phải l
 - **Notebook Kaggle sẽ bỏ qua gần hết việc** (phát hiện trước khi chạy): `git clone` mang theo kết quả đã commit nên benchmark/CIES tưởng 20/20 tổ hợp đã xong, ANN sẽ dùng tham số 30 trial cũ, và bước khôi phục không bao giờ chép tiến độ phiên trước. Nay mỗi phiên chỉ bỏ kết quả clone về của các model trong `MODELS_SCOPE` rồi khôi phục tiến độ phiên trước cho chúng, còn model ngoài phạm vi giữ bản trong repo (để chạy được nửa local nửa Kaggle); thêm ngân sách thời gian chung cho cả 3 giai đoạn.
 - **Notebook 05 chạy CIES ULB bằng tham số của Sparkov**: `run_cies_experiment_isolated` không truyền `params`, nên `build_model` tự nạp `best_params.json` (Sparkov). Nay notebook 05 tune ULB riêng, và cả benchmark lẫn CIES truyền `params=ulb_params(model_name)` (báo lỗi nếu thiếu, không âm thầm dùng tham số Sparkov). Cache resample của ULB ở thư mục riêng `resampled_ulb/` — chung thư mục thì ghi đè cache của Sparkov.
 
-**Trạng thái kết quả:** `results/` đang trống — mọi kết quả của thiết kế trước đã xoá, chờ chạy lại theo thiết kế hiện tại (xem bảng "Trạng thái chạy thực nghiệm").
+**Trạng thái kết quả:** xem bảng "Trạng thái chạy thực nghiệm" — 4 model × 2 dataset đã có tune, benchmark, CIES theo thiết kế hiện tại; còn ANN.
 
 ## Dọn dẹp code (rà soát dư thừa, không đổi hành vi)
 
