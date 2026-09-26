@@ -47,10 +47,17 @@ NUMERICAL_COLS = [
     "city_pop", "unix_time",
 ]
 
+# ===== Cột định danh khách hàng (Sparkov) — KHÔNG đưa vào model =====
+# Mỗi cột (hoặc tổ hợp) gần như chỉ ra đúng 1 khách hàng: 98,6% cặp (lat, long) và 90,1% giá trị
+# city_pop chỉ thuộc 1 thẻ, 92,2% city chỉ có 1 thẻ; merch_lat/long luôn nằm trong ~1,4° quanh nhà
+# khách. Model dùng chúng để học thuộc "khách nào từng bị hack" — chia theo thời gian (XGBoost,
+# class_weighting) cho PR-AUC 0,24 khi giữ, 0,88 khi bỏ. Xem reports/pipeline_report.md.
+CUSTOMER_IDENTITY_COLS = ["lat", "long", "city", "state", "job", "city_pop", "merch_lat", "merch_long"]
+
 # ===== Encoding strategy theo cardinality (Sparkov) =====
 # Spec mục 3.1 — KHÔNG one-hot cho high-cardinality
-ONEHOT_COLS = ["gender", "category", "state"]
-TARGET_ENCODE_COLS = ["merchant", "city", "job"]
+ONEHOT_COLS = ["gender", "category"]
+TARGET_ENCODE_COLS = ["merchant"]
 
 # Tất cả categorical columns (union)
 CATEGORICAL_COLS = ONEHOT_COLS + TARGET_ENCODE_COLS

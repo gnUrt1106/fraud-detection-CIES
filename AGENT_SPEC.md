@@ -104,10 +104,8 @@ fraud-detection-cies/
 |---|---|---|
 | gender | 2 | One-hot |
 | category | ~14 | One-hot |
-| state | ~51 | One-hot |
 | merchant | ~600+ | **Stratified K-fold Target Encoding hoặc WOE** |
-| city | vài trăm | **Stratified K-fold Target Encoding hoặc WOE** |
-| job | vài trăm | **Stratified K-fold Target Encoding hoặc WOE** |
+| state, city, job, lat/long, city_pop, merch_lat/long, zip | — | **Không đưa vào model** — định danh khách hàng (cập nhật 2026-09-26, xem §8 và §11) |
 
 ### 3.2. Thuật toán Stratified K-fold Target Encoding (bắt buộc implement đúng thứ tự)
 
@@ -140,7 +138,7 @@ def stratified_kfold_target_encode(df_train, col, target_col, n_splits=5, smooth
 ### 3.3. Thứ tự pipeline BẮT BUỘC — agent không được đảo thứ tự này
 
 ```
-1. Split train/test (stratified theo target)
+1. Split train/test THEO THỜI GIAN (Sparkov: fraudTrain.csv → fraudTest.csv; ULB: sắp theo Time, 20% cuối) — xem §8
 2. Encoding: fit trên train (Stratified K-fold nội bộ) → transform test
 3. Imbalance handling: CHỈ áp dụng lên train, SAU khi encode
 4. Train model
@@ -279,7 +277,9 @@ Tổng số lần train = 5 model × 5 kỹ thuật × N_RUNS = 500–750 lần 
 - Metric chính: **PR-AUC** (KHÔNG dùng ROC-AUC làm metric quyết định, có thể báo cáo thêm để tham khảo)
 - Báo cáo kèm: Precision@Recall cố định, F1, F2
 - Test set giữ nguyên phân phối gốc (fraud rate thật), KHÔNG resample test
-- **Dùng stratified random split** (ĐÃ CHỐT) — không dùng time-based split để tránh confound từ concept drift, đảm bảo dao động CIES chỉ phản ánh biến imbalance technique
+- **Chia train/test THEO THỜI GIAN** (người dùng chốt 2026-09-26, thay cho "stratified random split" của bản gốc): train là quá khứ, test là tương lai, như literature fraud (Fraud Detection Handbook, Le Borgne et al.; Dal Pozzolo et al., TNNLS 2018) và như cách Sparkov được phát hành. Lý do bỏ chia ngẫu nhiên: fraud đến theo đợt trên cùng thẻ, chia theo dòng khiến 100% thẻ có fraud ở test cũng có fraud ở train. Lo ngại gốc về concept drift được chấp nhận vì đó là điều kiện thật của bài toán.
+- **Không đưa cột định danh khách hàng vào model** (`config.CUSTOMER_IDENTITY_COLS`): khi chia theo thời gian, model học thuộc "khách nào từng bị hack" và sụp (XGBoost PR-AUC 0,24 khi giữ, 0,88 khi bỏ).
+- **Tune validate theo thời gian** (cửa sổ mở rộng 3 fold, `tune.py::time_series_folds`), cùng logic với cách chia train/test.
 
 ---
 
@@ -311,7 +311,7 @@ Tải dataset qua `kagglehub`, KHÔNG hardcode đường dẫn tải thủ công
 
 ---
 
-## 11. CẬP NHẬT SO VỚI BẢN GỐC (trạng thái 2026-09-21)
+## 11. CẬP NHẬT SO VỚI BẢN GỐC (trạng thái 2026-09-26)
 
 Mục này ghi lại những chỗ code hiện tại **khác hoặc vượt** so với spec ở trên. Cột "Trạng thái" cho biết đã được người dùng yêu cầu/chấp thuận hay còn cần xác nhận. Ràng buộc bắt buộc ở các mục 0–10 không bị sửa ngoài các chỗ ghi trong bảng.
 
@@ -327,6 +327,9 @@ Mục này ghi lại những chỗ code hiện tại **khác hoặc vượt** so
 | §7.1 Công thức CIES | "Theo công thức paper CIES gốc" | Khoảng cách thứ hạng có trọng số `1/min(hạng_a, hạng_b)` trên từng feature; `cies_score = 1 − khoảng cách TB`; hoà hạng = hạng trung bình; run có SHAP toàn 0 bị loại | **Đã đối chiếu (arXiv:2603.05024): khác công thức gốc** — gốc nhiễu hoá đầu vào, so độ lớn SHAP, chuẩn hoá theo `‖φ(x)‖_w`; repo nhiễu hoá dữ liệu huấn luyện, so thứ hạng. Xem `reports/literature_support.md` |
 | §1.2 ULB | 30 feature gồm `Time` | Bỏ cột `Time` (`ULB_FEATURE_COLS`: V1..V28 + Amount) | Quyết định trong `config.py`, nay được áp dụng nhất quán |
 | §1.3 / §7.2 Phạm vi chạy | Cả 5 model × 5 kỹ thuật ở cả 2 dataset; không tự giảm để tiết kiệm thời gian | Notebook 04 và 05 chạy đủ 5×5; Sparkov subsample phân tầng 100.000 dòng (`SUBSAMPLE_N`), ULB dùng toàn bộ | **Lệch nhẹ** — chỉ subsample Sparkov; đã kiểm tra độ nhạy 10k–100k trên `xgboost × class_weighting`, CIES 0,951–0,965 (xem `pipeline_report.md`) |
+| §8 Chia train/test | Stratified random split, cấm chia theo thời gian | Chia theo thời gian (Sparkov: file gốc; ULB: theo `Time`) | **Người dùng chốt 2026-09-26** sau khi đo: chia ngẫu nhiên rò rỉ theo đợt hack thẻ. Chi tiết và số đo ở `reports/pipeline_report.md` |
+| §3.1 Feature/encoding | One-hot `state`; target encoding `city`, `job` | Bỏ `state`, `city`, `job`, `lat`/`long`, `city_pop`, `merch_lat`/`merch_long`, `zip` (định danh khách hàng); còn `amt`, `category`, `merchant`, `hour`, `day_of_week`, `age`, `gender` | **Người dùng chốt 2026-09-26** (XGBoost, chia theo thời gian: PR-AUC 0,24 khi giữ, 0,88 khi bỏ) |
+| §5/§7 Validation khi tune | (không quy định) | Validation theo thời gian, cửa sổ mở rộng 3 fold, thay 5-fold xáo trộn | **Người dùng chốt 2026-09-26** — nhất quán với cách chia train/test |
 | §9 Môi trường | Local dùng subsample nhỏ; train thật trên Kaggle | Tune chạy trên Kaggle GPU (repo public, dataset `cies-processed`); mỗi tổ hợp chạy trong subprocess `spawn`; `timeout=None` cho tune và benchmark | Đúng tinh thần spec |
 
 ### Quy ước kỹ thuật thêm

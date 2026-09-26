@@ -12,15 +12,15 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-26), không 
 |---|---|---|
 | **Dataset chính** | Sparkov (`kartik2112/fraud-detection`), tải qua `kagglehub`, ~1.85M dòng, fraud rate ~0.52% | `src/data/download.py::download_dataset`; load ở `notebooks/02_preprocessing.ipynb` |
 | **Dataset phụ** | ULB (`mlg-ulb/creditcardfraud`), ~284K giao dịch, 28 feature PCA sẵn (V1..V28) + Amount | `notebooks/02_preprocessing.ipynb` (§6) — tải + split + lưu parquet; **CIES đã chạy trên ULB** qua `notebooks/05_cies_experiment_ulb.ipynb` (chưa có benchmark PR-AUC riêng cho ULB) |
-| **Feature engineering & cleaning** | Bỏ cột ID/định danh cá nhân (`trans_num`, `cc_num`, `first`, `last`, `street`, `zip` — `zip` bỏ từ 2026-09-26, xem mục "Lệch so với spec" 9); derive `hour`, `day_of_week` từ `trans_date_trans_time`; derive `age` = năm giao dịch − năm sinh (`dob`) | `notebooks/02_preprocessing.ipynb::preprocess_features` |
-| **Train/Test Split** | Stratified random split 80/20 theo `is_fraud` (`sklearn.train_test_split`, seed=42) | `notebooks/02_preprocessing.ipynb` (§3) |
-| **Encoding — One-hot** | One-hot cho low-cardinality: `gender`, `category`, `state` | `src/data/encoding.py::encode_train / encode_test` |
-| **Encoding — Target Encoding** | Stratified K-Fold Target Encoding cho high-cardinality: `merchant`, `city`, `job` (`StratifiedKFold n_splits=5`, smoothing=10) | `src/data/encoding.py::stratified_kfold_target_encode` |
+| **Feature engineering & cleaning** | Sắp theo thời gian; thêm `hour`, `day_of_week`, `age` (năm giao dịch − năm sinh); bỏ cột ID (`trans_num`, `cc_num`, `first`, `last`, `street`, `zip`, `unix_time`) và **mọi cột định danh khách hàng** (`lat`, `long`, `city`, `state`, `job`, `city_pop`, `merch_lat`, `merch_long`). Feature còn lại: `amt`, `category`, `merchant`, `hour`, `day_of_week`, `age`, `gender` | `src/data/preprocess.py::preprocess_sparkov`; `config.CUSTOMER_IDENTITY_COLS` |
+| **Train/Test Split** | **Theo thời gian.** Sparkov: file gốc `fraudTrain.csv` (2019-01-01 → 2020-06-21, 1.296.675 dòng, fraud 0,579%) / `fraudTest.csv` (2020-06-21 → 2020-12-31, 555.719 dòng, fraud 0,386%). ULB: sắp theo `Time`, 20% cuối làm test (fraud 0,183% / 0,132%) | `notebooks/02_preprocessing.ipynb`; `src/data/preprocess.py::split_ulb_by_time` |
+| **Encoding — One-hot** | `gender`, `category` | `src/data/encoding.py::encode_train / encode_test` |
+| **Encoding — Target Encoding** | Stratified K-Fold Target Encoding cho `merchant` (`StratifiedKFold n_splits=5`, smoothing=10) | `src/data/encoding.py::stratified_kfold_target_encode` |
 | **Lưu dữ liệu đã encode** | `train_encoded.parquet`, `test_encoded.parquet`, `encoding_maps.joblib` — dùng cho benchmark (notebook 03) | `notebooks/02_preprocessing.ipynb` (§5) |
 | **Lưu dữ liệu raw (chưa encode)** | `train_raw.parquet`, `test_raw.parquet` — bắt buộc cho CIES vì mỗi run phải re-encode từ đầu | `notebooks/02_preprocessing.ipynb` (§5) |
 | **Xử lý mất cân bằng** | Đủ 5 kỹ thuật: SMOTE, SMOTE-ENN, ADASYN, Borderline-SMOTE (resample), Class Weighting (`compute_class_weight('balanced')`, không resample data) | `src/imbalance/resamplers.py::apply_imbalance / get_class_weights` |
 | **Models** | 5 model: Logistic Regression, Random Forest (CPU), XGBoost, CatBoost (KHÔNG dùng `cat_features` — dùng chung feature đã encode), ANN (PyTorch MLP 128→64→32→1) — XGBoost/CatBoost/ANN **tự động dùng GPU nếu có** (phát hiện qua `nvidia-smi`, không import torch để tránh xung đột OpenMP) | `src/models/train.py::build_model / train_model / _train_ann / _has_gpu` |
-| **Hyperparameter tuning (tùy chọn)** | Optuna HPO, tham số tốt nhất đóng băng ở `results/best_params.json`, nạp lại qua `build_model` nếu có | `src/models/tune.py::load_best_params` |
+| **Hyperparameter tuning** | Optuna HPO (TPE + MedianPruner), tối ưu PR-AUC, validation **theo thời gian**: cửa sổ mở rộng 3 fold, 3 khối validation liên tiếp ở 1/3 cuối tập train (Sparkov: 12/2019→02/2020, 02→04/2020, 04→06/2020). Tham số tốt nhất đóng băng ở `results/best_params.json`, `build_model` tự nạp | `src/models/tune.py::time_series_folds / tune_model / load_best_params` |
 | **Cách ly subprocess** | Mỗi tổ hợp (model × technique) chạy trong 1 subprocess `spawn` riêng — tránh torch (ANN) + xgboost cùng process gây segfault/hang do xung đột OpenMP. Timeout có escalation SIGTERM → SIGKILL (trước đó `process.join()` có thể treo vô hạn nếu process con bỏ qua SIGTERM — đã tái hiện trên 1 GPU driver hang thực tế trên Kaggle) | `src/utils/isolation.py::run_isolated / _terminate_hard` |
 | **Benchmark 25 tổ hợp** | Vòng lặp 5 model × 5 kỹ thuật, đánh giá PR-AUC (chính), F1, F2, ROC-AUC, Precision@Recall | `notebooks/03_train_models.ipynb`; `src/models/train.py::train_and_evaluate_combo`; `src/evaluation/metrics.py::evaluate_model` |
 | **SHAP — Linear** | `LinearExplainer` (exact) cho Logistic Regression | `src/explainability/shap_utils.py::_compute_shap_linear` |
@@ -39,7 +39,7 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-26), không 
 |---|---|
 | Tune lần 1 (30 trial, vùng hẹp) | LR / XGBoost / CatBoost / ANN xong (PR-AUC CV 0.319 / 0.929 / 0.926 / 0.892), RF xong 0.857 nhưng `max_depth` chạm biên 18. Nhiều tham số chạm biên (CatBoost `depth`, `iterations`; ANN `epochs`; LR `C`) |
 | Tune lần 2 (100 trial, vùng đã nới, cùng ngân sách cho mọi model) | Xong: LR 0.319, XGBoost 0.933, CatBoost 0.9271, RF 0.8872 (70 xong / 30 cắt). **ANN còn lại** (chạy nhiều phiên Kaggle với checkpoint SQLite, ~30/100 trial). `best_params.json` hiện là hỗn hợp hai giao thức cho riêng ANN (30 trial cũ), chưa dùng cho benchmark/CIES của ANN |
-| Dữ liệu hiện tại | `data/processed/` đã bỏ `zip` (mục "Lệch so với spec" 9). **Các bảng kết quả bên dưới vẫn tính khi còn `zip`** — sẽ tính lại trong đợt tune trên Kaggle |
+| **Thiết kế hiện tại (2026-09-26)** | Chia theo thời gian + bỏ cột định danh khách hàng + tune validate theo thời gian (mục "Lệch so với spec" 9–10). `data/processed/` đã tạo lại theo thiết kế này. **Mọi file trong `results/` và bảng kết quả bên dưới vẫn là của thiết kế trước** (chia ngẫu nhiên theo dòng, còn cột định danh) — phải chạy lại toàn bộ: tune, benchmark, CIES Sparkov và CIES ULB |
 | Benchmark 20/20 (4 model đã tune × 5 kỹ thuật, toàn bộ 1.48M dòng train) | **Xong** — bảng ở mục "Kết quả" |
 | CIES Sparkov 20/20 (4 model × 5 kỹ thuật, subsample 100k, N_RUNS=20) | **Xong** — bảng ở mục "Kết quả" |
 | CIES ULB 20/20 (4 model × 5 kỹ thuật, toàn bộ 227.845 dòng train, N_RUNS=20) | **Xong** — bảng ở mục "Kết quả". `random_forest`/`catboost × smote_enn` vượt timeout 1h mặc định, chạy lại với 3h |
@@ -47,7 +47,7 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-26), không 
 | ANN: benchmark + CIES | Chưa chạy, chờ tune xong |
 | Đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2) | Chưa làm |
 
-## Kết quả benchmark + CIES (4 model đã tune, đủ 5×5, 2 dataset)
+## Kết quả benchmark + CIES — thiết kế trước (chia ngẫu nhiên, còn cột định danh; sẽ thay khi chạy lại)
 
 Benchmark (chỉ Sparkov): train trên toàn bộ 1.481.915 dòng, đánh giá trên test cố định (370.479 dòng, không resample). CIES Sparkov: bootstrap từ mẫu phân tầng 100.000 dòng, N_RUNS=20, `feature_level=True`. CIES ULB: bootstrap từ toàn bộ 227.845 dòng train, N_RUNS=20.
 
@@ -97,8 +97,17 @@ Nguồn: `results/model_benchmark_results.csv`, `results/cies_summary_results.js
 6. **Sparkov là dữ liệu mô phỏng**; nhiều hình dạng "quá sạch" là dấu vết của bộ sinh dữ liệu.
 7. **Thời gian resample SMOTE-ENN** tăng ~4× mỗi lần gấp đôi dữ liệu (25k→1.4s, 50k→5.1s, 100k→19.7s ⇒ ≈1.2 giờ cho 1.48M dòng, chưa tính train).
 8. **Một số tham số tối ưu vẫn sát/chạm biên vùng tìm mới** (RF: `n_estimators=300`, `max_depth=30`, `min_samples_split=2`, `min_samples_leaf=1` đều ở biên; CatBoost `depth=11` sát biên 12, `iterations=500` gần 600; XGBoost `n_estimators=550` gần 600). Chưa nới thêm vì đường hội tụ của RF phẳng (PR-AUC CV 0,8865 từ trial 37, 0,8872 ở trial 89 và 98), nên coi RF đã hội tụ quanh 0,88; đây là hạn chế của giao thức, không phải lỗi.
-9. **Đã bỏ `zip` (2026-09-26).** Trước đó `zip` vào model như một số liên tục, và LR xếp nó là feature quan trọng nhất (~17% SHAP) — vô nghĩa với model tuyến tính. Thống kê: 985 mã, nhưng mỗi mã ứng đúng 1 cặp (lat, long) và 1 city (100%), 98,6% mã chỉ có 1 thẻ — tức gần như mã khách hàng, thông tin vùng đã có ở `lat`/`long`/`city`/`state`; encode thì model học thuộc khách hàng. Kết quả trong bảng ở mục "Kết quả" vẫn tính khi còn `zip`.
-10. **Rò rỉ theo khách hàng do chia train/test theo dòng.** Fraud đến theo đợt trên cùng thẻ, và chia ngẫu nhiên theo dòng khiến **100% thẻ có fraud ở test (845/845) cũng có dòng fraud ở train**; `lat`/`long` (98,6% cặp tọa độ thuộc đúng 1 thẻ) và `city` (92,2% city chỉ có 1 thẻ) cho phép model nhận ra khách hàng. Đo trên XGBoost (tham số đã tune, `class_weighting`, không `zip`): chia theo dòng PR-AUC 0,9323 / F1 0,676, chia theo thẻ (`GroupShuffleSplit` theo `cc_num`) 0,9135 / 0,615 — lạc quan khoảng 0,02 PR-AUC, không phải sụp đổ (1 lần chia, 1 seed). Chưa đổi cách chia vì là quyết định thiết kế thí nghiệm.
+9. **Không đưa cột định danh khách hàng vào model** (`config.CUSTOMER_IDENTITY_COLS`, cùng `cc_num`, `zip`). Gộp lại chúng chỉ ra đúng 1 người: 98,6% cặp (lat, long) và 90,1% giá trị `city_pop` chỉ thuộc 1 thẻ, 92,2% city chỉ có 1 thẻ, `zip` ứng đúng 1 cặp tọa độ, tọa độ cửa hàng luôn trong ~1,4° quanh nhà khách. Model dùng chúng để học thuộc "khách nào từng bị hack" (762/983 thẻ bị hack trong giai đoạn train). `age`, `gender` giữ lại vì là hồ sơ nhân khẩu học (Sparkov sinh fraud theo hồ sơ), không định danh.
+10. **Chia train/test theo thời gian** (thay chia ngẫu nhiên theo dòng). Chia theo dòng khiến 100% thẻ có fraud ở test (845/845) cũng có dòng fraud ở train. Đo trên XGBoost (tham số tune cũ, `class_weighting`, PR-AUC; 1 lần chia, 1 seed):
+
+    | Cách chia | Đủ feature | Bỏ nhóm định danh (lat/long, city, state, job) | Bỏ thêm `city_pop` + tọa độ cửa hàng (thiết kế hiện tại) | Bỏ cả `age`, `gender`, `city_pop` |
+    |---|---|---|---|---|
+    | Ngẫu nhiên theo dòng (trước) | 0,932 | — | — | 0,828 |
+    | Theo thẻ (`cc_num`) | 0,914 | — | — | 0,820 |
+    | **Theo thời gian (hiện tại)** | **0,240** | 0,881 | **0,882** (pipeline thật: 0,883) | 0,765 |
+
+    Chia theo thẻ bị loại vì không phải cách đánh giá chuẩn trong literature và không áp dụng được cho ULB (không có mã khách hàng). Luật của Fraud Detection Handbook "bỏ thẻ đã bị lộ khỏi tập test" không dùng: trên Sparkov nó bỏ 87% tập test và đẩy tỷ lệ fraud 0,39% → 2,9%, vì bộ mô phỏng không bao giờ khoá thẻ bị hack. Tham chiếu: Wu (arXiv:2607.14686, 2026) dùng đúng tập test gốc của Sparkov, không định danh, đạt AP ≈ 0,93 với feature số tiền tự thiết kế.
+11. **Target encoding của `merchant` fit trên toàn tập train**, nên trong lúc tune, mã hoá của các dòng train có dùng nhãn của giai đoạn validation sau nó. Chỉ còn 1 cột target encoding (merchant dùng chung giữa nhiều khách) nên ảnh hưởng nhỏ; làm triệt để cần encode lại trong từng fold tune.
 
 ## Đánh đổi đã đo
 
@@ -156,9 +165,9 @@ Không sửa kết quả nào ở trên — chỉ bỏ phần chết/trùng lặ
 
 ## Việc tiếp theo
 
-1. Tune cả 5 model (50 trial) trên dữ liệu hiện tại, rồi benchmark + CIES Sparkov bằng tham số mới — chạy `notebooks/kaggle_pipeline.ipynb` trên Kaggle (xem `notebooks/KAGGLE_UPLOAD_README.md`). Gồm cả ANN (benchmark + CIES còn thiếu 5 tổ hợp mỗi bên), cho đủ 25/25.
-2. CIES ULB cho ANN (5 tổ hợp) sau khi ANN tune xong.
-3. Quyết định có chuyển sang chia train/test theo thẻ (`cc_num`) hay không (mục "Lệch so với spec" 10) — nên chốt trước đợt tune trên Kaggle để chỉ chạy 1 lần.
+1. Upload 4 file `data/processed/` mới lên Kaggle, chạy `notebooks/kaggle_pipeline.ipynb`: tune cả 5 model (50 trial, validation theo thời gian) → benchmark → CIES Sparkov, đủ 25/25 tổ hợp.
+2. Chạy lại CIES ULB (notebook 05, đủ 25/25) sau khi có tham số mới — ULB đã được chia lại theo thời gian.
+3. Chạy lại notebook 06, rồi kiểm lại toàn bộ nhận xét ở mục "Kết quả" trên số mới (nhiều nhận xét, vd. LR coi `zip` là quan trọng nhất, gắn với thiết kế trước).
 4. (Tuỳ chọn) ablation `SNAP_SYNTHETIC_ONEHOT=True` trên vài tổ hợp.
 5. Quyết định có tính thêm CIES đúng công thức gốc (nhiễu đầu vào) làm chỉ số phụ hay không; làm đối chứng KernelSHAP.
 6. Chạy nhiều seed cho vài tổ hợp để biết chênh lệch CIES 0,002–0,01 giữa các kỹ thuật (vd. Borderline-SMOTE luôn thấp nhất) có vượt nhiễu hay không.

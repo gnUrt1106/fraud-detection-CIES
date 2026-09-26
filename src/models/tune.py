@@ -2,7 +2,8 @@
 tune.py — Module tối ưu hóa siêu tham số (Hyperparameter Optimization - HPO) với Optuna.
 
 Phương pháp: Decoupled Baseline Pre-tuning (Trường phái Controlled Experiment).
-    - Tối ưu hóa siêu tham số trên tập train (Stratified K-Fold CV) với objective là PR-AUC.
+    - Tối ưu hóa siêu tham số trên tập train với objective là PR-AUC, validation THEO THỜI GIAN
+      (cửa sổ mở rộng, xem `time_series_folds`) — cùng logic với cách chia train/test.
     - Tìm ra bộ tham số tốt nhất cho mỗi mô hình và lưu ra `results/best_params.json`.
     - Đóng băng (freeze) bộ tham số này khi so sánh 5 kỹ thuật imbalance và chạy CIES,
       đảm bảo không phát sinh biến gây nhiễu (confounding bias) về độ phức tạp mô hình.
@@ -18,7 +19,7 @@ from typing import Dict, Any, Optional
 
 import numpy as np
 import optuna
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import average_precision_score
 
 from src.config import SEED, RESULTS_DIR, MODEL_NAMES
@@ -86,12 +87,25 @@ def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, An
 
 # ===== Model Tuning Runner =====
 
+def time_series_folds(n_samples: int, n_splits: int = 3):
+    """
+    Fold validation theo thời gian, cửa sổ mở rộng: 1/3 cuối dữ liệu chia thành `n_splits` khối
+    liên tiếp; mỗi fold train trên MỌI dòng đứng trước khối validation của nó. X/y phải được sắp
+    theo thời gian (`src/data/preprocess.py` đảm bảo điều này cho train_encoded/train_raw).
+
+    Xáo trộn ngẫu nhiên (StratifiedKFold) đặt các dòng của cùng 1 đợt hack thẻ vào cả train lẫn
+    validation, nên tham số nào học thuộc tốt nhất sẽ thắng thay vì tham số dự đoán tương lai tốt.
+    """
+    splitter = TimeSeriesSplit(n_splits=n_splits, test_size=n_samples // (3 * n_splits))
+    return list(splitter.split(np.arange(n_samples)))
+
+
 def tune_model(
     model_name: str,
     X: np.ndarray,
     y: np.ndarray,
     n_trials: int = 100,
-    n_splits: int = 5,
+    n_splits: int = 3,
     timeout: Optional[int] = None,
     seed: int = SEED,
     use_pruning: bool = True,
@@ -100,15 +114,15 @@ def tune_model(
     optimize_timeout: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
-    Tối ưu hóa siêu tham số cho 1 model sử dụng Optuna với Stratified K-Fold CV.
-    Metric tối ưu: PR-AUC (Average Precision).
+    Tối ưu hóa siêu tham số cho 1 model bằng Optuna, validation theo thời gian (`time_series_folds`).
+    Metric tối ưu: PR-AUC (Average Precision), trung bình qua các fold.
 
     Args:
         model_name: Tên model (logistic_regression, random_forest, xgboost, catboost, ann)
-        X: Feature matrix
-        y: Target array
+        X: Feature matrix, các dòng ĐÃ SẮP THEO THỜI GIAN
+        y: Target array (cùng thứ tự với X)
         n_trials: Số lần thử (trials)
-        n_splits: Số fold cross-validation
+        n_splits: Số fold validation theo thời gian
         timeout: Thời gian tối đa (giây)
         seed: Random seed
         use_pruning: Bật MedianPruner — sau mỗi fold, so PR-AUC trung bình tạm
@@ -133,13 +147,16 @@ def tune_model(
         "complete": False — khi đó chạy lại để tiếp tục.
     """
     logger.info(f"Bắt đầu Optuna HPO cho '{model_name}' ({n_trials} trials, {n_splits} folds)...")
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    folds = time_series_folds(len(X), n_splits)
+    for _, val_idx in folds:
+        if not y[val_idx].any():
+            raise ValueError("Một khối validation theo thời gian không có fraud nào — PR-AUC không xác định")
 
     def objective(trial: optuna.Trial) -> float:
         params = sample_hyperparameters(trial, model_name)
         val_pr_aucs = []
 
-        for fold_idx, (train_idx, val_idx) in enumerate(skf.split(X, y)):
+        for fold_idx, (train_idx, val_idx) in enumerate(folds):
             X_train_fold, X_val_fold = X[train_idx], X[val_idx]
             y_train_fold, y_val_fold = y[train_idx], y[val_idx]
 
@@ -285,7 +302,7 @@ def tune_all_models(
     y: np.ndarray,
     models: Optional[list] = None,
     n_trials: int = 100,
-    n_splits: int = 5,
+    n_splits: int = 3,
     output_dir: Optional[Path] = None,
     filename: str = "best_params.json",
     seed: int = SEED,
@@ -301,7 +318,7 @@ def tune_all_models(
         y: Target array
         models: Danh sách model (mặc định lấy MODEL_NAMES từ config)
         n_trials: Số trials cho mỗi model
-        n_splits: Số fold cross-validation
+        n_splits: Số fold validation theo thời gian
         output_dir: Thư mục lưu (mặc định RESULTS_DIR)
         filename: Tên file kết quả
         seed: Random seed

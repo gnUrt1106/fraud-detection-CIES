@@ -15,12 +15,15 @@ Chỉ số đo là **CIES (Credibility Index via Explanation Stability)**: huấ
 | | Sparkov (chính) | ULB (phụ) |
 |---|---|---|
 | Nguồn | [kartik2112/fraud-detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection) | [mlg-ulb/creditcardfraud](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) |
-| Quy mô | ~1.85M giao dịch (train ~1.3M + test ~555K gốc, sau đó gộp và chia lại 80/20 stratified) | ~284.8K giao dịch |
+| Quy mô | ~1.85M giao dịch | ~284.8K giao dịch |
+| Chia train/test | **Theo thời gian**, dùng đúng file gốc: `fraudTrain.csv` (2019-01 → 2020-06, ~1.3M) / `fraudTest.csv` (2020-06 → 2020-12, ~556K) | **Theo thời gian**: sắp theo `Time`, 20% cuối làm test |
 | Tỷ lệ fraud | ~0.52% | ~0.17% |
 | Feature | Cột thô (categorical + số), cần encoding | V1..V28 (PCA) + Amount, đã là số |
 | Ghi chú | Dữ liệu **mô phỏng** bởi [Sparkov Data Generation](https://github.com/namebrandon/Sparkov_Data_Generation) | Dữ liệu thật, ẩn danh |
 
 Cột `Time` của ULB bị loại (chỉ là thứ tự giao dịch); xem `ULB_FEATURE_COLS` trong `src/config.py`.
+
+Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `job`, `city_pop`, `merch_lat`, `merch_long`, cùng `cc_num`, `zip`) không đưa vào model — gộp lại chúng chỉ ra đúng 1 khách hàng, và model dùng chúng để học thuộc "khách nào từng bị hack"; xem `CUSTOMER_IDENTITY_COLS` trong `src/config.py`.
 
 ## Cấu trúc project
 
@@ -30,7 +33,7 @@ Cột `Time` của ULB bị loại (chỉ là thứ tự giao dịch); xem `ULB_
 │   └── processed/            # train_/test_encoded, train_/test_raw, ulb_*, encoding_maps
 ├── notebooks/
 │   ├── 01_eda.ipynb                 # Khám phá dữ liệu + data profiling
-│   ├── 02_preprocessing.ipynb       # Làm sạch, chia 80/20, encoding, xử lý ULB
+│   ├── 02_preprocessing.ipynb       # Chia theo thời gian, bỏ cột định danh khách hàng, encoding, xử lý ULB
 │   ├── kaggle_optuna_tuning.ipynb   # Tune hyperparameter bằng Optuna (chạy trên Kaggle)
 │   ├── kaggle_pipeline.ipynb        # Kaggle: tune (50 trial) → benchmark → CIES nối tiếp, tự resume nhiều phiên
 │   ├── 03_train_models.ipynb        # Benchmark 5 model x 5 kỹ thuật
@@ -46,7 +49,7 @@ Cột `Time` của ULB bị loại (chỉ là thứ tự giao dịch); xem `ULB_
 │   ├── explainability/       # shap_utils.py, cies.py
 │   ├── visualization/        # dataset.py, explain.py
 │   └── utils/                # isolation.py (subprocess riêng mỗi tổ hợp), jsonio.py (ghi file kết quả an toàn)
-├── tests/test_pipeline.py    # 26 test, gồm hồi quy cho các lỗi đã sửa
+├── tests/test_pipeline.py    # 29 test, gồm hồi quy cho các lỗi đã sửa
 ├── results/                  # best_params.json và kết quả benchmark/CIES
 ├── reports/                  # figures/, profiling/, tài liệu và sơ đồ kiến trúc
 ├── AGENT_SPEC.md  AGENTS.md  FILE_REFERENCE.md

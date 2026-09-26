@@ -584,11 +584,65 @@ def test_merge_writers_refuse_corrupt_file_instead_of_wiping(tmp_path):
     assert cr.read_text() == '[{"model_name": "xgboost"'
 
 
+def test_preprocess_sparkov_drops_identity_sorts_by_time_and_uses_transaction_year():
+    """
+    Tiền xử lý Sparkov: (1) không còn cột định danh khách hàng nào; (2) dòng được sắp theo thời
+    gian dù file gốc lệch thứ tự (fraudTrain.csv có 1 chỗ ngược); (3) tuổi tính theo năm của
+    TỪNG giao dịch (dữ liệu trải 2019–2020), không theo 1 năm cố định.
+    """
+    from src.config import CUSTOMER_IDENTITY_COLS
+    from src.data.preprocess import preprocess_sparkov
+
+    raw = pd.DataFrame({
+        "trans_date_trans_time": ["2020-03-01 10:00:00", "2019-06-01 23:00:00", "2019-01-01 01:00:00"],
+        "dob": ["1990-05-05"] * 3,
+        "amt": [3.0, 2.0, 1.0],  # bằng thứ tự thời gian -> sau khi sắp phải tăng dần
+        "cc_num": [1, 1, 2], "zip": [1, 1, 2], "unix_time": [0, 0, 0], "trans_num": ["a", "b", "c"],
+        "first": ["x"] * 3, "last": ["y"] * 3, "street": ["s"] * 3,
+        "gender": ["F", "F", "M"], "category": ["travel"] * 3, "merchant": ["m"] * 3,
+        **{c: [0] * 3 for c in CUSTOMER_IDENTITY_COLS},
+        "is_fraud": [0, 1, 0],
+    })
+    out = preprocess_sparkov(raw)
+    assert not set(CUSTOMER_IDENTITY_COLS) & set(out.columns)
+    assert not {"cc_num", "zip", "unix_time", "trans_date_trans_time", "dob"} & set(out.columns)
+    assert list(out["amt"]) == [1.0, 2.0, 3.0], "phải sắp theo thời gian giao dịch"
+    assert list(out["age"]) == [29, 29, 30]
+    assert list(out["hour"]) == [1, 23, 10]
+
+
+def test_split_ulb_by_time_keeps_test_strictly_later():
+    from src.data.preprocess import split_ulb_by_time
+
+    rng = np.random.RandomState(0)
+    df = pd.DataFrame({"Time": rng.permutation(1000).astype(float), "V1": rng.randn(1000),
+                       "Class": (rng.rand(1000) < 0.05).astype(int)})
+    train, test = split_ulb_by_time(df, test_size=0.2)
+    assert len(train) == 800 and len(test) == 200
+    assert train["Time"].max() < test["Time"].min()
+
+
+def test_time_series_folds_never_validate_on_the_past():
+    """Mỗi fold train CHỈ trên dòng đứng trước khối validation; các khối liên tiếp, phủ 1/3 cuối."""
+    from src.models.tune import time_series_folds
+
+    folds = time_series_folds(900, n_splits=3)
+    assert len(folds) == 3
+    for tr, val in folds:
+        assert tr.max() < val.min()
+        assert tr.min() == 0, "cửa sổ mở rộng: luôn train từ đầu dữ liệu"
+    vals = np.concatenate([val for _, val in folds])
+    assert np.array_equal(vals, np.arange(600, 900))
+
+
 def test_optuna_tuning():
     print("\n--- Testing Optuna HPO Module (tune_model on sample data) ---")
     from src.models.tune import tune_model
-    X = np.random.randn(150, 8)
-    y = np.array([0] * 135 + [1] * 15)
+    rng = np.random.RandomState(SEED)
+    X = rng.randn(150, 8)
+    # Fold validation theo thời gian lấy khối cuối dữ liệu: fraud phải rải khắp các dòng như dữ
+    # liệu thật, không dồn hết về cuối mảng.
+    y = rng.permutation(np.array([0] * 135 + [1] * 15))
 
     # Test tuning XGBoost with 2 trials
     res = tune_model("xgboost", X, y, n_trials=2, n_splits=2, seed=SEED)
