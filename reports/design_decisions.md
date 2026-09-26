@@ -128,7 +128,20 @@ Cùng logic với cách chia train/test ("train quá khứ, chấm tương lai")
 
 ---
 
-## 6. Sửa lỗi kỹ thuật (không ảnh hưởng kết quả đã có, nhưng nên biết)
+## 6. Giữ SMOTE chuẩn — không ép dòng tổng hợp về one-hot hợp lệ
+
+**Vấn đề.** SMOTE tạo dòng mới = A + λ·(B − A) giữa 2 fraud thật, áp cho **mọi cột**, kể cả one-hot. Ví dụ thật trong `train_encoded_smote.parquet`: A là khách nữ mua `kids_pets`, B là khách nam mua `personal_care`, λ = 0,283 → `gender_F = 0,717, gender_M = 0,283`, `category_kids_pets = 0,717, category_personal_care = 0,283` — "72% nữ", không tồn tại ngoài đời. Trên dữ liệu hiện tại: 33,8% dòng tổng hợp có `gender` lưng chừng, 29,0% "bật" >1 `category`.
+
+**Quyết định (chốt 2026-09-26).** Không ép (`SNAP_SYNTHETIC_ONEHOT = False`, mặc định):
+- Đúng SMOTE chuẩn của spec và literature → so sánh được với các bài khác.
+- Mọi **đánh giá** (PR-AUC trên test) và **giải thích** (SHAP/CIES trên eval) tính trên giao dịch **thật**; dòng tổng hợp chỉ có trong dữ liệu train.
+- Lần đo trước (thiết kế cũ): ép one-hot làm PR-AUC giảm mạnh (XGBoost + SMOTE 0,887 → 0,766; SMOTENC 0,733) còn CIES gần như không đổi (0,957 → 0,959).
+
+**Nói chính xác khi bị hỏi.** Dòng tổng hợp không lọt vào phần chấm điểm, nhưng **có** ảnh hưởng gián tiếp qua việc train (chính vì vậy ép hay không làm PR-AUC khác nhau). Câu trả lời an toàn: *"Dòng tổng hợp có one-hot không hợp lệ chỉ nằm trong dữ liệu train; mọi đánh giá và giải thích tính trên giao dịch thật. Chúng tôi giữ SMOTE chuẩn như literature; bản ép one-hot hợp lệ làm PR-AUC giảm mạnh còn CIES gần như không đổi."* Số 0,887 → 0,766 đo trên thiết kế trước — nếu cần số trên thiết kế hiện tại, chạy lại so sánh với `SNAP_SYNTHETIC_ONEHOT=True`.
+
+---
+
+## 7. Sửa lỗi kỹ thuật (không ảnh hưởng kết quả đã có, nhưng nên biết)
 
 - **Ghi file kết quả dùng chung không khoá** (`best_params.json`, `cies_summary_results*.json`): stress test 8 tiến trình ghi cùng lúc — cách cũ mất 176/200 kết quả, cách mới (khoá + ghi atomic, `src/utils/jsonio.py`) giữ đủ 200/200. Các lần chạy song song trước không mất gì vì mỗi tổ hợp ghi cách nhau hàng chục phút.
 - **Notebook Kaggle bỏ qua gần hết việc** (phát hiện trước khi chạy): `git clone` mang theo kết quả cũ trong repo khiến notebook tưởng mọi tổ hợp đã xong.
