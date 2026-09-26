@@ -540,6 +540,50 @@ def test_merge_cies_result_keeps_concurrent_writes(tmp_path):
     assert xgb["cies_metrics"]["cies_score"] == 0.99
 
 
+def test_merge_cies_result_parallel_processes_lose_nothing(tmp_path):
+    """
+    Nhiều TIẾN TRÌNH ghi cùng lúc (như 2 script CIES chia model chạy song song). Bản cũ (đọc → ghi,
+    không khoá) mất 176/200 kết quả khi 8 tiến trình tranh nhau; có khoá thì phải còn đủ.
+    """
+    import subprocess, textwrap
+    root = str(Path(__file__).resolve().parent.parent)
+    out = tmp_path / "combo.json"
+    code = textwrap.dedent(f"""
+        import sys; sys.path.insert(0, {root!r})
+        from src.explainability.cies import merge_cies_result
+        proc = sys.argv[1]
+        for j in range(25):
+            merge_cies_result({{"model_name": proc, "imbalance_technique": f"t{{j}}", "cies_metrics": {{}}}},
+                              __import__("pathlib").Path({str(tmp_path)!r}), filename="combo.json")
+    """)
+    procs = [subprocess.Popen([sys.executable, "-c", code, f"p{i}"]) for i in range(8)]
+    assert all(p.wait(timeout=120) == 0 for p in procs)
+    saved = json.load(open(out, encoding="utf-8"))
+    assert len(saved) == 8 * 25, f"mất {8 * 25 - len(saved)} kết quả do ghi đè lẫn nhau"
+
+
+def test_merge_writers_refuse_corrupt_file_instead_of_wiping(tmp_path):
+    """
+    File kết quả hỏng (vd. đọc trúng lúc tiến trình khác đang ghi dở ở bản cũ) KHÔNG được coi là
+    rỗng: bản cũ của _merge_write làm vậy rồi ghi lại chỉ còn 1 model — xoá sạch các model khác.
+    """
+    import pytest
+    from src.models.tune import _merge_write
+    from src.explainability.cies import merge_cies_result
+
+    bp = tmp_path / "best_params.json"
+    bp.write_text('{"xgboost": {"n_trials": 100}, "catb')
+    with pytest.raises(json.JSONDecodeError):
+        _merge_write(bp, "random_forest", {"n_trials": 100})
+    assert bp.read_text() == '{"xgboost": {"n_trials": 100}, "catb', "file hỏng không được bị ghi đè"
+
+    cr = tmp_path / "cies.json"
+    cr.write_text('[{"model_name": "xgboost"')
+    with pytest.raises(json.JSONDecodeError):
+        merge_cies_result({"model_name": "rf", "imbalance_technique": "smote"}, tmp_path, filename="cies.json")
+    assert cr.read_text() == '[{"model_name": "xgboost"'
+
+
 def test_optuna_tuning():
     print("\n--- Testing Optuna HPO Module (tune_model on sample data) ---")
     from src.models.tune import tune_model

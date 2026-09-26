@@ -23,7 +23,6 @@ import numpy as np
 import pandas as pd
 import logging
 import json
-import os
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from scipy.stats import spearmanr
@@ -551,25 +550,17 @@ def merge_cies_result(
     Returns:
         Toàn bộ nội dung file sau khi ghi.
     """
+    from src.utils.jsonio import update_json
+
     if output_path is None:
         output_path = RESULTS_DIR
-    output_path.mkdir(parents=True, exist_ok=True)
-    filepath = output_path / filename
-
+    filepath = Path(output_path) / filename
     key = (result.get("model_name"), result.get("imbalance_technique"))
-    current: List[Dict[str, Any]] = []
-    if filepath.exists():
-        try:
-            current = json.load(open(filepath, "r", encoding="utf-8"))
-        except Exception:
-            current = []
-    current = [r for r in current if (r.get("model_name"), r.get("imbalance_technique")) != key]
-    current.append(result)
 
-    tmp = filepath.with_suffix(filepath.suffix + ".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(current, f, default=_serialize_cies, indent=2, ensure_ascii=False)
-    os.replace(tmp, filepath)
+    def _replace(current: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        kept = [r for r in current if (r.get("model_name"), r.get("imbalance_technique")) != key]
+        return kept + [result]
 
+    merged = update_json(filepath, _replace, default=list, serializer=_serialize_cies)
     logger.info(f"CIES result ({key[0]} x {key[1]}) merged vào: {filepath}")
-    return current
+    return merged

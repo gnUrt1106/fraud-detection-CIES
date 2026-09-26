@@ -47,3 +47,7 @@ catboost_info/
 
 # Optuna checkpoints (SQLite) — tải về từ Output Kaggle, không cần commit
 /results/tuning_checkpoints/
+
+# Khoá + file tạm của src/utils/jsonio.py::update_json
+/results/*.lock
+/results/*.tmp

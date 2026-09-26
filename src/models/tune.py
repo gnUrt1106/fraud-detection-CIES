@@ -271,17 +271,13 @@ def _merge_write(out_file: Path, model_name: str, entry: Dict[str, Any]) -> Dict
     lượt RF ~8 giờ đã từng ghi đè các model được merge vào file giữa chừng, vì bản đọc ở đầu lượt
     đã cũ). Trả về nội dung file sau khi ghi.
     """
-    current: Dict[str, Any] = {}
-    if out_file.exists():
-        try:
-            with open(out_file, "r", encoding="utf-8") as f:
-                current = json.load(f)
-        except Exception:
-            current = {}
-    current[model_name] = entry
-    with open(out_file, "w", encoding="utf-8") as f:
-        json.dump(current, f, indent=2, ensure_ascii=False)
-    return current
+    from src.utils.jsonio import update_json
+
+    def _set(current: Dict[str, Any]) -> Dict[str, Any]:
+        current[model_name] = entry
+        return current
+
+    return update_json(out_file, _set, default=dict)
 
 
 def tune_all_models(
