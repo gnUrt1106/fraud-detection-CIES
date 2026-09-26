@@ -12,7 +12,7 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-26), không 
 |---|---|---|
 | **Dataset chính** | Sparkov (`kartik2112/fraud-detection`), tải qua `kagglehub`, ~1.85M dòng, fraud rate ~0.52% | `src/data/download.py::download_dataset`; load ở `notebooks/02_preprocessing.ipynb` |
 | **Dataset phụ** | ULB (`mlg-ulb/creditcardfraud`), ~284K giao dịch, 28 feature PCA sẵn (V1..V28) + Amount | `notebooks/02_preprocessing.ipynb` (§6) — tải + split + lưu parquet; **CIES đã chạy trên ULB** qua `notebooks/05_cies_experiment_ulb.ipynb` (chưa có benchmark PR-AUC riêng cho ULB) |
-| **Feature engineering & cleaning** | Bỏ cột ID/định danh cá nhân (`trans_num`, `cc_num`, `first`, `last`, `street`); derive `hour`, `day_of_week` từ `trans_date_trans_time`; derive `age` = năm giao dịch − năm sinh (`dob`) | `notebooks/02_preprocessing.ipynb::preprocess_features` |
+| **Feature engineering & cleaning** | Bỏ cột ID/định danh cá nhân (`trans_num`, `cc_num`, `first`, `last`, `street`, `zip` — `zip` bỏ từ 2026-09-26, xem mục "Lệch so với spec" 9); derive `hour`, `day_of_week` từ `trans_date_trans_time`; derive `age` = năm giao dịch − năm sinh (`dob`) | `notebooks/02_preprocessing.ipynb::preprocess_features` |
 | **Train/Test Split** | Stratified random split 80/20 theo `is_fraud` (`sklearn.train_test_split`, seed=42) | `notebooks/02_preprocessing.ipynb` (§3) |
 | **Encoding — One-hot** | One-hot cho low-cardinality: `gender`, `category`, `state` | `src/data/encoding.py::encode_train / encode_test` |
 | **Encoding — Target Encoding** | Stratified K-Fold Target Encoding cho high-cardinality: `merchant`, `city`, `job` (`StratifiedKFold n_splits=5`, smoothing=10) | `src/data/encoding.py::stratified_kfold_target_encode` |
@@ -40,6 +40,7 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-26), không 
 | Tune lần 1 (30 trial, vùng hẹp) | LR / XGBoost / CatBoost / ANN xong (PR-AUC CV 0.319 / 0.929 / 0.926 / 0.892), RF xong 0.857 nhưng `max_depth` chạm biên 18. Nhiều tham số chạm biên (CatBoost `depth`, `iterations`; ANN `epochs`; LR `C`) |
 | Tune lần 2 (100 trial, vùng đã nới, cùng ngân sách cho mọi model) | Xong: LR 0.319, XGBoost 0.933, CatBoost 0.9271, RF 0.8872 (70 xong / 30 cắt). **ANN còn lại** (chạy nhiều phiên Kaggle với checkpoint SQLite, ~30/100 trial). `best_params.json` hiện là hỗn hợp hai giao thức cho riêng ANN (30 trial cũ), chưa dùng cho benchmark/CIES của ANN |
 | Sửa bug `age` (2026-09-23) | `age` từng tính `2020 − năm sinh` (hardcode) thay vì năm giao dịch — lệch +1 tuổi ở ~50% dòng (năm 2019). Đã sửa, tái tạo `data/processed/`, chạy lại benchmark + CIES Sparkov bên dưới **bằng tham số tune CŨ** (tune trên `age` lỗi). So với trước khi sửa: PR-AUC lệch tối đa 0,0038 (TB 0,0011), CIES lệch tối đa 0,0051 (TB 0,0011) |
+| Bỏ `zip` khỏi feature (2026-09-26) | Đã sửa `preprocess_features` và tạo lại `data/processed/`. **Mọi bảng kết quả bên dưới vẫn tính khi còn `zip`** — sẽ tính lại trong đợt retune trên Kaggle |
 | Benchmark 20/20 (4 model đã tune × 5 kỹ thuật, toàn bộ 1.48M dòng train) | **Xong** (data đã sửa `age`) — bảng ở mục "Kết quả" |
 | CIES Sparkov 20/20 (4 model × 5 kỹ thuật, subsample 100k, N_RUNS=20) | **Xong** (data đã sửa `age`) — bảng ở mục "Kết quả" |
 | CIES ULB 20/20 (4 model × 5 kỹ thuật, toàn bộ 227.845 dòng train, N_RUNS=20) | **Xong** — bảng ở mục "Kết quả". `random_forest`/`catboost × smote_enn` vượt timeout 1h mặc định, chạy lại với 3h |
@@ -97,7 +98,8 @@ Nguồn: `results/model_benchmark_results.csv`, `results/cies_summary_results.js
 6. **Sparkov là dữ liệu mô phỏng**; nhiều hình dạng "quá sạch" là dấu vết của bộ sinh dữ liệu.
 7. **Thời gian resample SMOTE-ENN** tăng ~4× mỗi lần gấp đôi dữ liệu (25k→1.4s, 50k→5.1s, 100k→19.7s ⇒ ≈1.2 giờ cho 1.48M dòng, chưa tính train).
 8. **Một số tham số tối ưu vẫn sát/chạm biên vùng tìm mới** (RF: `n_estimators=300`, `max_depth=30`, `min_samples_split=2`, `min_samples_leaf=1` đều ở biên; CatBoost `depth=11` sát biên 12, `iterations=500` gần 600; XGBoost `n_estimators=550` gần 600). Chưa nới thêm vì đường hội tụ của RF phẳng (PR-AUC CV 0,8865 từ trial 37, 0,8872 ở trial 89 và 98), nên coi RF đã hội tụ quanh 0,88; đây là hạn chế của giao thức, không phải lỗi.
-9. **`zip` (mã bưu chính) đang vào model như một số liên tục** (không nằm trong danh sách cột bị bỏ của `preprocess_features`). Với model cây thì chia khoảng mã vẫn gần đúng vùng địa lý, nhưng với LR thì hệ số tuyến tính trên mã bưu chính không có nghĩa — và LR lại xếp `zip` là feature quan trọng nhất (~17% SHAP). Chưa đổi vì thuộc quyết định encoding đã chốt; cần người dùng quyết định (bỏ, hay encode như cột phân loại).
+9. **Đã bỏ `zip` (2026-09-26).** Trước đó `zip` vào model như một số liên tục, và LR xếp nó là feature quan trọng nhất (~17% SHAP) — vô nghĩa với model tuyến tính. Thống kê: 985 mã, nhưng mỗi mã ứng đúng 1 cặp (lat, long) và 1 city (100%), 98,6% mã chỉ có 1 thẻ — tức gần như mã khách hàng, thông tin vùng đã có ở `lat`/`long`/`city`/`state`; encode thì model học thuộc khách hàng. Kết quả trong bảng ở mục "Kết quả" vẫn tính khi còn `zip`.
+10. **Rò rỉ theo khách hàng do chia train/test theo dòng.** Fraud đến theo đợt trên cùng thẻ, và chia ngẫu nhiên theo dòng khiến **100% thẻ có fraud ở test (845/845) cũng có dòng fraud ở train**; `lat`/`long` (98,6% cặp tọa độ thuộc đúng 1 thẻ) và `city` (92,2% city chỉ có 1 thẻ) cho phép model nhận ra khách hàng. Đo trên XGBoost (tham số đã tune, `class_weighting`, không `zip`): chia theo dòng PR-AUC 0,9323 / F1 0,676, chia theo thẻ (`GroupShuffleSplit` theo `cc_num`) 0,9135 / 0,615 — lạc quan khoảng 0,02 PR-AUC, không phải sụp đổ (1 lần chia, 1 seed). Chưa đổi cách chia vì là quyết định thiết kế thí nghiệm.
 
 ## Đánh đổi đã đo
 
@@ -157,7 +159,7 @@ Không sửa kết quả nào ở trên — chỉ bỏ phần chết/trùng lặ
 
 1. Tune lại cả 5 model (50 trial) trên data đã sửa `age`, rồi benchmark + CIES Sparkov bằng tham số mới — chạy `notebooks/kaggle_retune_benchmark_cies.ipynb` trên Kaggle (xem `notebooks/KAGGLE_UPLOAD_README.md`). Gồm cả ANN (benchmark + CIES còn thiếu 5 tổ hợp mỗi bên), cho đủ 25/25.
 2. CIES ULB cho ANN (5 tổ hợp) sau khi ANN tune xong.
-3. Quyết định cách xử lý `zip` (mục "Lệch so với spec" 9).
+3. Quyết định có chuyển sang chia train/test theo thẻ (`cc_num`) hay không (mục "Lệch so với spec" 10) — nên chốt trước đợt retune để chỉ chạy 1 lần.
 4. (Tuỳ chọn) ablation `SNAP_SYNTHETIC_ONEHOT=True` trên vài tổ hợp.
 5. Quyết định có tính thêm CIES đúng công thức gốc (nhiễu đầu vào) làm chỉ số phụ hay không; làm đối chứng KernelSHAP.
 6. Chạy nhiều seed cho vài tổ hợp để biết chênh lệch CIES 0,002–0,01 giữa các kỹ thuật (vd. Borderline-SMOTE luôn thấp nhất) có vượt nhiễu hay không.
