@@ -57,5 +57,19 @@
     "n_completed_trials": 34,
     "n_pruned_trials": 16,
     "complete": true
+  },
+  "ann": {
+    "model_name": "ann",
+    "best_pr_auc": 0.9190348176256012,
+    "best_params": {
+      "lr": 0.0018097059931874069,
+      "dropout": 0.1243197559603863,
+      "epochs": 40,
+      "batch_size": 2048
+    },
+    "n_trials": 50,
+    "n_completed_trials": 29,
+    "n_pruned_trials": 21,
+    "complete": true
   }
 }

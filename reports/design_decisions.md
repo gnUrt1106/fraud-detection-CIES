@@ -206,7 +206,18 @@ Cùng logic với cách chia train/test ("train quá khứ, chấm tương lai")
 
 **Vì sao không dùng early stopping.** CIES đo độ ổn định SHAP qua 20 lần bootstrap. Early stopping làm mỗi lần dừng ở một epoch khác → SHAP dao động vì số epoch chứ không vì kỹ thuật imbalance. Số epoch cố định (được tune) giữ phép đo công bằng.
 
-**Chưa đo:** thời gian thật của 1 trial với vùng tìm mới (dự kiến ~5–8 phút/trial, suy từ bảng trên). Số đo ở bảng lấy khi máy đang chạy song song CIES ULB.
+**Đã đo (Kaggle, GPU T4, 2026-09-27):** tune ANN Sparkov 50 trial ~1,1 giờ (trial hoàn tất ~2–2,5 phút; trước khi đổi: không xong nổi 1 trial trong 20 phút trên CPU). ULB ~0,1 phút/trial.
+
+**Kiểm tra biên sau khi tune** (50 trial, trial hoàn tất gom theo nhóm; PR-AUC CV cao nhất / trung vị):
+
+| Dataset | Tham số tốt nhất | Chạm biên | PR-AUC theo nhóm |
+|---|---|---|---|
+| Sparkov | lr 0,00181 · dropout 0,124 · epochs 40 · batch 2048 (PR-AUC CV 0,9190) | `dropout` (6% của 0,1–0,5) | dropout 0,1–0,15: 0,9190 / 0,9167 · 0,15–0,2: 0,9182 / 0,9157 · 0,2–0,3: 0,9135 / 0,9128 · 0,3–0,5: 0,9117 / 0,8893 |
+| ULB | lr 0,00208 · dropout 0,409 · epochs 5 · batch 2048 (PR-AUC CV 0,8028) | `epochs` (= biên dưới 5) | 5 epoch: 0,8028 / 0,7980 · 10: 0,8009 / 0,7953 · 15: 0,7939 · 20–40: 0,767–0,789 |
+
+Khác XGBoost (mục 8, dải phẳng), ở đây có **xu hướng thật** về phía biên: dropout thấp hơn (Sparkov) và ít epoch hơn (ULB) cho PR-AUC cao hơn. Nhưng mức tăng ở sát biên đã rất nhỏ — 2 nhóm dropout thấp nhất chỉ chênh 0,0008; 5 và 10 epoch trên ULB chênh 0,002, dưới mức dao động giữa các trial của ULB (24–36 fraud mỗi khối validation). ULB chọn ANN "nhẹ" giống các model cây trên ULB (XGBoost `max_depth=3`, CatBoost `depth=4`): chỉ 417 fraud trong train nên model đơn giản ít học thuộc hơn.
+
+**Quyết định:** giữ vùng tìm, ghi vào hạn chế — nới biên (dropout 0–0,5, epochs 1–50) tốn thêm 1 phiên Kaggle (~6–7 giờ GPU: tune + benchmark + CIES ANN cả 2 dataset) cho mức tăng PR-AUC kỳ vọng ~0,001–0,002, cùng tiêu chí đã áp cho XGBoost (chỉ nới khi có lợi đáng kể).
 
 ---
 
