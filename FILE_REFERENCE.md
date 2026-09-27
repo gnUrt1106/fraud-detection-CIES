@@ -32,8 +32,8 @@ Danh mục theo trạng thái code hiện tại (chỉ liệt kê file nằm tro
 | `explainability/cies.py` | Thuật toán CIES: `shap_to_ranks` (hạng trung bình khi hoà), `compute_rank_weighted_distance` (trọng số theo hạng), `compute_stability_metric`, `compute_feature_level_cies`, `run_cies_experiment` (bootstrap có `groups` → encode lại → imbalance → train → SHAP trên eval cố định; loại run có SHAP toàn 0), `run_cies_experiment_isolated`, `compute_condition_agreement_matrix` (đồng thuận thứ hạng giữa các điều kiện, vd. 5 kỹ thuật), `merge_cies_result` (ghi từng tổ hợp, an toàn nhiều tiến trình — notebook 04/05 dùng hàm này), `save_cies_results` (ghi đè cả file, chỉ an toàn với 1 tiến trình) |
 | `utils/isolation.py` | `run_isolated`: chạy hàm trong subprocess `spawn` (cách ly torch/xgboost), có timeout với leo thang SIGTERM → SIGKILL; `daemon=False` để Random Forest song song được |
 | `utils/jsonio.py` | `update_json`: đọc–sửa–ghi file JSON kết quả dưới khoá `fcntl`, ghi atomic (file tạm + `os.replace`), báo lỗi nếu JSON hỏng thay vì coi là rỗng. Dùng bởi `tune._merge_write` và `cies.merge_cies_result` Hai hàm này ghi file theo thứ tự `MODEL_NAMES` × `IMBALANCE_TECHNIQUES` (`cies.combo_order_key`), không theo thứ tự chạy xong. |
-| `visualization/dataset.py` | Biểu đồ insight dataset: mất cân bằng, giờ, category×giờ, số tiền, khoảng cách, nhịp giao dịch, mùa vụ, ULB top-feature |
-| `visualization/explain.py` | Biểu đồ SHAP (beeswarm, so sánh model, đồng thuận thứ hạng, dependence) và CIES (heatmap, ổn định thứ hạng, top-k, Spearman giữa run, Sparkov vs ULB, trade-off với PR-AUC) |
+| `visualization/dataset.py` | Biểu đồ insight dataset: mất cân bằng 2 dataset, giờ, số tiền, khoảng cách (giả thuyết sai), mùa vụ, ULB top-feature và scatter |
+| `visualization/explain.py` | Biểu đồ SHAP (beeswarm, so sánh model, đồng thuận thứ hạng, dependence tô màu theo feature khác), CIES (heatmap theo khoảng giá trị thật, thứ hạng kỹ thuật trong từng model, ổn định thứ hạng feature qua các run, CIES theo cỡ mẫu, CIES vs PR-AUC theo dataset, tóm tắt đồng thuận feature giữa các kỹ thuật) và benchmark (PR-AUC lệch theo kỹ thuật, số báo nhầm ở ngưỡng 0,5) |
 | `__init__.py` (các thư mục) | Đánh dấu Python package |
 
 ---
@@ -62,7 +62,7 @@ Danh mục theo trạng thái code hiện tại (chỉ liệt kê file nằm tro
 | `reports/literature_support.md` | Nguồn cho từng quyết định thiết kế, so sánh CIES repo với bài gốc, danh sách chỗ chưa có nguồn |
 | `reports/design_decisions.md` | Lý do + số đo cho các quyết định thiết kế hiện tại (chia theo thời gian, bỏ cột định danh khách hàng, `age`, tune theo thời gian, 50 trial), phương án đã loại và câu hỏi dễ gặp — dùng khi báo cáo |
 | `reports/benchmark_literature.md` | Kết quả PR-AUC/F1 từ các paper dùng Sparkov (2024–2026), cột CIES = N/A minh hoạ khoảng trống nghiên cứu |
-| `reports/figures/` | Biểu đồ PNG: 9 ảnh EDA (`01_..09_`) và các ảnh insight/SHAP/CIES từ notebook 06 |
+| `reports/figures/` | 28 biểu đồ PNG: 5 ảnh EDA của notebook 01 (`02_`, `05_`–`07_`, `09_`) và các ảnh insight/SHAP/CIES/benchmark của notebook 06 |
 | `reports/profiling/sparkov_profile_report.html` | Báo cáo data profiling tự động |
 | `tests/test_pipeline.py` | 40 test (gồm tiền xử lý Sparkov + chia theo thời gian, fold tune theo thời gian và encode riêng từng fold, checkpoint tune, merge kết quả khi nhiều tiến trình ghi song song, file kết quả hỏng không bị ghi đè, độ đồng thuận giữa kỹ thuật): encoding chống rò rỉ (fold prior, index không mặc định, nhóm bootstrap), CatBoost không `cat_features`, 5 kỹ thuật imbalance và one-hot hợp lệ sau resample, công thức CIES (hạng thay vì vị trí cột, hoà hạng), hình dạng SHAP của Tree/ANN, `scale_pos_weight`, ANN (scale, batch 1 mẫu), end-to-end CIES |
 

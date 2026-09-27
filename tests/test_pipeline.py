@@ -428,25 +428,28 @@ def test_cies_vs_prauc_merges_on_model_and_technique():
     assert n_points == 2, f"kỳ vọng 2 điểm (1 mỗi tổ hợp), nhận {n_points}"
 
 
-def test_cies_plots_follow_config_order_and_legend_hides_no_point():
-    """Heatmap CIES từng xếp model/kỹ thuật theo bảng chữ cái (khác thứ tự file kết quả), và chú giải
-    của biểu đồ so sánh 2 dataset nằm trong vùng vẽ, che điểm của hàng dưới cùng."""
+def test_cies_plots_follow_config_order_and_use_the_data_range():
+    """Heatmap CIES từng xếp theo bảng chữ cái (khác thứ tự file kết quả) và dùng thang màu 0–1 trong khi mọi
+    CIES nằm trong ~0,84–0,97 (cả bảng cùng 1 màu). Biểu đồ thứ hạng kỹ thuật phải xếp hạng TRONG từng model."""
     import matplotlib
     matplotlib.use("Agg")
     from src.config import MODEL_NAMES, IMBALANCE_TECHNIQUES
-    from src.visualization.explain import plot_cies_heatmap, plot_cies_dataset_compare
+    from src.visualization.explain import plot_cies_heatmap, plot_technique_ranks, LABEL
 
-    rows = [{"model": m, "technique": t, "cies_score": 0.9} for m in reversed(MODEL_NAMES) for t in reversed(IMBALANCE_TECHNIQUES)]
-    ax = plot_cies_heatmap(pd.DataFrame(rows)).axes[0]
-    assert [t.get_text() for t in ax.get_yticklabels()] == MODEL_NAMES
-    assert [t.get_text() for t in ax.get_xticklabels()] == IMBALANCE_TECHNIQUES
+    rng = np.random.RandomState(0)
+    rows = [{"model": m, "technique": t, "cies_score": 0.84 + 0.13 * rng.rand()}
+            for m in reversed(MODEL_NAMES) for t in reversed(IMBALANCE_TECHNIQUES)]
+    df = pd.DataFrame(rows)
+    ax = plot_cies_heatmap(df).axes[0]
+    assert [t.get_text() for t in ax.get_yticklabels()] == [LABEL[m] for m in MODEL_NAMES]
+    assert [t.get_text() for t in ax.get_xticklabels()] == [LABEL[t] for t in IMBALANCE_TECHNIQUES]
+    lo, hi = ax.collections[0].get_clim()
+    assert lo >= 0.83 and hi <= 0.98, (lo, hi)
 
-    a = pd.DataFrame(rows).assign(cies_score=np.linspace(0.8, 0.99, len(rows)))
-    fig = plot_cies_dataset_compare(a, a.assign(cies_score=a.cies_score - 0.05))
-    fig.canvas.draw()
-    ax = fig.axes[0]
-    legend_box = ax.get_legend().get_window_extent()
-    assert legend_box.y0 >= ax.get_window_extent().y1 - 1, "chú giải phải nằm ngoài (phía trên) vùng vẽ"
+    fig = plot_technique_ranks({"A": df})
+    ranks = fig.axes[0].collections[0].get_array().reshape(len(MODEL_NAMES), len(IMBALANCE_TECHNIQUES))
+    assert all(sorted(r) == [1, 2, 3, 4, 5] for r in ranks), ranks
+    assert [t.get_text() for t in fig.axes[0].get_yticklabels()] == [LABEL[m] for m in MODEL_NAMES]
 
 
 def test_target_encoding_keeps_bootstrap_duplicates_in_same_fold():

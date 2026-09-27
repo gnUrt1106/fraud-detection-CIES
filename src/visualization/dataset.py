@@ -96,26 +96,10 @@ def plot_hour_profile(df: pd.DataFrame, save_path: Optional[Path] = None):
     ax2.set_ylabel("Số giao dịch (nghìn)", color=C_LEGIT)
     ax2.grid(False)
     day, nt = df[~df["hour"].isin([22, 23, 0, 1, 2, 3])]["is_fraud"].mean(), df[df["hour"].isin([22, 23, 0, 1, 2, 3])]["is_fraud"].mean()
-    ax.text(0.5, 0.97, f"Đêm (22–3h): {nt*100:.2f}%\nNgày: {day*100:.3f}%  (gấp {nt/day:.0f}x)",
-            transform=ax.transAxes, ha="center", va="top", fontsize=10,
-            bbox=dict(boxstyle="round", fc="white", ec=C_NEUTRAL))
-    return _finish(fig, save_path)
-
-
-def plot_hour_category_heatmap(df: pd.DataFrame, save_path: Optional[Path] = None):
-    """Heatmap tỷ lệ fraud (%) theo category × khung giờ — chỉ ra tổ hợp rủi ro cao (vd. shopping_net ban đêm)."""
-    bins = [-1, 3, 7, 11, 15, 19, 21, 23]
-    labels = ["0–3h", "4–7h", "8–11h", "12–15h", "16–19h", "20–21h", "22–23h"]
-    d = df.assign(slot=pd.cut(df["hour"], bins=bins, labels=labels))
-    pt = d.pivot_table(index="category", columns="slot", values="is_fraud", aggfunc="mean", observed=True) * 100
-    pt = pt.loc[pt.max(axis=1).sort_values(ascending=False).index]
-    fig, ax = plt.subplots(figsize=(10, 6.2))
-    sns.heatmap(pt, annot=True, fmt=".2f", cmap="YlOrRd", cbar_kws={"label": "Tỷ lệ gian lận (%)"}, ax=ax, linewidths=0.4)
-    ax.set_xlabel("Khung giờ")
-    ax.set_ylabel("")
-    ax.set_title("Category × khung giờ: rủi ro chồng lên nhau")
-    fig.text(0.01, -0.01, "Ô trống = category không có giao dịch nào ở khung giờ đó (mỗi category chỉ xuất hiện ở một số khung giờ).",
-             fontsize=8, color=C_NEUTRAL)
+    # Đặt trên ax2 (vẽ sau ax) ở vùng 4h–11h phía trên — trống cả cột lẫn đường lưu lượng
+    ax2.text(0.33, 0.95, f"Đêm (22–3h): {nt*100:.2f}%\nNgày: {day*100:.3f}%  (gấp {nt/day:.0f}x)",
+             transform=ax2.transAxes, ha="center", va="top", fontsize=11, zorder=5,
+             bbox=dict(boxstyle="round", fc="white", ec=C_NEUTRAL))
     return _finish(fig, save_path)
 
 
@@ -153,23 +137,6 @@ def plot_distance_myth(df: pd.DataFrame, save_path: Optional[Path] = None):
     ax.set_ylabel("Mật độ")
     ax.set_title("Khoảng cách địa lý KHÔNG phải tín hiệu gian lận ở Sparkov")
     ax.legend()
-    return _finish(fig, save_path)
-
-
-def plot_velocity(df: pd.DataFrame, save_path: Optional[Path] = None):
-    """ECDF khoảng thời gian kể từ giao dịch trước của cùng thẻ: fraud đến dồn dập (burst) — tín hiệu mà 9 feature hiện tại KHÔNG có."""
-    fig, ax = plt.subplots(figsize=(9, 4.5))
-    for lab, col, name in [(0, C_LEGIT, "Hợp lệ"), (1, C_FRAUD, "Gian lận")]:
-        s = df.loc[(df["is_fraud"] == lab) & df["gap_hours"].notna(), "gap_hours"].clip(lower=1e-3)
-        xs = np.sort(s.values)
-        ys = np.arange(1, len(xs) + 1) / len(xs)
-        step = max(len(xs) // 4000, 1)
-        ax.plot(xs[::step], ys[::step], color=col, lw=2, label=f"{name} (trung vị {np.median(xs):.2f} giờ)")
-    ax.set_xscale("log")
-    ax.set_xlabel("Giờ kể từ giao dịch trước của cùng thẻ (log)")
-    ax.set_ylabel("Tỷ lệ tích luỹ")
-    ax.set_title("Nhịp giao dịch: fraud đến dồn dập hơn hẳn")
-    ax.legend(loc="lower right")
     return _finish(fig, save_path)
 
 
