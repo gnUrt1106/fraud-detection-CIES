@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import rankdata, spearmanr
 
+from src.config import MODEL_NAMES, IMBALANCE_TECHNIQUES
+
 sns.set_theme(style="whitegrid", context="notebook")
 
 C_A = "#2f6fed"   # Sparkov
@@ -145,7 +147,10 @@ def cies_results_to_df(results: List[dict]) -> pd.DataFrame:
 
 def plot_cies_heatmap(df: pd.DataFrame, metric: str = "cies_score", title: str = "CIES score (cao = giải thích ổn định)",
                       save_path: Optional[Path] = None):
+    # Thứ tự theo config (như các file kết quả), không theo bảng chữ cái; tên lạ xếp cuối
     pt = df.pivot(index="model", columns="technique", values=metric)
+    order = lambda names, ref: [n for n in ref if n in names] + sorted(n for n in names if n not in ref)
+    pt = pt.loc[order(pt.index, MODEL_NAMES), order(pt.columns, IMBALANCE_TECHNIQUES)]
     fig, ax = plt.subplots(figsize=(1.6 * pt.shape[1] + 3, 0.8 * pt.shape[0] + 2.2))
     sns.heatmap(pt, annot=True, fmt=".3f", cmap="RdYlGn", vmin=0, vmax=1, ax=ax, linewidths=0.5,
                 cbar_kws={"label": metric})
@@ -241,8 +246,9 @@ def plot_cies_dataset_compare(df_a: pd.DataFrame, df_b: pd.DataFrame, name_a: st
     ax.set_yticks(y, m["label"])
     ax.set_xlim(0, 1.02)
     ax.set_xlabel("CIES score")
-    ax.set_title("CIES có nhất quán giữa 2 dataset?")
-    ax.legend(loc="lower right")
+    ax.set_title("CIES có nhất quán giữa 2 dataset?", pad=28)
+    # Chú giải đặt phía trên vùng vẽ: đặt trong vùng vẽ thì che điểm của hàng dưới cùng
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, frameon=False)
     return _finish(fig, save_path)
 
 
