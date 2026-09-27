@@ -61,6 +61,7 @@ Danh mục theo trạng thái code hiện tại (chỉ liệt kê file nằm tro
 | `reports/pipeline_report.md` | Bảng giải thích từng bước pipeline, trạng thái chạy, lệch so với spec, nhật ký sửa lỗi |
 | `reports/literature_support.md` | Nguồn cho từng quyết định thiết kế, so sánh CIES repo với bài gốc, danh sách chỗ chưa có nguồn |
 | `reports/design_decisions.md` | Lý do + số đo cho các quyết định thiết kế hiện tại (chia theo thời gian, bỏ cột định danh khách hàng, `age`, tune theo thời gian, 50 trial), phương án đã loại và câu hỏi dễ gặp — dùng khi báo cáo |
+| `reports/study_guide.md` | Hướng dẫn ôn tập để bảo vệ: thứ tự đọc từng file với link tới đúng dòng quan trọng, luồng dữ liệu, 15 câu hỏi phản biện kèm câu trả lời có số liệu, bảng số cần thuộc |
 | `reports/benchmark_literature.md` | Kết quả đã công bố trên Sparkov, **đã kiểm chứng từng nguồn** (Wu 2026: AP 0,930–0,934 cùng tập test gốc, không định danh; FDB 2022: chỉ AUC-ROC; Jemai 2024: không có bảng số), lý do loại các dòng không kiểm chứng được của bản trước, và cách nói về khoảng trống nghiên cứu cho đúng mức |
 | `reports/figures/` | 28 biểu đồ PNG: 5 ảnh EDA của notebook 01 (`02_`, `05_`–`07_`, `09_`) và các ảnh insight/SHAP/CIES/benchmark của notebook 06 |
 | `reports/profiling/sparkov_profile_report.html` | Báo cáo data profiling tự động |
