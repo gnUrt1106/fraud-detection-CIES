@@ -25,8 +25,7 @@ from src.config import MODEL_NAMES, IMBALANCE_TECHNIQUES
 
 sns.set_theme(style="whitegrid", context="notebook")
 
-C_A = "#2f6fed"   # Sparkov
-C_B = "#0e9bab"   # ULB
+C_A = "#2f6fed"
 C_ACCENT = "#e4572e"
 C_NEUTRAL = "#9aa0a6"
 
@@ -47,6 +46,7 @@ def plot_shap_beeswarm(shap_values, X_eval, feature_names: Sequence[str], title:
     import shap
 
     plt.figure(figsize=(9, 0.42 * max_display + 1.8))
+    np.random.seed(0)  # summary_plot xê dịch chấm ngẫu nhiên — cố định để ảnh giống hệt giữa các lần chạy
     shap.summary_plot(np.asarray(shap_values), np.asarray(X_eval), feature_names=list(feature_names),
                       max_display=max_display, show=False)
     fig = plt.gcf()
@@ -176,6 +176,7 @@ def plot_rank_stability(result: dict, top_k: int = 10, save_path: Optional[Path]
     data = pd.DataFrame(ranks[:, order], columns=[names[i] for i in order]).melt(var_name="feature", value_name="rank")
     fig, ax = plt.subplots(figsize=(9, 0.5 * top_k + 1.8))
     sns.boxplot(data=data, y="feature", x="rank", orient="h", color="#cfe0ff", fliersize=0, ax=ax)
+    np.random.seed(0)  # stripplot xê dịch chấm ngẫu nhiên — cố định để ảnh giống hệt giữa các lần chạy
     sns.stripplot(data=data, y="feature", x="rank", orient="h", color=C_A, size=4, alpha=0.6, ax=ax)
     ax.invert_xaxis()
     ax.set_xlabel("Thứ hạng qua các run (1 = quan trọng nhất; trục đảo, phải = tốt)")

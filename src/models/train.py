@@ -228,6 +228,8 @@ def build_model(
             "random_seed": seed,
             "eval_metric": "PRAUC",
             "verbose": 0,
+            # Không ghi log train ra thư mục catboost_info/ ở thư mục làm việc (chỉ là file log, không ảnh hưởng model)
+            "allow_writing_files": False,
         }
         if _has_gpu():
             cb_params["task_type"] = "GPU"
