@@ -102,9 +102,9 @@ Notebook: `notebooks/kaggle_pipeline.ipynb` (tune → benchmark → CIES cho Spa
 
 - [x] Pipeline đầy đủ: encoding, 5 kỹ thuật imbalance, 5 model, metrics, SHAP, CIES, tune, trực quan hoá.
 - [x] Các đợt rà soát toàn bộ mã nguồn: đã sửa các lỗi nghiêm trọng (chi tiết ở [`reports/pipeline_report.md`](reports/pipeline_report.md)).
-- [x] Tune (50 trial) + benchmark + CIES theo thiết kế hiện tại cho LR, RF, XGBoost, CatBoost trên cả Sparkov và ULB (`results/`).
-- [ ] **ANN** (tune + benchmark + CIES, cả 2 dataset): chạy `notebooks/kaggle_pipeline.ipynb` trên Kaggle với `MODELS_SCOPE = ["ann"]`.
-- [ ] Notebook 06 + cập nhật phần "Kết quả" của `reports/pipeline_report.md` bằng số mới.
+- [x] Tune (50 trial) + benchmark + CIES theo thiết kế hiện tại cho **cả 5 model** trên Sparkov và ULB (`results/`, 25/25 tổ hợp mỗi dataset; ANN chạy trên Kaggle).
+- [x] Notebook 06 + phần "Kết quả" của [`reports/pipeline_report.md`](reports/pipeline_report.md) theo số mới.
+- [ ] Chạy nhiều seed để kiểm chênh lệch CIES giữa các kỹ thuật có vượt nhiễu không.
 - [ ] Thí nghiệm đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2).
 
 ## Lưu ý quan trọng
