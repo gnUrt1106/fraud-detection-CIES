@@ -1,4 +1,4 @@
-# Cơ sở tài liệu cho thiết kế pipeline (cập nhật 2026-09-21)
+# Cơ sở tài liệu cho thiết kế pipeline (cập nhật 2026-09-27)
 
 Mục đích: khi bị hỏi "vì sao thiết kế như vậy", có nguồn để trả lời — và biết chỗ nào **chưa có** nguồn.
 
@@ -47,12 +47,14 @@ Mục đích: khi bị hỏi "vì sao thiết kế như vậy", có nguồn đ�
 | Target encoding | Micci-Barreca (SIGKDD Explorations 2001) [S13] | Tiền xử lý thuộc tính danh nghĩa nhiều giá trị theo empirical Bayes | Tốt cho **cách mã hoá và làm mịn**; phần out-of-fold để tránh rò rỉ là quyết định riêng, chưa có nguồn |
 | Optuna (TPE + pruner) | Akiba et al. (KDD 2019) [S14] | Khung tối ưu siêu tham số define-by-run kèm searching/pruning | Tốt |
 | CIES, rank-weighted distance | Văduva et al. (2026) [S1] | Xem mục 1 | Ý tưởng có nguồn; công thức của repo là biến thể |
+| Chia train/test theo thời gian; validation theo thời gian khi tune | Le Borgne et al., *Fraud Detection Handbook* (Ch. 3 baseline, Ch. 5 validation); Dal Pozzolo et al. (TNNLS 2018) — link ở `design_decisions.md` mục "Nguồn" | Đánh giá gian lận phải train trên quá khứ, chấm trên tương lai; validation cũng theo thời gian | Tốt (đã đọc trang Handbook) |
+| Tham số của 4 kỹ thuật resample | Mặc định của imbalanced-learn: SMOTE/ADASYN k=5, Borderline-SMOTE kiểu borderline-1 (m=10), SMOTE-ENN với ENN k=3 làm sạch cả 2 lớp, cân bằng về 1:1 (đã in ra từ code) | k=5 là giá trị dùng trong bài SMOTE gốc [S9]; các giá trị còn lại chưa đối chiếu với từng bài gốc | Một phần |
 
 ## 3. Chỗ CHƯA có nguồn (nên chuẩn bị câu trả lời riêng)
 
 1. **Tune tách khỏi imbalance** (tune trên dữ liệu chưa resample rồi dùng chung cho 5 kỹ thuật): chưa tìm nguồn. Lập luận riêng: giữ tham số cố định để chênh lệch CIES là do kỹ thuật imbalance, không do tham số. Nhược điểm: tham số không tối ưu riêng cho từng kỹ thuật.
 2. **Prior của target encoding lấy từ fold train**, `StratifiedGroupKFold` cho bản sao bootstrap: quyết định chống rò rỉ của repo, chưa có nguồn; đã kiểm bằng test hồi quy.
-3. **Cỡ mẫu subsample Sparkov (100.000 dòng)**: chưa có nguồn; cần kết quả kiểm tra độ nhạy (notebook 04 mục 8).
+3. **Cỡ mẫu subsample Sparkov (100.000 dòng)**: chưa có nguồn; đã có kiểm tra độ nhạy trên dữ liệu hiện tại (`pipeline_report.md`, mục "Lệch so với spec" 1): CIES tăng theo cỡ mẫu, chưa bão hoà ở 100k — nên chỉ so CIES trong cùng dataset.
 4. **DeepExplainer cho ANN so với KernelSHAP**: tôi chưa tìm/đọc nguồn; căn cứ hiện có là số đo riêng trong `pipeline_report.md`.
 5. **Tác động của kỹ thuật imbalance lên độ ổn định của SHAP trong bài toán gian lận**: tìm kiếm không ra nghiên cứu trực tiếp — nhất quán với nhận định "khoảng trống nghiên cứu" trong `benchmark_literature.md`, nhưng đây là kết quả của một vài truy vấn, **không phải khảo sát tài liệu có hệ thống**; đừng khẳng định "chưa ai làm" với giảng viên. Bài gần nhất tôi thấy là chính [S1] (SMOTE ảnh hưởng độ ổn định giải thích, kết quả phụ thuộc dataset).
 6. Bảng trong `benchmark_literature.md` (Jemai et al. 2024, "Fraud Dataset Benchmark", v.v.) **chưa được kiểm chứng ở đợt này**; nhiều nguồn ghi mơ hồ, không có link. Không nên trích chúng trong báo cáo cho đến khi từng nguồn được mở và đối chiếu.
@@ -92,10 +94,11 @@ Có một bài liên quan tới gian lận + độ tin cậy của SHAP dưới 
 | Đánh giá sau khi tune | Điểm CV tốt nhất của chính quá trình tune bị lạc quan (chọn trên cùng dữ liệu); cần đánh giá trên dữ liệu độc lập hoặc nested resampling [S15, mục 4.4; S18] |
 | Tune có đáng không | Đo "tunability" = mức cải thiện khi tune so với mặc định, khác nhau giữa thuật toán và tham số [S19] |
 
-**Hệ quả cho repo (nhận định của tôi, cần bạn duyệt):**
-- Giao thức hiện tại (cùng 30 trial cho mọi model, TPE + pruner) đã là kiểu "cùng ngân sách" mà tài liệu coi là công bằng. Đề xuất dừng theo hội tụ ở phần trao đổi trước **không phải chuẩn**, và [S15] cảnh báo rủi ro của nó; nếu dùng thì chỉ như một phần bổ sung kèm trần số trial.
-- Vấn đề thật sự nằm ở **thiết kế vùng tìm** (nhiều tham số chạm biên) và **ngân sách 30 trial thấp** so với quy tắc 50×l–100×l (RF có 4 hyperparameter ⇒ 200–400 trial; đó chỉ là quy tắc ngón tay cái, không phải định lý).
-- `best_pr_auc` trong `best_params.json` là điểm CV chọn-trên-chính-nó nên lạc quan; con số báo cáo cuối cùng phải là kết quả benchmark trên tập test (notebook 03).
+**Hệ quả cho repo — thiết kế hiện tại (2026-09-27):**
+- Cùng ngân sách **50 trial** cho mọi model và cả 2 dataset (TPE + MedianPruner, 3 fold thời gian) — đúng kiểu "cùng ngân sách" mà [S15], [S17] coi là công bằng.
+- 50 trial vẫn dưới quy tắc ngón tay cái 50×l–100×l (vd. RF có 4 hyperparameter ⇒ 200–400). Bù lại có số đo hội tụ thật trên cả 10 lượt tune: mọi lượt cách kết quả cuối ≤ 0,005 PR-AUC từ trial 13, nửa sau chỉ thêm ≤ 0,0026 (`design_decisions.md` mục 5).
+- Vùng tìm đã được kiểm tra biên sau khi tune; tham số sát biên được thử nới (XGBoost, LR) hoặc phân tích xu hướng (ANN) và ghi rõ (`design_decisions.md` mục 8–9).
+- `best_pr_auc` trong `best_params*.json` là điểm CV chọn-trên-chính-nó nên lạc quan [S18]; mọi con số báo cáo là PR-AUC trên **tập test độc lập theo thời gian** (`model_benchmark_results*.csv`).
 
 - [S15] Bischl, B., et al. (2023). *Hyperparameter optimization: Foundations, algorithms, best practices, and open challenges.* WIREs Data Mining and Knowledge Discovery. arXiv:2107.05847. <https://arxiv.org/abs/2107.05847>
 - [S16] Grinsztajn, L., Oyallon, E., Varoquaux, G. (2022). *Why do tree-based models still outperform deep learning on typical tabular data?* NeurIPS Datasets and Benchmarks. <https://arxiv.org/abs/2207.08815>

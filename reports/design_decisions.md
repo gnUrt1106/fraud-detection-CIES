@@ -13,7 +13,7 @@ Thiết kế hiện tại (chốt 2026-09-26, `AGENT_SPEC.md` §8 và §11):
 | Validation khi tune | 5-fold xáo trộn, trên dữ liệu đã encode sẵn | 3 fold theo thời gian (cửa sổ mở rộng), mỗi fold encode riêng |
 | Số trial Optuna | 100 | 50 |
 
-> **Lưu ý khi trình bày kết quả:** `results/` hiện đang trống, chờ chạy lại theo thiết kế hiện tại. Mọi số PR-AUC trong tài liệu này là của **XGBoost + `class_weighting`, tham số tune cũ, 1 lần chia, 1 seed** — dùng để so sánh các lựa chọn với nhau, không phải kết quả cuối.
+> **Lưu ý khi trình bày kết quả:** kết quả cuối của thiết kế hiện tại nằm ở `reports/pipeline_report.md`, mục "Kết quả". Các số PR-AUC dùng để so sánh lựa chọn trong mục 1–3 của tài liệu này là của **XGBoost + `class_weighting`, tham số tune cũ, 1 lần chia, 1 seed** — dùng để so sánh các lựa chọn với nhau, không phải kết quả cuối.
 
 ---
 
@@ -124,7 +124,22 @@ Cùng logic với cách chia train/test ("train quá khứ, chấm tương lai")
 - Quota Kaggle 30 giờ GPU/tuần phải đủ cho cả tune 5 model, benchmark và CIES. ANN trước đây chạy nhiều phiên 7,5 giờ mới tới ~30/100 trial.
 - Bằng chứng hội tụ (từ lần tune 100 trial trước, ghi trong `pipeline_report.md`): RF đạt PR-AUC CV 0,8865 ở trial 37, chỉ lên 0,8872 ở trial 89 và 98. MedianPruner cắt 26–68/100 trial tuỳ model — phần lớn thông tin nằm ở nửa đầu.
 
-**Hạn chế nói thẳng.** Bằng chứng hội tụ chỉ có cho RF; dữ liệu từng trial của lần tune cũ không còn lưu nên không vẽ lại được đường hội tụ cho các model khác. Muốn chắc hơn: chạy lại tune có lưu SQLite (`storage_path`) và vẽ "PR-AUC tốt nhất tới trial n" cho từng model.
+**Bằng chứng trên thiết kế hiện tại** (đo từ checkpoint SQLite của cả 10 lượt tune, `results/tuning_checkpoints*/`; "PR-AUC CV tốt nhất tính tới trial n"):
+
+| Dataset | Model | Best (trial 50) | Đạt best ở trial | Cách best ≤ 0,005 từ trial | Cải thiện từ trial 25 → 50 |
+|---|---|---|---|---|---|
+| Sparkov | LR | 0,2460 | 32 | 1 | 0,0000 |
+| Sparkov | RF | 0,9122 | 47 | 1 | 0,0004 |
+| Sparkov | XGBoost | 0,9214 | 22 | 4 | 0,0000 |
+| Sparkov | CatBoost | 0,9242 | 25 | 4 | 0,0000 |
+| Sparkov | ANN | 0,9190 | 34 | 9 | 0,0026 |
+| ULB | LR | 0,8085 | 35 | 7 | 0,0013 |
+| ULB | RF | 0,7938 | 6 | 5 | 0,0000 |
+| ULB | XGBoost | 0,8095 | 45 | 13 | 0,0020 |
+| ULB | CatBoost | 0,8118 | 12 | 6 | 0,0000 |
+| ULB | ANN | 0,8028 | 38 | 5 | 0,0019 |
+
+Mọi lượt đã cách kết quả cuối ≤ 0,005 từ trial 13; nửa sau (trial 25→50) chỉ thêm tối đa 0,0026 (6/10 lượt không thêm gì). Nói chính xác: **chưa hội tụ tuyệt đối** (vài lượt còn nhích ở trial 34–47), nhưng phần cải thiện còn lại nhỏ hơn mức dao động giữa các trial của ULB và nhỏ hơn chênh lệch giữa các model/kỹ thuật được so sánh.
 
 ---
 

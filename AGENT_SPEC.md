@@ -313,7 +313,7 @@ Tải dataset qua `kagglehub`, KHÔNG hardcode đường dẫn tải thủ công
 
 ---
 
-## 11. CẬP NHẬT SO VỚI BẢN GỐC (trạng thái 2026-09-26)
+## 11. CẬP NHẬT SO VỚI BẢN GỐC (trạng thái 2026-09-27)
 
 Mục này ghi lại những chỗ code hiện tại **khác hoặc vượt** so với spec ở trên. Cột "Trạng thái" cho biết đã được người dùng yêu cầu/chấp thuận hay còn cần xác nhận. Ràng buộc bắt buộc ở các mục 0–10 không bị sửa ngoài các chỗ ghi trong bảng.
 
@@ -328,14 +328,15 @@ Mục này ghi lại những chỗ code hiện tại **khác hoặc vượt** so
 | §6.2 Đối chứng KernelSHAP | Bắt buộc nếu đủ thời gian | **Chưa làm** (`reports/kernelshap_control_experiment.json` chưa tồn tại) | Còn nợ |
 | §7.1 Công thức CIES | "Theo công thức paper CIES gốc" | Khoảng cách thứ hạng có trọng số `1/min(hạng_a, hạng_b)` trên từng feature; `cies_score = 1 − khoảng cách TB`; hoà hạng = hạng trung bình; run có SHAP toàn 0 bị loại | **Đã đối chiếu (arXiv:2603.05024): khác công thức gốc** — gốc nhiễu hoá đầu vào, so độ lớn SHAP, chuẩn hoá theo `‖φ(x)‖_w`; repo nhiễu hoá dữ liệu huấn luyện, so thứ hạng. Xem `reports/literature_support.md` |
 | §1.2 ULB | 30 feature gồm `Time` | Bỏ cột `Time` (`ULB_FEATURE_COLS`: V1..V28 + Amount) | Quyết định trong `config.py`, nay được áp dụng nhất quán |
-| §1.3 / §7.2 Phạm vi chạy | Cả 5 model × 5 kỹ thuật ở cả 2 dataset; không tự giảm để tiết kiệm thời gian | Notebook 04 và 05 chạy đủ 5×5; Sparkov subsample phân tầng 100.000 dòng (`SUBSAMPLE_N`), ULB dùng toàn bộ | **Lệch nhẹ** — chỉ subsample Sparkov; đã kiểm tra độ nhạy 10k–100k trên `xgboost × class_weighting`, CIES 0,951–0,965 (xem `pipeline_report.md`) |
+| §1.3 / §7.2 Phạm vi chạy | Cả 5 model × 5 kỹ thuật ở cả 2 dataset; không tự giảm để tiết kiệm thời gian | Notebook 04 và 05 chạy đủ 5×5; Sparkov subsample phân tầng 100.000 dòng (`SUBSAMPLE_N`), ULB dùng toàn bộ | **Lệch nhẹ** — chỉ subsample Sparkov; đã kiểm tra độ nhạy 10k–100k trên dữ liệu hiện tại (`xgboost × class_weighting` 0,943–0,970, `random_forest × smote` 0,894–0,961): CIES tăng theo cỡ mẫu nên chỉ so trong cùng dataset (xem `pipeline_report.md`) |
 | §8 Chia train/test | Stratified random split, cấm chia theo thời gian | Chia theo thời gian (Sparkov: file gốc; ULB: theo `Time`) | **Người dùng chốt 2026-09-26** sau khi đo: chia ngẫu nhiên rò rỉ theo đợt hack thẻ. Chi tiết và số đo ở `reports/pipeline_report.md` |
 | §3.1 Feature/encoding | One-hot `state`; target encoding `city`, `job` | Bỏ `state`, `city`, `job`, `lat`/`long`, `city_pop`, `merch_lat`/`merch_long`, `zip` (định danh khách hàng); còn `amt`, `category`, `merchant`, `hour`, `day_of_week`, `age`, `gender` | **Người dùng chốt 2026-09-26** (XGBoost, chia theo thời gian: PR-AUC 0,24 khi giữ, 0,88 khi bỏ) |
 | §5/§7 Validation khi tune | (không quy định) | Validation theo thời gian, cửa sổ mở rộng 3 fold, thay 5-fold xáo trộn; mỗi fold fit encoding riêng trên dòng trước khối validation | **Người dùng chốt 2026-09-26** — nhất quán với cách chia train/test |
-| §9 Môi trường | Local dùng subsample nhỏ; train thật trên Kaggle | Tune chạy trên Kaggle GPU (repo public, dataset `cies-processed`); mỗi tổ hợp chạy trong subprocess `spawn`; `timeout=None` cho tune và benchmark | Đúng tinh thần spec |
+| §9 Môi trường | Local dùng subsample nhỏ; train thật trên Kaggle | LR, RF, XGBoost, CatBoost chạy đầy đủ trên máy local (tune, benchmark, CIES); ANN chạy trên Kaggle GPU qua `kaggle_pipeline.ipynb` (`MODELS_SCOPE = ["ann"]`, `RUN_ULB = True`). Mỗi tổ hợp chạy trong subprocess `spawn`; `timeout=None` cho tune và benchmark | Đúng tinh thần spec |
 
 ### Quy ước kỹ thuật thêm
-- Tham số tối ưu lưu ở `results/best_params.json`, `build_model` tự nạp; model chưa có tham số dùng mặc định.
+- Tham số tối ưu lưu ở `results/best_params.json` (Sparkov, `build_model` tự nạp) và `results/best_params_ulb.json` (ULB — benchmark/CIES ULB truyền tường minh `params=`, báo lỗi nếu thiếu, không bao giờ dùng tham số Sparkov cho ULB).
+- File kết quả luôn sắp theo `MODEL_NAMES` × `IMBALANCE_TECHNIQUES`; mỗi run CIES ghi explainer thực sự đã dùng (`run_logs[i]["explainer"]`).
 - Kết quả benchmark/CIES lưu ngay sau mỗi tổ hợp và bỏ qua tổ hợp đã có khi chạy lại.
 - Không nạp torch và xgboost trong cùng một process (xem `src/utils/isolation.py`).
 

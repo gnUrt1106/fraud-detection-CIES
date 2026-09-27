@@ -1,0 +1,82 @@
+[
+  {
+    "model": "xgboost",
+    "technique": "class_weighting",
+    "n": 10000,
+    "n_fraud": 58,
+    "cies_score": 0.9433807629575394,
+    "std_rank_distance": 0.017274771756715428,
+    "mean_spearman": 0.8645591250854409,
+    "n_runs": 20
+  },
+  {
+    "model": "xgboost",
+    "technique": "class_weighting",
+    "n": 30000,
+    "n_fraud": 174,
+    "cies_score": 0.950581348976496,
+    "std_rank_distance": 0.011621097555889278,
+    "mean_spearman": 0.8976008202323992,
+    "n_runs": 20
+  },
+  {
+    "model": "xgboost",
+    "technique": "class_weighting",
+    "n": 50000,
+    "n_fraud": 289,
+    "cies_score": 0.9570761238107548,
+    "std_rank_distance": 0.010895752384456616,
+    "mean_spearman": 0.9109022556390978,
+    "n_runs": 20
+  },
+  {
+    "model": "xgboost",
+    "technique": "class_weighting",
+    "n": 100000,
+    "n_fraud": 579,
+    "cies_score": 0.9694726193816229,
+    "std_rank_distance": 0.009029669874785056,
+    "mean_spearman": 0.9392481203007519,
+    "n_runs": 20
+  },
+  {
+    "model": "random_forest",
+    "technique": "smote",
+    "n": 10000,
+    "n_fraud": 58,
+    "cies_score": 0.893797370759554,
+    "std_rank_distance": 0.024409765648288513,
+    "mean_spearman": 0.8178673957621326,
+    "n_runs": 20
+  },
+  {
+    "model": "random_forest",
+    "technique": "smote",
+    "n": 30000,
+    "n_fraud": 174,
+    "cies_score": 0.9362464610820636,
+    "std_rank_distance": 0.01598999647773682,
+    "mean_spearman": 0.8920095693779905,
+    "n_runs": 20
+  },
+  {
+    "model": "random_forest",
+    "technique": "smote",
+    "n": 50000,
+    "n_fraud": 289,
+    "cies_score": 0.9448132396230147,
+    "std_rank_distance": 0.01811449938573538,
+    "mean_spearman": 0.937388926862611,
+    "n_runs": 20
+  },
+  {
+    "model": "random_forest",
+    "technique": "smote",
+    "n": 100000,
+    "n_fraud": 579,
+    "cies_score": 0.9608966981797039,
+    "std_rank_distance": 0.011109193131820582,
+    "mean_spearman": 0.957218045112782,
+    "n_runs": 20
+  }
+]
