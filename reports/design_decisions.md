@@ -11,7 +11,10 @@ Thiết kế hiện tại (chốt 2026-09-26, `AGENT_SPEC.md` §8 và §11):
 | Feature Sparkov | 7 feature bên phải + tọa độ nhà (`lat`, `long`), `city`, `state`, `job`, `city_pop`, `zip`, tọa độ cửa hàng | 7 feature: `amt`, `category`, `merchant`, `hour`, `day_of_week`, `age`, `gender` |
 | `age` | `2020 − năm sinh` | Năm của từng giao dịch − năm sinh |
 | Validation khi tune | 5-fold xáo trộn, trên dữ liệu đã encode sẵn | 3 fold theo thời gian (cửa sổ mở rộng), mỗi fold encode riêng |
-| Số trial Optuna | 100 | 50 |
+| Số trial Optuna | 100 | 50 (cùng vùng tìm cho mọi model và 2 dataset; đã thử nới biên — mục 8) |
+| Tham số ULB | Dùng tham số tune trên Sparkov | **Tune riêng trên ULB** (mục 10) |
+| Vùng tìm ANN | batch 256–1024, 10–100 epoch | batch 1024–4096, 5–50 epoch (mục 9) |
+| So CIES giữa 2 dataset | So trực tiếp mức CIES | **Chỉ so thứ hạng**; mức CIES phụ thuộc cỡ mẫu (mục 11) |
 
 > **Lưu ý khi trình bày kết quả:** kết quả cuối của thiết kế hiện tại nằm ở `reports/pipeline_report.md`, mục "Kết quả". Các số PR-AUC dùng để so sánh lựa chọn trong mục 1–3 của tài liệu này là của **XGBoost + `class_weighting`, tham số tune cũ, 1 lần chia, 1 seed** — dùng để so sánh các lựa chọn với nhau, không phải kết quả cuối.
 
@@ -160,6 +163,8 @@ Mọi lượt đã cách kết quả cuối ≤ 0,005 từ trial 13; nửa sau (
 
 - **Ghi file kết quả dùng chung không khoá** (`best_params.json`, `cies_summary_results*.json`): stress test 8 tiến trình ghi cùng lúc — cách cũ mất 176/200 kết quả, cách mới (khoá + ghi atomic, `src/utils/jsonio.py`) giữ đủ 200/200. Các lần chạy song song trước không mất gì vì mỗi tổ hợp ghi cách nhau hàng chục phút.
 - **Notebook Kaggle bỏ qua gần hết việc** (phát hiện trước khi chạy): `git clone` mang theo kết quả cũ trong repo khiến notebook tưởng mọi tổ hợp đã xong.
+- **`encode_test` ghép lệch dòng khi bảng test có index khác 0..n−1** (phát hiện khi rà soát 2026-09-27): số dòng nhân đôi, nửa là NaN. Mọi nơi gọi đều truyền index mặc định — file test đã encode tái tạo khớp từng giá trị — nên không kết quả nào bị ảnh hưởng.
+- **CIES không ghi explainer thực sự đã dùng**: ANN tự lùi DeepExplainer → KernelExplainer nếu Deep lỗi, mà không để lại dấu vết. Nay mỗi run ghi `explainer`; cả 200 run ANN đều là DeepExplainer.
 
 ---
 
@@ -233,6 +238,46 @@ Mọi lượt đã cách kết quả cuối ≤ 0,005 từ trial 13; nửa sau (
 Khác XGBoost (mục 8, dải phẳng), ở đây có **xu hướng thật** về phía biên: dropout thấp hơn (Sparkov) và ít epoch hơn (ULB) cho PR-AUC cao hơn. Nhưng mức tăng ở sát biên đã rất nhỏ — 2 nhóm dropout thấp nhất chỉ chênh 0,0008; 5 và 10 epoch trên ULB chênh 0,002, dưới mức dao động giữa các trial của ULB (24–36 fraud mỗi khối validation). ULB chọn ANN "nhẹ" giống các model cây trên ULB (XGBoost `max_depth=3`, CatBoost `depth=4`): chỉ 417 fraud trong train nên model đơn giản ít học thuộc hơn.
 
 **Quyết định:** giữ vùng tìm, ghi vào hạn chế — nới biên (dropout 0–0,5, epochs 1–50) tốn thêm 1 phiên Kaggle (~6–7 giờ GPU: tune + benchmark + CIES ANN cả 2 dataset) cho mức tăng PR-AUC kỳ vọng ~0,001–0,002, cùng tiêu chí đã áp cho XGBoost (chỉ nới khi có lợi đáng kể).
+
+---
+
+## 10. ULB được tune, benchmark và giải thích bằng tham số riêng
+
+**Vấn đề.** Ban đầu notebook 05 gọi CIES ULB mà không truyền tham số → `build_model` tự nạp `best_params.json` — tức **tham số tune trên
+Sparkov** — cho dữ liệu ULB (khác hẳn: 29 feature PCA, 417 fraud). Tham số tối ưu khác xa giữa 2 dataset, ví dụ LR: `C` = 0,214
+(Sparkov) so với 0,00085 (ULB); XGBoost ULB chọn `max_depth` = 3, Sparkov chọn 11.
+
+**Quyết định.** ULB tune riêng với **cùng giao thức** (cùng vùng tìm, 50 trial, 3 fold theo thời gian trên `ulb_train`), lưu
+`best_params_ulb.json`; benchmark và CIES ULB truyền tham số này tường minh và **báo lỗi** nếu thiếu — không bao giờ lặng lẽ dùng tham số
+Sparkov (có test hồi quy). ULB cũng có benchmark riêng (`model_benchmark_results_ulb.csv`) để biết CIES cao có đi kèm model bắt được
+fraud không.
+
+**Nói chính xác khi bị hỏi.** Trên tập test ULB, tham số Sparkov có lúc cho PR-AUC nhỉnh hơn (XGBoost × SMOTE: 0,813 so với 0,791) —
+nhưng chọn tham số theo kết quả test là rò rỉ; tham số phải được chọn trên dữ liệu train của chính dataset đó. Với 75 fraud ở test,
+chênh lệch cỡ 0,02 nằm trong mức dao động.
+
+---
+
+## 11. Chỉ so CIES trong cùng dataset — mức CIES phụ thuộc cỡ mẫu
+
+**Vấn đề.** CIES Sparkov bootstrap từ mẫu phân tầng 100.000 dòng (579 fraud), ULB từ toàn bộ train (417 fraud). Nếu CIES phụ thuộc số
+fraud trong mẫu thì so mức CIES giữa 2 dataset là không công bằng.
+
+**Bằng chứng** (kiểm tra độ nhạy, thiết kế hiện tại, `results/cies_sensitivity_subsample.json`):
+
+| Số fraud trong mẫu | 58 | 174 | 289 | 579 |
+|---|---|---|---|---|
+| XGBoost × class weighting | 0,943 | 0,951 | 0,957 | 0,970 |
+| RF × SMOTE | 0,894 | 0,936 | 0,945 | 0,961 |
+
+CIES **tăng theo cỡ mẫu và chưa bão hoà**; mốc 579 fraud tính lại độc lập trùng từng chữ số với CIES đã lưu.
+
+**Quyết định.** So CIES **trong cùng dataset** (giữa kỹ thuật, giữa model — cùng cỡ mẫu). Giữa 2 dataset chỉ so **thứ hạng** của các kỹ
+thuật (hình `cies_technique_ranks.png`: Borderline-SMOTE hạng cuối ở 9/10 cặp). Câu "ULB kém ổn định hơn Sparkov ở 21/25 tổ hợp" **không**
+được dùng làm kết luận — nó lẫn giữa đặc tính dữ liệu và cỡ mẫu.
+
+**Phương án đã loại.** Lấy mẫu Sparkov bằng đúng 417 fraud để 2 dataset ngang nhau: làm CIES Sparkov nhiễu hơn (ít fraud hơn) và phải chạy
+lại toàn bộ 25 tổ hợp; không cần thiết vì câu hỏi nghiên cứu là so **kỹ thuật** trong cùng dataset.
 
 ---
 
