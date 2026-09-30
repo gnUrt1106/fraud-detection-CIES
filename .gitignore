@@ -55,3 +55,6 @@ catboost_info/
 
 # Ảnh notebook 03/04/05 tự lưu vào results/ (đã nhúng trong notebook; hình cho báo cáo ở reports/figures/)
 /results/*.png
+
+# Bản nộp bài tạo bằng git archive (xem .gitattributes) — không commit
+/fraud-detection-CIES.zip
