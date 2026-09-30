@@ -2,137 +2,125 @@
 
 Đồ án nghiên cứu **độ ổn định của giải thích mô hình phát hiện gian lận** dưới các kỹ thuật xử lý mất cân bằng dữ liệu.
 
-Chỉ số đo là **CIES (Credibility Index via Explanation Stability)**: huấn luyện lại mô hình nhiều lần trên các mẫu bootstrap của tập train, tính SHAP trên một tập eval cố định, rồi đo thứ hạng các feature dao động bao nhiêu giữa các lần chạy. Thứ hạng càng ít đổi thì giải thích càng đáng tin.
+Chỉ số đo là **CIES (Credibility Index via Explanation Stability)**: huấn luyện lại mô hình nhiều lần trên các mẫu bootstrap của tập
+train, tính SHAP trên một tập đánh giá cố định, rồi đo thứ hạng các feature dao động bao nhiêu giữa các lần chạy. Thứ hạng càng ít đổi thì
+giải thích càng đáng tin (CIES = 1: giống hệt nhau ở mọi lần).
 
 - **5 mô hình**: Logistic Regression, Random Forest, XGBoost, CatBoost, ANN (PyTorch).
 - **5 kỹ thuật imbalance**: SMOTE, SMOTE-ENN, ADASYN, Borderline-SMOTE, Class Weighting.
-- **2 dataset**: Sparkov (chính) và ULB Credit Card Fraud (phụ, để kiểm chứng xu hướng có khái quát hoá không).
-
-Đặc tả nghiên cứu và các ràng buộc thiết kế nằm ở [`AGENT_SPEC.md`](AGENT_SPEC.md); lý do và số đo cho từng quyết định thiết kế (chia theo thời gian, bỏ feature định danh, cách tune) ở [`reports/design_decisions.md`](reports/design_decisions.md). Sơ đồ kiến trúc hệ thống: [`reports/system_architecture.html`](reports/system_architecture.html) (mở bằng trình duyệt).
+- **2 dataset**: Sparkov (chính) và ULB Credit Card Fraud (phụ, để kiểm chứng xu hướng).
 
 ## Dữ liệu
 
 | | Sparkov (chính) | ULB (phụ) |
 |---|---|---|
 | Nguồn | [kartik2112/fraud-detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection) | [mlg-ulb/creditcardfraud](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) |
-| Quy mô | ~1.85M giao dịch | ~284.8K giao dịch |
-| Chia train/test | **Theo thời gian**, dùng đúng file gốc: `fraudTrain.csv` (2019-01 → 2020-06, ~1.3M) / `fraudTest.csv` (2020-06 → 2020-12, ~556K) | **Theo thời gian**: sắp theo `Time`, 20% cuối làm test |
-| Tỷ lệ fraud | ~0.52% | ~0.17% |
-| Feature | Cột thô (categorical + số), cần encoding | V1..V28 (PCA) + Amount, đã là số |
-| Ghi chú | Dữ liệu **mô phỏng** bởi [Sparkov Data Generation](https://github.com/namebrandon/Sparkov_Data_Generation) | Dữ liệu thật, ẩn danh |
+| Chia train/test | **Theo thời gian**, đúng 2 file gốc: `fraudTrain.csv` (01/2019 → 06/2020, 1.296.675 dòng) / `fraudTest.csv` (06/2020 → 12/2020, 555.719 dòng) | **Theo thời gian**: sắp theo `Time`, 20% cuối làm test (227.846 / 56.961 dòng) |
+| Tỷ lệ fraud | 0,58% train / 0,39% test | 0,18% train / 0,13% test |
+| Feature | 7 feature: `amt`, `category`, `merchant`, `hour`, `day_of_week`, `age`, `gender` → 21 cột sau encoding | V1..V28 (PCA) + `Amount` (bỏ `Time`) |
+| Ghi chú | Dữ liệu **mô phỏng** ([Sparkov Data Generation](https://github.com/namebrandon/Sparkov_Data_Generation)) | Dữ liệu thật, ẩn danh |
 
-Cột `Time` của ULB bị loại (chỉ là thứ tự giao dịch); xem `ULB_FEATURE_COLS` trong `src/config.py`.
+Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `job`, `city_pop`, `merch_lat`, `merch_long`, `cc_num`, `zip`)
+**không** đưa vào model — gộp lại chúng chỉ ra đúng 1 khách hàng và model dùng chúng để học thuộc "khách nào từng bị hack" (xem
+`CUSTOMER_IDENTITY_COLS` trong `src/config.py`). Dữ liệu không kèm trong bản nộp — tải theo mục "Chạy thí nghiệm".
 
-Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `job`, `city_pop`, `merch_lat`, `merch_long`, cùng `cc_num`, `zip`) không đưa vào model — gộp lại chúng chỉ ra đúng 1 khách hàng, và model dùng chúng để học thuộc "khách nào từng bị hack"; xem `CUSTOMER_IDENTITY_COLS` trong `src/config.py`.
-
-## Cấu trúc project
+## Cấu trúc
 
 ```
-├── data/                     # KHÔNG nằm trong git (chỉ ignore /data/ ở gốc, xem .gitignore)
-│   ├── raw/                  # fraudTrain.csv, fraudTest.csv
-│   └── processed/            # train_/test_encoded, train_/test_raw, ulb_*, encoding_maps
 ├── notebooks/
-│   ├── 01_eda.ipynb                 # Khám phá dữ liệu + data profiling
-│   ├── 02_preprocessing.ipynb       # Chia theo thời gian, bỏ cột định danh khách hàng, encoding, xử lý ULB
-│   ├── kaggle_pipeline.ipynb        # Kaggle: tune (50 trial) → benchmark → CIES, Sparkov rồi ULB, tự resume nhiều phiên
-│   ├── 03_train_models.ipynb        # Benchmark 5 model x 5 kỹ thuật
-│   ├── 04_cies_experiment.ipynb     # CIES trên Sparkov
+│   ├── 01_eda.ipynb                 # Khám phá dữ liệu Sparkov
+│   ├── 02_preprocessing.ipynb       # Chia theo thời gian, bỏ cột định danh, encoding, tải + chia ULB
+│   ├── 03_train_models.ipynb        # Benchmark Sparkov: 5 model × 5 kỹ thuật
+│   ├── 04_cies_experiment.ipynb     # CIES Sparkov (+ kiểm tra độ nhạy theo cỡ mẫu)
 │   ├── 05_cies_experiment_ulb.ipynb # ULB: tune + benchmark + CIES
-│   └── 06_visualizations.ipynb      # Biểu đồ insight dataset, SHAP, CIES
+│   ├── 06_visualizations.ipynb      # Biểu đồ insight, SHAP, CIES, hiệu năng — kèm nhận xét
+│   ├── kaggle_pipeline.ipynb        # Chạy trên Kaggle GPU (dùng cho ANN): tune → benchmark → CIES
+│   └── KAGGLE_UPLOAD_README.md      # Hướng dẫn chạy notebook Kaggle
 ├── src/
-│   ├── config.py             # Đường dẫn, hằng số, danh sách model/kỹ thuật, công tắc
-│   ├── data/                 # download.py, encoding.py
-│   ├── imbalance/            # resamplers.py
-│   ├── models/               # train.py, tune.py
-│   ├── evaluation/           # metrics.py
-│   ├── explainability/       # shap_utils.py, cies.py
+│   ├── config.py             # Đường dẫn, hằng số, danh sách model/kỹ thuật, cột feature
+│   ├── data/                 # download.py, preprocess.py (chia theo thời gian), encoding.py
+│   ├── imbalance/            # resamplers.py — 5 kỹ thuật
+│   ├── models/               # train.py (5 model), tune.py (Optuna, validation theo thời gian)
+│   ├── evaluation/           # metrics.py (PR-AUC là chỉ số chính)
+│   ├── explainability/       # shap_utils.py, cies.py (thuật toán CIES)
 │   ├── visualization/        # dataset.py, explain.py
-│   └── utils/                # isolation.py (subprocess riêng mỗi tổ hợp), jsonio.py (ghi file kết quả an toàn)
-├── tests/test_pipeline.py    # 30 test, gồm hồi quy cho các lỗi đã sửa
-├── results/                  # best_params.json và kết quả benchmark/CIES
-├── reports/                  # figures/, profiling/, tài liệu và sơ đồ kiến trúc
-├── AGENT_SPEC.md  AGENTS.md  FILE_REFERENCE.md
+│   └── utils/                # isolation.py (mỗi tổ hợp chạy trong tiến trình riêng), jsonio.py
+├── tests/test_pipeline.py    # 40 test
+├── results/                  # Kết quả thí nghiệm (xem bên dưới)
 └── requirements.txt  .env.example
 ```
 
-Chi tiết từng file: [`FILE_REFERENCE.md`](FILE_REFERENCE.md).
+## Kết quả (`results/`)
+
+| File | Nội dung |
+|---|---|
+| `best_params.json`, `best_params_ulb.json` | Tham số tune (Optuna, 50 trial, 3 fold theo thời gian) cho từng model, riêng mỗi dataset |
+| `model_benchmark_results.csv`, `model_benchmark_results_ulb.csv` | PR-AUC, ROC-AUC, F1, F2, Precision@Recall, TP/FP/TN/FN trên tập test — 25 tổ hợp mỗi dataset |
+| `cies_summary_results.json`, `cies_summary_results_ulb.json` | CIES, Spearman và mean\|SHAP\| của từng lần bootstrap (20 lần) — 25 tổ hợp mỗi dataset |
+| `cies_sensitivity_subsample.json` | CIES theo cỡ mẫu bootstrap (kiểm tra độ nhạy) |
+
+**Kết quả chính** (1 seed; chi tiết và biểu đồ trong notebook 06):
+- **Borderline-SMOTE cho giải thích kém ổn định nhất** ở 9/10 cặp model × dataset.
+- **Mô hình quyết định mức ổn định nhiều hơn kỹ thuật imbalance** (Sparkov: model cây CIES 0,945–0,973, LR 0,906–0,928, ANN
+  0,843–0,906).
+- **PR-AUC cao không đảm bảo giải thích ổn định** trên Sparkov (Spearman giữa PR-AUC và CIES −0,15, không tính LR).
+- Hiệu năng tốt nhất: Sparkov CatBoost × SMOTE PR-AUC **0,887**; ULB Random Forest × SMOTE **0,819**. Trong cùng 1 model, đổi kỹ thuật
+  imbalance chỉ làm PR-AUC chênh ≤ 3,4 điểm %.
+- CIES tăng theo cỡ mẫu bootstrap nên chỉ so CIES **trong cùng dataset**; giữa 2 dataset chỉ so thứ hạng các kỹ thuật.
 
 ## Cài đặt
 
 ```bash
-git clone https://github.com/gnUrt1106/fraud-detection-CIES.git
-cd fraud-detection-CIES
 python3 -m venv .venv
 source .venv/bin/activate          # macOS/Linux
 pip install -r requirements.txt
 ```
 
-### Kaggle credentials
-
-Cần để tải dữ liệu qua `kagglehub`. Chọn một trong hai:
-
-- **`kaggle.json`**: tạo token tại [Kaggle Settings](https://www.kaggle.com/settings) (mục API), rồi `mkdir -p ~/.kaggle && mv ~/Downloads/kaggle.json ~/.kaggle/ && chmod 600 ~/.kaggle/kaggle.json`.
-- **Biến môi trường**: `cp .env.example .env` rồi điền `KAGGLE_USERNAME`, `KAGGLE_KEY` (hoặc `export` trực tiếp).
+Cần Kaggle credentials để tải dữ liệu qua `kagglehub`: đặt `kaggle.json` (tạo tại [Kaggle Settings](https://www.kaggle.com/settings),
+mục API) vào `~/.kaggle/`, hoặc `cp .env.example .env` rồi điền `KAGGLE_USERNAME`, `KAGGLE_KEY`.
 
 ## Chạy thí nghiệm
 
-Chạy theo thứ tự. Các notebook mở bằng `jupyter lab`.
+Chạy theo thứ tự (notebook mở bằng `jupyter lab` từ thư mục gốc):
 
-1. **Tải dữ liệu Sparkov**: `python -m src.data.download` (bỏ qua nếu `data/raw/` đã có).
-2. **`02_preprocessing.ipynb`**: sinh `data/processed/*.parquet` (và tải/chia ULB).
-3. **Tune + benchmark + CIES Sparkov trên Kaggle** (`kaggle_pipeline.ipynb`, bật GPU): ghi `results/best_params.json`, `model_benchmark_results.csv`, `cies_summary_results.json`. Xem mục [Chạy trên Kaggle](#chạy-trên-kaggle). Chạy local thay thế: tune bằng `src.models.tune.tune_all_models(train_raw)`, rồi notebook 03, 04.
-4. **`03_train_models.ipynb`**, **`04_cies_experiment.ipynb`**, **`05_cies_experiment_ulb.ipynb`**: benchmark và CIES. 03 và 04 nạp tham số Sparkov từ `best_params.json`; 05 tune riêng cho ULB (`best_params_ulb.json`) rồi chạy benchmark và CIES ULB bằng tham số đó; mỗi tổ hợp được lưu ngay khi xong nên chạy lại sẽ bỏ qua phần đã có.
-5. **`06_visualizations.ipynb`**: vẽ biểu đồ vào `reports/figures/` (phần CIES tự bỏ qua nếu chưa có kết quả).
+1. **Tải Sparkov**: `python -m src.data.download` → `data/raw/`.
+2. **`02_preprocessing.ipynb`**: sinh `data/processed/*.parquet` (và tải + chia ULB).
+3. **Tune Sparkov**: `src.models.tune.tune_all_models(train_raw)` (local) hoặc `kaggle_pipeline.ipynb` (Kaggle GPU, nên dùng cho ANN) →
+   `results/best_params.json`.
+4. **`03_train_models.ipynb`**, **`04_cies_experiment.ipynb`**: benchmark và CIES Sparkov.
+5. **`05_cies_experiment_ulb.ipynb`**: tune, benchmark và CIES cho ULB (tham số riêng của ULB).
+6. **`06_visualizations.ipynb`**: biểu đồ và nhận xét.
 
-Chạy test: `python -m pytest tests -q`.
+Mỗi tổ hợp được lưu ngay khi xong, chạy lại sẽ bỏ qua phần đã có (kết quả đã kèm trong `results/`, nên notebook 03–06 chạy lại chỉ vẽ lại
+biểu đồ). Chạy test: `python -m pytest tests -q`.
 
-### Chạy trên Kaggle
+**Lưu ý kỹ thuật:** torch (ANN) và xgboost không được nạp chung 1 tiến trình (xung đột OpenMP) — mọi model/tổ hợp chạy qua
+`src/utils/isolation.py::run_isolated`.
 
-Repo phải ở chế độ Public để Kaggle `git clone` ẩn danh được.
+## Tài liệu phương pháp
 
-Notebook: `notebooks/kaggle_pipeline.ipynb` (tune → benchmark → CIES cho Sparkov, rồi ULB nếu `RUN_ULB = True`). Các bước upload dữ liệu và chạy nhiều phiên: [`notebooks/KAGGLE_UPLOAD_README.md`](notebooks/KAGGLE_UPLOAD_README.md).
+Lý do cho từng quyết định thiết kế, báo cáo đầy đủ và sơ đồ kiến trúc nằm trong repo GitHub (không kèm trong bản nộp):
+[design_decisions.md](https://github.com/gnUrt1106/fraud-detection-CIES/blob/main/reports/design_decisions.md) ·
+[pipeline_report.md](https://github.com/gnUrt1106/fraud-detection-CIES/blob/main/reports/pipeline_report.md) ·
+[system_architecture.html](https://github.com/gnUrt1106/fraud-detection-CIES/blob/main/reports/system_architecture.html) ·
+[literature_support.md](https://github.com/gnUrt1106/fraud-detection-CIES/blob/main/reports/literature_support.md).
 
-1. Upload 4 file `data/processed/{train,test}_{encoded,raw}.parquet` thành một Kaggle Dataset và Add Input vào notebook.
-2. Bật **Internet: On** và **Accelerator: GPU**.
-3. Sửa `MODELS_SCOPE` trong cell config nếu chỉ muốn chạy một số model.
-4. **Save Version → Save & Run All (Commit)**: chạy nền trên server Kaggle, tắt máy vẫn được. Tải 3 file kết quả từ tab Output rồi đưa vào `results/`.
-5. **Quá 9 giờ/phiên:** mỗi trial được lưu vào `results/tuning_checkpoints/<model>.db`, benchmark/CIES lưu từng tổ hợp; hết `TOTAL_BUDGET` (mặc định 7,5 giờ) notebook dừng mềm. Phiên sau Add Input bằng *Notebook Output* của phiên trước rồi chạy lại — chỉ chạy nốt phần còn thiếu. Model chỉ được ghi vào `best_params.json` khi đủ `N_TRIALS`.
+CIES trong đồ án là **biến thể** của CIES gốc (Văduva et al., 2026, arXiv:2603.05024): bài gốc nhiễu hoá đầu vào lúc suy luận; đồ án
+nhiễu hoá dữ liệu huấn luyện (bootstrap + train lại) và đo trên thứ hạng feature.
 
-## Trạng thái (cập nhật 2026-09-26)
-
-- [x] Pipeline đầy đủ: encoding, 5 kỹ thuật imbalance, 5 model, metrics, SHAP, CIES, tune, trực quan hoá.
-- [x] Các đợt rà soát toàn bộ mã nguồn: đã sửa các lỗi nghiêm trọng (chi tiết ở [`reports/pipeline_report.md`](reports/pipeline_report.md)).
-- [x] Tune (50 trial) + benchmark + CIES theo thiết kế hiện tại cho **cả 5 model** trên Sparkov và ULB (`results/`, 25/25 tổ hợp mỗi dataset; ANN chạy trên Kaggle).
-- [x] Notebook 06 + phần "Kết quả" của [`reports/pipeline_report.md`](reports/pipeline_report.md) theo số mới.
-- [ ] Chạy nhiều seed để kiểm chênh lệch CIES giữa các kỹ thuật có vượt nhiễu không.
-- [ ] Thí nghiệm đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2).
-
-## Lưu ý quan trọng
-
-- **Không nạp torch và xgboost trong cùng một process** (xung đột OpenMP có thể segfault hoặc treo). Mỗi model/tổ hợp chạy qua `src/utils/isolation.py::run_isolated` (subprocess `spawn`).
-- **`SNAP_SYNTHETIC_ONEHOT`** (`src/config.py`): mặc định **`False`** (SMOTE thuần như literature); đặt `True` để ép dòng tổng hợp về one-hot hợp lệ (ablation). Ép hợp lệ làm PR-AUC tụt mạnh còn CIES gần như không đổi — xem `reports/pipeline_report.md`.
-- **CIES trong repo là biến thể của CIES gốc** (Văduva et al., 2026, arXiv:2603.05024): bài gốc nhiễu hoá đầu vào lúc suy luận, repo nhiễu hoá dữ liệu huấn luyện (bootstrap + train lại) và đo trên thứ hạng. Chi tiết và danh mục nguồn: [`reports/literature_support.md`](reports/literature_support.md).
-
-## License
-
-Project phục vụ mục đích nghiên cứu học thuật.
-
-## Trích dẫn
+## Trích dẫn dữ liệu
 
 ```
 @misc{sparkov2020,
-  author = {Brandon Harris},
-  title = {Sparkov Data Generation},
-  year = {2020},
-  publisher = {GitHub},
-  url = {https://github.com/namebrandon/Sparkov_Data_Generation}
+  author = {Brandon Harris}, title = {Sparkov Data Generation}, year = {2020},
+  publisher = {GitHub}, url = {https://github.com/namebrandon/Sparkov_Data_Generation}
 }
-
 @misc{kartik2020fraud,
-  author = {Kartik Shenoy},
-  title = {Fraud Detection Dataset},
-  year = {2020},
-  publisher = {Kaggle},
-  url = {https://www.kaggle.com/datasets/kartik2112/fraud-detection}
+  author = {Kartik Shenoy}, title = {Fraud Detection Dataset}, year = {2020},
+  publisher = {Kaggle}, url = {https://www.kaggle.com/datasets/kartik2112/fraud-detection}
+}
+@misc{ulb2018,
+  author = {{Machine Learning Group, ULB}}, title = {Credit Card Fraud Detection}, year = {2018},
+  publisher = {Kaggle}, url = {https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud}
 }
 ```

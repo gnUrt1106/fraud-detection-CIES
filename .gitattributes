@@ -1,0 +1,12 @@
+# Bản nộp bài = code + notebook + kết quả, không kèm tài liệu phát triển.
+# Tạo bản nộp (chỉ lấy những gì ĐÃ COMMIT, bỏ các đường dẫn export-ignore bên dưới):
+#   git archive --format=zip --prefix=fraud-detection-CIES/ -o fraud-detection-CIES.zip HEAD
+# Các file này vẫn nằm trong repo; README của bản nộp trỏ tới chúng bằng link GitHub.
+/.gitattributes     export-ignore
+/.gitignore         export-ignore
+/.agents            export-ignore
+/AGENTS.md          export-ignore
+/AGENT_SPEC.md      export-ignore
+/FILE_REFERENCE.md  export-ignore
+/reports            export-ignore
+/results/tuning_sensitivity_wide_space export-ignore

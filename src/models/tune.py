@@ -23,7 +23,7 @@ import pandas as pd
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import average_precision_score
 
-from src.config import SEED, RESULTS_DIR, MODEL_NAMES, TARGET_COL
+from src.config import SEED, RESULTS_DIR, MODEL_NAMES, TARGET_COL, project_relpath
 from src.models.train import build_model, train_model, predict_proba
 
 logger = logging.getLogger(__name__)
@@ -452,7 +452,7 @@ def tune_all_models(
         # chạy, kể cả các model đã tune xong).
         all_results = _merge_write(out_file, model_name, res)
 
-    print(f"✅ Đã lưu best hyperparameters ra: {out_file}")
+    print(f"✅ Đã lưu best hyperparameters ra: {project_relpath(out_file)}")
     return all_results
 
 

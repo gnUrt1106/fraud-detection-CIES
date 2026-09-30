@@ -13,6 +13,15 @@ N_RUNS = 20  # Số lần lặp cho thí nghiệm CIES (tối thiểu 20, có th
 # ===== Đường dẫn gốc =====
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
+
+def project_relpath(path) -> str:
+    """Đường dẫn tương đối so với gốc project (để log/output notebook không chứa đường dẫn máy cá nhân)."""
+    try:
+        return Path(path).resolve().relative_to(PROJECT_ROOT).as_posix()
+    except ValueError:
+        return str(path)
+
+
 # ===== Dữ liệu =====
 DATA_DIR = PROJECT_ROOT / "data"
 RAW_DATA_DIR = DATA_DIR / "raw"

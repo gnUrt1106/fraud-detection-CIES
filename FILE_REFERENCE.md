@@ -11,6 +11,7 @@ Danh mục theo trạng thái code hiện tại (chỉ liệt kê file nằm tro
 | `AGENTS.md` | Entry point cho AI agent — trỏ tới `.agents/rules/` và tóm tắt các bẫy đã gặp |
 | `FILE_REFERENCE.md` | File này |
 | `requirements.txt` | Thư viện Python (pandas, scikit-learn, imbalanced-learn, xgboost, catboost, torch, shap, optuna, pyarrow, kagglehub, ydata-profiling...) |
+| `.gitattributes` | Khai báo file bị loại khỏi **bản nộp bài** (`export-ignore`: tài liệu phát triển, `reports/`, `.agents/`…). Tạo bản nộp: `git archive --format=zip --prefix=fraud-detection-CIES/ -o fraud-detection-CIES.zip HEAD` — chỉ gồm code, notebook, test, `results/` (không kèm checkpoint), README |
 | `.env.example` | Mẫu biến môi trường `KAGGLE_USERNAME`, `KAGGLE_KEY` |
 | `.gitignore` | Ignore `/data/` (chỉ thư mục ở gốc — không phải `src/data/`), `.venv/`, `__pycache__/`, `.ipynb_checkpoints/`, `*.log`, `scratch/`, `catboost_info/`... |
 
