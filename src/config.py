@@ -9,6 +9,8 @@ from pathlib import Path
 # ===== Reproducibility =====
 SEED = 42
 N_RUNS = 20  # Số lần lặp cho thí nghiệm CIES (tối thiểu 20, có thể tăng 30)
+# Số trial Optuna mỗi model khi tune (results/best_params*.json đều tạo với 50 trial, 3 fold thời gian)
+N_TUNE_TRIALS = 50
 
 # ===== Đường dẫn gốc =====
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -72,7 +74,8 @@ NUMERICAL_COLS = [
 CUSTOMER_IDENTITY_COLS = ["lat", "long", "city", "state", "job", "city_pop", "merch_lat", "merch_long"]
 
 # ===== Encoding strategy theo cardinality (Sparkov) =====
-# Spec mục 3.1 — KHÔNG one-hot cho high-cardinality
+# Spec mục 3.1 — KHÔNG one-hot cho high-cardinality. `state` (one-hot) và `city`, `job` (target encoding) của
+# spec gốc đã bỏ: là cột định danh khách hàng (CUSTOMER_IDENTITY_COLS ở trên).
 ONEHOT_COLS = ["gender", "category"]
 TARGET_ENCODE_COLS = ["merchant"]
 

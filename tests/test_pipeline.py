@@ -218,19 +218,24 @@ def test_cies_rejects_constant_model_runs(monkeypatch):
     """
     Model hằng số → SHAP toàn 0 → thứ hạng hoà nhau → CIES giả = 1.0. Chốt chặn
     trong run_cies_experiment phải loại các run đó (không được trả điểm cao).
+
+    compute_shap giả phải trả đúng dạng (giá trị, explainer) như bản thật: bản cũ của test trả mỗi
+    mảng, mọi run lỗi ở bước tách tuple trước khi tới chốt chặn, nên xoá chốt chặn test vẫn pass.
     """
+    import pytest
     import src.explainability.cies as cies_mod
 
-    monkeypatch.setattr(cies_mod, "compute_shap", lambda *a, **k: np.zeros((5, 12)))
+    monkeypatch.setattr(cies_mod, "compute_shap",
+                        lambda model, name, X_eval, **k: (np.zeros(X_eval.shape), "linear"))
     df = create_synthetic_data(300)
-    result = cies_mod.run_cies_experiment(
-        model_name="logistic_regression", imbalance_technique="class_weighting",
-        df_train=df.iloc[:200].reset_index(drop=True), df_test_fixed_eval=df.iloc[200:].reset_index(drop=True),
-        target_col="is_fraud", onehot_cols=["gender", "category", "state"],
-        target_encode_cols=["merchant", "city", "job"], n_runs=3,
-    )
-    assert result["cies_metrics"]["cies_score"] == 0.0, "run toàn-0 không được cho điểm ổn định cao"
-    assert all(r["status"] == "failed" for r in result["run_logs"])
+    with pytest.raises(RuntimeError) as exc:
+        cies_mod.run_cies_experiment(
+            model_name="logistic_regression", imbalance_technique="class_weighting",
+            df_train=df.iloc[:200].reset_index(drop=True), df_test_fixed_eval=df.iloc[200:].reset_index(drop=True),
+            target_col="is_fraud", onehot_cols=["gender", "category", "state"],
+            target_encode_cols=["merchant", "city", "job"], n_runs=3,
+        )
+    assert "0/3 run thành công" in str(exc.value) and "SHAP toàn 0" in str(exc.value), str(exc.value)
 
 
 def test_ann_shap_uses_deep_explainer_2d_and_deterministic():
@@ -296,6 +301,19 @@ def test_encode_test_handles_non_default_index():
     assert got.equals(ref)
 
 
+def test_encode_test_onehot_matches_train_for_non_string_categories():
+    """encode_test từng suy category từ tên cột dummy ("code_1" → "1", luôn là chuỗi): cột one-hot có
+    giá trị số/bool thì không khớp và mọi dummy của test/eval/nền SHAP = 0, không báo lỗi."""
+    df = pd.DataFrame({"code": [1, 2, 3] * 20, "flag": [True, False] * 30, "x": np.arange(60.0),
+                       "is_fraud": [0, 1] * 30})
+    for fixed in (None, {"code": [1, 2, 3], "flag": [False, True]}):
+        enc, maps = encode_train(df, "is_fraud", onehot_cols=["code", "flag"], target_encode_cols=[],
+                                 n_splits=2, fixed_categories=fixed)
+        got = encode_test(df.drop(columns="is_fraud"), maps, target_encode_cols=[])
+        dummy_cols = maps["onehot_categories"]["code"] + maps["onehot_categories"]["flag"]
+        assert got[dummy_cols].equals(enc[dummy_cols]), fixed
+
+
 def test_cies_logs_the_explainer_actually_used():
     """ANN lùi DeepExplainer → KernelExplainer khi Deep lỗi (vd. version shap khác trên Kaggle) mà
     trước đây không để lại dấu vết trong kết quả. compute_shap(return_explainer=True) phải báo đúng
@@ -333,19 +351,35 @@ def test_cies_logs_the_explainer_actually_used():
     assert res.returncode == 0 and "OK" in res.stdout, res.stdout + res.stderr
 
 
-def test_cies_failure_path_returns_all_metric_keys():
-    """Nhánh <2 run thành công phải trả đủ khoá — notebook đọc cies_metrics["mean_spearman"]."""
+def test_cies_with_fewer_than_two_good_runs_is_an_error_not_a_score(monkeypatch):
+    """<2 run thành công từng trả cies_metrics với cies_score = 0: notebook 04/05/Kaggle coi bản ghi có
+    "cies_metrics" là đã xong nên không bao giờ chạy lại, và heatmap vẽ 0 như điểm thật (kéo thang màu
+    về 0). Phải raise RuntimeError để notebook ghi bản ghi {"error": ...} và lần sau chạy lại."""
+    import pytest
     import src.explainability.cies as cies_mod
 
     df = create_synthetic_data(300)
-    result = cies_mod.run_cies_experiment(
+    kwargs = dict(
         model_name="logistic_regression", imbalance_technique="class_weighting",
         df_train=df.iloc[:200].reset_index(drop=True), df_test_fixed_eval=df.iloc[200:].reset_index(drop=True),
         target_col="is_fraud", onehot_cols=["gender", "category", "state"],
-        target_encode_cols=["merchant", "city", "job"], n_runs=1,
+        target_encode_cols=["merchant", "city", "job"],
     )
-    for key in ("cies_score", "mean_rank_distance", "std_rank_distance", "mean_spearman", "n_runs"):
-        assert key in result["cies_metrics"], key
+    with pytest.raises(RuntimeError, match="1/1 run thành công"):
+        cies_mod.run_cies_experiment(n_runs=1, **kwargs)
+
+    # Chỉ 1/3 run thành công (2 run lỗi giữa chừng) cũng là lỗi; thông báo kèm lỗi đầu tiên
+    real, calls = cies_mod.train_model, []
+
+    def flaky(*a, **k):
+        calls.append(1)
+        if len(calls) > 1:
+            raise MemoryError("giả lập hết RAM")
+        return real(*a, **k)
+
+    monkeypatch.setattr(cies_mod, "train_model", flaky)
+    with pytest.raises(RuntimeError, match="1/3 run thành công.*giả lập hết RAM"):
+        cies_mod.run_cies_experiment(n_runs=3, **kwargs)
 
 
 def test_ann_scaling_and_batch_of_one():
@@ -586,6 +620,66 @@ def test_tune_merge_write_keeps_entries_added_meanwhile(tmp_path):
     assert saved == out
     assert saved["xgboost"]["n_trials"] == 100 and saved["catboost"]["n_trials"] == 100
     assert saved["random_forest"]["n_trials"] == 100
+
+
+def test_tune_failure_keeps_previously_tuned_params(tmp_path, monkeypatch):
+    """Chạy lại tune mà 1 model timeout/crash từng ghi {"error": ...} đè lên tham số đã tune của nó:
+    load_best_params trả None và build_model âm thầm dùng tham số mặc định cho benchmark/CIES.
+    Lỗi chỉ được ghi khi model đó chưa có tham số nào."""
+    import json
+    import src.utils.isolation as isolation
+    from src.models.tune import tune_all_models, load_best_params
+
+    f = tmp_path / "best_params.json"
+    f.write_text(json.dumps({"random_forest": {"best_params": {"max_depth": 27}, "best_pr_auc": 0.91}}))
+
+    def crash(*a, **k):
+        raise TimeoutError("giả lập treo")
+
+    monkeypatch.setattr(isolation, "run_isolated", crash)
+    tune_all_models(pd.DataFrame(), models=["random_forest", "xgboost"], output_dir=tmp_path,
+                    filename=f.name)
+    assert load_best_params("random_forest", f) == {"max_depth": 27}
+    assert json.loads(f.read_text())["xgboost"] == {"error": "TimeoutError: giả lập treo"}
+
+
+def test_run_isolated_keeps_a_result_that_lands_right_after_a_poll_timeout(monkeypatch):
+    """Process con đưa kết quả vào queue rồi thoát ngay sau khi get(timeout) vừa hết giờ: is_alive()
+    là False nhưng kết quả đã nằm trong pipe. Trước đây run_isolated báo crash và bỏ mất kết quả."""
+    import queue
+    import src.utils.isolation as isolation
+
+    class FakeQueue:
+        def __init__(self):
+            self.calls = 0
+
+        def get(self, timeout=None):
+            self.calls += 1
+            if self.calls == 1:
+                raise queue.Empty  # lần poll đầu hết giờ, kết quả tới ngay sau đó
+            return ("ok", 42)
+
+    class FakeProcess:
+        exitcode = 0
+
+        def __init__(self, *a, **k):
+            pass
+
+        def start(self):
+            pass
+
+        def is_alive(self):
+            return False  # đã thoát
+
+        def join(self, timeout=None):
+            pass
+
+    class FakeContext:
+        Queue = FakeQueue
+        Process = FakeProcess
+
+    monkeypatch.setattr(isolation.mp, "get_context", lambda method: FakeContext())
+    assert isolation.run_isolated(len, [1, 2]) == 42
 
 
 def test_end_to_end_cies():
@@ -837,6 +931,23 @@ def test_resample_cache_is_identical_and_keyed_on_everything_that_matters(tmp_pa
     assert [f.name for f in tmp_path.iterdir()] == ["train_encoded_smote_enn.parquet"]
 
 
+def test_resample_cache_recomputes_when_column_names_differ(tmp_path):
+    """Dấu vân tay cache không gồm tên cột: cùng ma trận nhưng tên feature/cột nhãn khác thì đọc cache
+    bằng df[names] từng KeyError, làm hỏng cả tổ hợp benchmark thay vì tính lại."""
+    import src.imbalance.resamplers as rs
+
+    rng = np.random.RandomState(0)
+    X = rng.randn(200, 3)
+    y = (rng.rand(200) < 0.1).astype(int)
+    ref_X, ref_y, _ = rs.apply_imbalance("smote", X, y, seed=SEED)
+    rs.apply_imbalance_cached("smote", X, y, seed=SEED, cache_dir=tmp_path, feature_names=["a", "b", "c"])
+    X2, y2, _ = rs.apply_imbalance_cached("smote", X, y, seed=SEED, cache_dir=tmp_path,
+                                          feature_names=["a", "b", "z"], target_col="Class")
+    assert np.array_equal(X2, ref_X) and np.array_equal(y2, ref_y)
+    saved = pd.read_parquet(tmp_path / "train_encoded_smote.parquet")
+    assert list(saved.columns) == ["a", "b", "z", "Class"]
+
+
 def test_cies_uses_explicit_params_per_dataset(monkeypatch):
     """ULB tune riêng: run_cies_experiment(params=...) phải truyền đúng tham số đó vào build_model."""
     import src.explainability.cies as cies_mod
@@ -857,7 +968,8 @@ def test_cies_uses_explicit_params_per_dataset(monkeypatch):
 def test_cies_shap_background_is_the_same_rows_in_every_run(monkeypatch):
     """LinearExplainer (LR) và DeepExplainer (ANN) đo SHAP so với dữ liệu nền. Lấy nền từ tập bootstrap
     của từng run thì mốc so sánh đổi theo run, thứ hạng feature dao động thêm vì nền chứ không vì model
-    (đo trên Sparkov: CIES LR thấp đi 0,007–0,014, ANN 0,014–0,028). Nền phải là cùng các dòng gốc ở mọi run."""
+    (chạy lại trên Sparkov với nền cố định: CIES LR tăng 0,005–0,013, ANN 0,014–0,043). Nền phải là cùng các dòng
+    gốc ở mọi run."""
     import src.explainability.cies as cies_mod
 
     seen = []
@@ -876,6 +988,36 @@ def test_cies_shap_background_is_the_same_rows_in_every_run(monkeypatch):
     # là các dòng của tập train gốc (không phụ thuộc bootstrap)
     train_rows = {tuple(r) for r in df.iloc[:300][["amt", "lat", "long"]].to_numpy()}
     assert all(tuple(r) in train_rows for r in seen[0])
+
+
+def test_cies_shap_background_is_encoded_with_each_runs_mapping(monkeypatch):
+    """Có cột one-hot và target encoding: nền là cùng các dòng gốc (phần one-hot và số giống hệt mọi run),
+    còn cột target-encode lấy theo mapping của CHÍNH run đó — như tập eval, không dùng mapping của run khác
+    và không đưa cột chưa encode vào model."""
+    import src.explainability.cies as cies_mod
+    from src.data.encoding import encode_test as real_encode_test
+
+    maps, seen = [], []
+    real_train, real_shap = cies_mod.encode_train, cies_mod.compute_shap
+    monkeypatch.setattr(cies_mod, "encode_train", lambda *a, **k: (lambda r: maps.append(r[1]) or r)(real_train(*a, **k)))
+    monkeypatch.setattr(cies_mod, "compute_shap",
+                        lambda *a, **k: seen.append(np.array(k["X_background"])) or real_shap(*a, **k))
+    df = create_synthetic_data(400)[["gender", "category", "merchant", "amt", "is_fraud"]]
+    res = cies_mod.run_cies_experiment(
+        model_name="logistic_regression", imbalance_technique="class_weighting",
+        df_train=df.iloc[:300].reset_index(drop=True), df_test_fixed_eval=df.iloc[300:].reset_index(drop=True),
+        target_col="is_fraud", onehot_cols=["gender", "category"], target_encode_cols=["merchant"], n_runs=3,
+        params={"C": 1.0},
+    )
+    names = res["feature_names"]
+    te = names.index("merchant_encoded")
+    background_raw = df.iloc[:300].reset_index(drop=True).sample(n=100, random_state=SEED).reset_index(drop=True)
+    assert len(seen) == 3 and all(bg.shape == (100, len(names)) for bg in seen)
+    for bg, m in zip(seen, maps):
+        expected = real_encode_test(background_raw, m, target_encode_cols=["merchant"]).reindex(columns=names, fill_value=0.0)
+        np.testing.assert_array_equal(bg, expected.to_numpy())
+        np.testing.assert_array_equal(np.delete(bg, te, axis=1), np.delete(seen[0], te, axis=1))
+    assert not np.array_equal(seen[0][:, te], seen[1][:, te]), "mapping target encoding phải đổi theo run"
 
 
 def _notebook_calls(name):

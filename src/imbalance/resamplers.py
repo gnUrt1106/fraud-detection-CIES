@@ -195,9 +195,13 @@ def apply_imbalance_cached(
     names = list(feature_names) if feature_names is not None else [f"f{i}" for i in range(X.shape[1])]
     path = Path(cache_dir) / f"{name_prefix}{technique}.parquet"
     fingerprint = _resample_fingerprint(technique, X, y, seed, onehot_groups)
-    if path.exists() and (pq.read_schema(path).metadata or {}).get(FINGERPRINT_KEY) == fingerprint.encode():
-        df = pq.read_table(path).to_pandas()
-        return df[names].to_numpy(dtype=X.dtype), df[target_col].to_numpy(dtype=y.dtype), None
+    if path.exists():
+        schema = pq.read_schema(path)
+        # Dấu vân tay không gồm tên cột: cùng dữ liệu nhưng tên khác thì tính lại (đọc sẽ KeyError)
+        if ((schema.metadata or {}).get(FINGERPRINT_KEY) == fingerprint.encode()
+                and set(names + [target_col]) <= set(schema.names)):
+            df = pq.read_table(path).to_pandas()
+            return df[names].to_numpy(dtype=X.dtype), df[target_col].to_numpy(dtype=y.dtype), None
 
     X_res, y_res, _ = apply_imbalance(technique, X, y, seed=seed, onehot_groups=onehot_groups)
     df = pd.DataFrame(X_res, columns=names)

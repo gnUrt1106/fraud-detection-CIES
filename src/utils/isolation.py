@@ -127,6 +127,13 @@ def run_isolated(
         except queue_module.Empty:
             if not process.is_alive():
                 process.join()
+                # Process con có thể đã đưa kết quả vào queue rồi thoát ngay sau khi get() vừa hết
+                # giờ — đọc lần cuối trước khi coi là crash, kẻo bỏ mất kết quả của cả tổ hợp.
+                try:
+                    status, payload = result_queue.get(timeout=POLL_INTERVAL_SECONDS)
+                    break
+                except queue_module.Empty:
+                    pass
                 raise RuntimeError(
                     f"Subprocess cho '{func_name}' bị crash (exit code "
                     f"{process.exitcode}) trước khi trả kết quả — có thể do xung "
