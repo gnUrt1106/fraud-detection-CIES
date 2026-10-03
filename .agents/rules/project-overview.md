@@ -37,7 +37,7 @@ Fraud Detection - CIES/
 
 ## Tiến độ hiện tại (2026-09-27)
 - [x] Toàn bộ module `src/` và 7 notebook (01–06 + `kaggle_pipeline.ipynb`)
-- [x] Test suite (47 test, gồm hồi quy các lỗi đã sửa)
+- [x] Test suite (49 test, gồm hồi quy các lỗi đã sửa)
 - [x] Thiết kế hiện tại: chia train/test theo thời gian, không dùng cột định danh khách hàng, tune validate theo thời gian (xem `AGENT_SPEC.md` §8, §11)
 - [x] Chạy toàn bộ theo thiết kế hiện tại: tune + benchmark + CIES cho 5 model × 5 kỹ thuật × 2 dataset (LR/RF/XGBoost/CatBoost local, ANN trên Kaggle), notebook 06, phần "Kết quả" của `reports/pipeline_report.md`
 - [ ] Chạy nhiều seed để kiểm chênh lệch CIES giữa các kỹ thuật có vượt nhiễu không

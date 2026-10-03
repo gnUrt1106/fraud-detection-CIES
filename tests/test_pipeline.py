@@ -967,9 +967,9 @@ def test_cies_uses_explicit_params_per_dataset(monkeypatch):
 
 def test_cies_shap_background_is_the_same_rows_in_every_run(monkeypatch):
     """LinearExplainer (LR) và DeepExplainer (ANN) đo SHAP so với dữ liệu nền. Lấy nền từ tập bootstrap
-    của từng run thì mốc so sánh đổi theo run, thứ hạng feature dao động thêm vì nền chứ không vì model
-    (chạy lại trên Sparkov với nền cố định: CIES LR tăng 0,005–0,013, ANN 0,014–0,043). Nền phải là cùng các dòng
-    gốc ở mọi run."""
+    của từng run thì mốc so sánh đổi theo run, thứ hạng feature dao động thêm vì nền chứ không vì model.
+    LR: nền là TOÀN BỘ tập train gốc (LinearExplainer chỉ dùng trung bình nên rẻ, và không còn phụ thuộc chọn
+    dòng nào — mẫu 100 dòng làm CIES của LR đổi tới 0,0099 chỉ vì đổi seed chọn nền)."""
     import src.explainability.cies as cies_mod
 
     seen = []
@@ -982,12 +982,9 @@ def test_cies_shap_background_is_the_same_rows_in_every_run(monkeypatch):
         df_train=df.iloc[:300].reset_index(drop=True), df_test_fixed_eval=df.iloc[300:].reset_index(drop=True),
         target_col="is_fraud", onehot_cols=[], target_encode_cols=[], n_runs=3,
     )
-    assert len(seen) == 3 and len(seen[0]) == 100
-    for bg in seen[1:]:
-        np.testing.assert_array_equal(bg, seen[0])
-    # là các dòng của tập train gốc (không phụ thuộc bootstrap)
-    train_rows = {tuple(r) for r in df.iloc[:300][["amt", "lat", "long"]].to_numpy()}
-    assert all(tuple(r) in train_rows for r in seen[0])
+    assert len(seen) == 3
+    for bg in seen:  # đúng các dòng của tập train gốc, mọi run như nhau (không phụ thuộc bootstrap)
+        np.testing.assert_array_equal(bg, df.iloc[:300][["amt", "lat", "long"]].to_numpy())
 
 
 def test_cies_shap_background_is_encoded_with_each_runs_mapping(monkeypatch):
@@ -1011,13 +1008,51 @@ def test_cies_shap_background_is_encoded_with_each_runs_mapping(monkeypatch):
     )
     names = res["feature_names"]
     te = names.index("merchant_encoded")
-    background_raw = df.iloc[:300].reset_index(drop=True).sample(n=100, random_state=SEED).reset_index(drop=True)
-    assert len(seen) == 3 and all(bg.shape == (100, len(names)) for bg in seen)
+    background_raw = df.iloc[:300].reset_index(drop=True)  # LR: toàn bộ tập train
+    assert len(seen) == 3 and all(bg.shape == (300, len(names)) for bg in seen)
     for bg, m in zip(seen, maps):
         expected = real_encode_test(background_raw, m, target_encode_cols=["merchant"]).reindex(columns=names, fill_value=0.0)
         np.testing.assert_array_equal(bg, expected.to_numpy())
         np.testing.assert_array_equal(np.delete(bg, te, axis=1), np.delete(seen[0], te, axis=1))
     assert not np.array_equal(seen[0][:, te], seen[1][:, te]), "mapping target encoding phải đổi theo run"
+
+
+def test_cies_shap_background_for_other_models_is_a_fixed_sample(monkeypatch):
+    """Model khác LR (DeepExplainer của ANN tốn công theo số dòng nền): nền là mẫu SHAP_BACKGROUND_N dòng
+    của tập train gốc, chọn 1 lần bằng SEED — cùng các dòng ở mọi run."""
+    import src.explainability.cies as cies_mod
+
+    monkeypatch.setattr(cies_mod, "SHAP_BACKGROUND_N", 40)
+    seen = []
+    real = cies_mod.compute_shap
+    monkeypatch.setattr(cies_mod, "compute_shap",
+                        lambda *a, **k: seen.append(np.array(k["X_background"])) or real(*a, **k))
+    df = create_synthetic_data(400)[["amt", "lat", "long", "is_fraud"]]
+    train = df.iloc[:300].reset_index(drop=True)
+    cies_mod.run_cies_experiment(
+        model_name="random_forest", imbalance_technique="class_weighting", df_train=train,
+        df_test_fixed_eval=df.iloc[300:].reset_index(drop=True), target_col="is_fraud",
+        onehot_cols=[], target_encode_cols=[], n_runs=2, params={"n_estimators": 20, "max_depth": 4},
+    )
+    expected = train.sample(n=40, random_state=SEED)[["amt", "lat", "long"]].to_numpy()
+    assert len(seen) == 2
+    for bg in seen:
+        np.testing.assert_array_equal(bg, expected)
+
+
+def test_linear_shap_uses_every_background_row():
+    """shap.maskers.Independent mặc định chỉ giữ tối đa 100 dòng (tự lấy mẫu con): nền lớn hơn bị cắt âm thầm
+    và trung bình nền đổi theo mẫu con. LR phải dùng mọi dòng nền: SHAP = hệ số × (x − trung bình CẢ nền)."""
+    from src.models.train import train_model
+
+    df = create_synthetic_data(600)
+    X = df[["amt", "lat", "long"]].to_numpy(); y = df["is_fraud"].to_numpy()
+    model = train_model(build_model("logistic_regression", input_dim=3, params={"C": 1.0}), X[:500], y[:500])
+    bg, X_eval = X[:500], X[500:]
+    sv = compute_shap(model, "logistic_regression", X_eval, X_background=bg)
+    sc, coef = model["scaler"], model["model"].coef_[0]
+    expected = coef * (sc.transform(X_eval) - sc.transform(bg).mean(axis=0))
+    np.testing.assert_allclose(sv, expected, rtol=1e-6, atol=1e-9)
 
 
 def _notebook_calls(name):

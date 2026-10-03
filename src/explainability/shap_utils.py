@@ -104,7 +104,9 @@ def _compute_shap_linear(
         # Dùng X_eval làm background nếu không có — không lý tưởng nhưng chấp nhận
         X_background = X_eval
 
-    masker = shap.maskers.Independent(X_background)
+    # max_samples = toàn bộ nền: mặc định Independent chỉ giữ tối đa 100 dòng (tự lấy mẫu con), nên nền
+    # lớn hơn bị cắt âm thầm và trung bình nền — mốc của SHAP tuyến tính — đổi theo mẫu con.
+    masker = shap.maskers.Independent(X_background, max_samples=len(X_background))
     explainer = shap.LinearExplainer(model, masker)
     shap_values = explainer.shap_values(X_eval)
 

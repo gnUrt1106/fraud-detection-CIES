@@ -45,7 +45,7 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 │   ├── explainability/       # shap_utils.py, cies.py (thuật toán CIES)
 │   ├── visualization/        # dataset.py, explain.py
 │   └── utils/                # isolation.py (mỗi tổ hợp chạy trong tiến trình riêng), jsonio.py
-├── tests/test_pipeline.py    # 47 test
+├── tests/test_pipeline.py    # 49 test
 ├── results/                  # Kết quả thí nghiệm (xem bên dưới)
 └── requirements.txt  requirements-lock.txt  .env.example
 ```
@@ -61,8 +61,8 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 
 **Kết quả chính** (1 seed; chi tiết và biểu đồ trong notebook 06):
 - **Borderline-SMOTE cho giải thích kém ổn định nhất** ở 9/10 cặp model × dataset.
-- **Mô hình quyết định mức ổn định nhiều hơn kỹ thuật imbalance** (Sparkov: model cây CIES 0,945–0,973, LR 0,911–0,940, ANN
-  0,869–0,920; model giải thích 86% phương sai CIES, kỹ thuật 7%).
+- **Mô hình quyết định mức ổn định nhiều hơn kỹ thuật imbalance** (Sparkov: model cây CIES 0,945–0,973, LR 0,916–0,939, ANN
+  0,849–0,921; model giải thích 85% phương sai CIES, kỹ thuật 7%).
 - **PR-AUC cao không đảm bảo giải thích ổn định** trên Sparkov (Spearman giữa PR-AUC và CIES −0,15, không tính LR).
 - Hiệu năng tốt nhất: Sparkov CatBoost × SMOTE PR-AUC **0,887**; ULB Random Forest × SMOTE **0,819**. Trong cùng 1 model, đổi kỹ thuật
   imbalance chỉ làm PR-AUC chênh ≤ 3,4 điểm %.
@@ -95,13 +95,13 @@ Chạy theo thứ tự (notebook mở bằng `jupyter lab` từ thư mục gốc
 6. **`06_visualizations.ipynb`**: biểu đồ và nhận xét.
 
 Mỗi tổ hợp được lưu ngay khi xong, chạy lại sẽ bỏ qua phần đã có (kết quả đã kèm trong `results/`, nên notebook 03–06 chạy lại chỉ vẽ lại
-biểu đồ). Chạy test: `python -m pytest tests -q` (47 test).
+biểu đồ). Chạy test: `python -m pytest tests -q` (49 test).
 
 **Tái lập.** `results/` được tạo trên macOS arm64 (CPU), trừ tune và benchmark của ANN chạy trên GPU Kaggle. Cùng cấu hình đó và
 `requirements-lock.txt`, chạy lại cho kết quả trùng từng chữ số (đã kiểm: dữ liệu sau tiền xử lý, benchmark, CIES của LR, CatBoost, ANN).
 Trên phần cứng khác, phép tính số thực có thể khác thứ tự nên số lệch ở chữ số nhỏ; riêng ANN thì SHAP từng run lệch rõ hơn nhưng CIES gần
-như trùng (đã đo GPU Kaggle so với CPU: 0,843 / 0,838 và 0,906 / 0,907 — đo trước khi cố định dữ liệu nền SHAP, nên thấp hơn
-số hiện tại 0,8690 và 0,9205; phép so GPU/CPU chưa chạy lại với nền cố định).
+như trùng (đã đo GPU Kaggle so với CPU với cấu hình dữ liệu nền SHAP cũ: 0,843 / 0,838 và 0,906 / 0,907; chưa đo lại với nền
+hiện tại — số trong `results/` là của nền hiện tại).
 
 **Lưu ý kỹ thuật:** torch (ANN) và xgboost không được nạp chung 1 tiến trình (xung đột OpenMP) — mọi model/tổ hợp chạy qua
 `src/utils/isolation.py::run_isolated`.

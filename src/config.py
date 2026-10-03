@@ -9,6 +9,9 @@ from pathlib import Path
 # ===== Reproducibility =====
 SEED = 42
 N_RUNS = 20  # Số lần lặp cho thí nghiệm CIES (tối thiểu 20, có thể tăng 30)
+# Số dòng nền SHAP cho model không phải LR trong CIES (ANN — chi phí DeepExplainer tăng theo số dòng nền).
+# LR dùng toàn bộ tập train làm nền (LinearExplainer chỉ cần trung bình). Xem src/explainability/cies.py.
+SHAP_BACKGROUND_N = 1000
 # Số trial Optuna mỗi model khi tune (results/best_params*.json đều tạo với 50 trial, 3 fold thời gian)
 N_TUNE_TRIALS = 50
 

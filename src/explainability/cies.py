@@ -28,7 +28,7 @@ from typing import List, Optional, Dict, Any, Tuple
 from scipy.stats import spearmanr
 
 from src.config import (
-    N_RUNS, SEED, TARGET_COL, RESULTS_DIR,
+    N_RUNS, SEED, SHAP_BACKGROUND_N, TARGET_COL, RESULTS_DIR,
     ONEHOT_COLS, TARGET_ENCODE_COLS, MODEL_NAMES, IMBALANCE_TECHNIQUES,
 )
 from src.data.encoding import encode_train, encode_test
@@ -326,12 +326,15 @@ def run_cies_experiment(
     }
 
     # Dữ liệu nền SHAP: CÙNG các dòng gốc ở mọi run (mỗi run encode chúng bằng mapping của run đó,
-    # như tập eval). LinearExplainer (LR) và DeepExplainer (ANN) đo SHAP so với nền này; lấy nền từ
-    # tập bootstrap của từng run thì mốc so sánh đổi theo run và thứ hạng dao động thêm vì nền chứ
-    # không vì model — chạy lại đủ 5 kỹ thuật trên Sparkov với nền cố định: CIES LR tăng 0,005–0,013,
-    # ANN tăng 0,014–0,043 (reports/design_decisions.md mục 12). TreeExplainer không dùng nền.
-    # 100 dòng: shap.maskers.Independent (LR) mặc định chỉ giữ tối đa 100 dòng.
-    background_raw = df_train.sample(n=min(100, len(df_train)), random_state=SEED).reset_index(drop=True)
+    # như tập eval). LinearExplainer (LR) và DeepExplainer (ANN) đo SHAP so với nền này; nền đổi theo
+    # run (vd. lấy từ mẫu bootstrap) thì thứ hạng dao động thêm vì mốc chứ không vì model. Mẫu nhỏ
+    # cũng làm kết quả phụ thuộc việc chọn dòng nào (reports/design_decisions.md mục 12), nên:
+    # LR dùng toàn bộ tập train (chỉ cần trung bình — rẻ); model khác dùng mẫu SHAP_BACKGROUND_N dòng.
+    # TreeExplainer không dùng nền.
+    if model_name == "logistic_regression":
+        background_raw = df_train.reset_index(drop=True)
+    else:
+        background_raw = df_train.sample(n=min(SHAP_BACKGROUND_N, len(df_train)), random_state=SEED).reset_index(drop=True)
 
     shap_values_runs = []
     run_logs = []
