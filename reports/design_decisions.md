@@ -15,6 +15,7 @@ Thiết kế hiện tại (chốt 2026-09-26, `AGENT_SPEC.md` §8 và §11):
 | Tham số ULB | Dùng tham số tune trên Sparkov | **Tune riêng trên ULB** (mục 10) |
 | Vùng tìm ANN | batch 256–1024, 10–100 epoch | batch 1024–4096, 5–50 epoch (mục 9) |
 | So CIES giữa 2 dataset | So trực tiếp mức CIES | **Chỉ so thứ hạng**; mức CIES phụ thuộc cỡ mẫu (mục 11) |
+| Dữ liệu nền SHAP (LR, ANN) trong CIES | 100 dòng đầu của mẫu bootstrap của từng run | **Cùng 100 dòng gốc ở mọi run** (mục 12) |
 
 > **Lưu ý khi trình bày kết quả:** kết quả cuối của thiết kế hiện tại nằm ở `reports/pipeline_report.md`, mục "Kết quả". Các số PR-AUC dùng để so sánh lựa chọn trong mục 1–3 của tài liệu này là của **XGBoost + `class_weighting`, tham số tune cũ, 1 lần chia, 1 seed** — dùng để so sánh các lựa chọn với nhau, không phải kết quả cuối.
 
@@ -273,11 +274,41 @@ fraud trong mẫu thì so mức CIES giữa 2 dataset là không công bằng.
 CIES **tăng theo cỡ mẫu và chưa bão hoà**; mốc 579 fraud tính lại độc lập trùng từng chữ số với CIES đã lưu.
 
 **Quyết định.** So CIES **trong cùng dataset** (giữa kỹ thuật, giữa model — cùng cỡ mẫu). Giữa 2 dataset chỉ so **thứ hạng** của các kỹ
-thuật (hình `cies_technique_ranks.png`: Borderline-SMOTE hạng cuối ở 9/10 cặp). Câu "ULB kém ổn định hơn Sparkov ở 21/25 tổ hợp" **không**
+thuật (hình `cies_technique_ranks.png`: Borderline-SMOTE hạng cuối ở 9/10 cặp). Câu "ULB kém ổn định hơn Sparkov ở 23/25 tổ hợp" **không**
 được dùng làm kết luận — nó lẫn giữa đặc tính dữ liệu và cỡ mẫu.
 
 **Phương án đã loại.** Lấy mẫu Sparkov bằng đúng 417 fraud để 2 dataset ngang nhau: làm CIES Sparkov nhiễu hơn (ít fraud hơn) và phải chạy
 lại toàn bộ 25 tổ hợp; không cần thiết vì câu hỏi nghiên cứu là so **kỹ thuật** trong cùng dataset.
+
+---
+
+## 12. Dữ liệu nền SHAP của LR và ANN cố định giữa các run CIES
+
+**Vấn đề.** LinearExplainer (LR) và DeepExplainer (ANN) tính SHAP **so với một tập dữ liệu nền**: với LR, SHAP của feature j =
+`hệ số_j × (x_j − trung bình nền_j)`. TreeExplainer (RF, XGBoost, CatBoost) không dùng nền — nó dùng số mẫu đi qua từng nhánh, ghi lại
+lúc train. Nếu nền lấy từ mẫu bootstrap của từng run, mốc so sánh dịch theo run: thứ hạng feature dao động thêm vì mốc chứ không vì model,
+và CIES của LR/ANN bị kéo xuống so với model cây — đúng chỗ đề tài so sánh giữa các họ model.
+
+**Bằng chứng** (giữ nguyên các model đã train, chỉ đổi dữ liệu nền; Sparkov):
+
+| Tổ hợp | Nền đổi theo run | Nền cố định |
+|---|---|---|
+| LR × SMOTE | 0,912 | 0,924 |
+| LR × Borderline-SMOTE | 0,906 | 0,913 |
+| LR × class weighting | 0,924 | 0,938 |
+| ANN × SMOTE | 0,838 | 0,867 |
+| ANN × class weighting | 0,907 | 0,921 |
+
+Feature hưởng lợi nhiều nhất là các cột one-hot `category_*` (trung bình trên 100 dòng của 1 category ~3% dao động mạnh) và `amt` (đuôi
+dài). Trên ULB (feature PCA liên tục) chênh lệch nhỏ, chỉ `Amount` hưởng lợi.
+
+**Quyết định.** Chọn 100 dòng từ tập train gốc một lần (seed 42), dùng làm nền ở **mọi** run; mỗi run encode chúng bằng mapping của run đó
+(như tập eval). 100 dòng vì `shap.maskers.Independent` (LR) mặc định chỉ giữ tối đa 100 dòng. Test hồi quy:
+`test_cies_shap_background_is_the_same_rows_in_every_run`.
+
+**Hệ quả.** Mọi yếu tố nằm ngoài model đều cố định giữa 20 run (tập eval, tham số, kỹ thuật, dữ liệu nền); CIES chỉ đo dao động khi train
+lại từ đầu. Kết luận định tính không đổi (Borderline-SMOTE thấp nhất 9/10 cặp; trên Sparkov cây > LR > ANN), nhưng khoảng cách giữa cây và
+LR/ANN hẹp hơn (Sparkov: cây 0,945–0,973, LR 0,911–0,940, ANN 0,869–0,920).
 
 ---
 

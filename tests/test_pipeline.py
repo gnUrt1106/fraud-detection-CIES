@@ -854,6 +854,30 @@ def test_cies_uses_explicit_params_per_dataset(monkeypatch):
     assert seen == [{"C": 0.5}, {"C": 0.5}]
 
 
+def test_cies_shap_background_is_the_same_rows_in_every_run(monkeypatch):
+    """LinearExplainer (LR) và DeepExplainer (ANN) đo SHAP so với dữ liệu nền. Lấy nền từ tập bootstrap
+    của từng run thì mốc so sánh đổi theo run, thứ hạng feature dao động thêm vì nền chứ không vì model
+    (đo trên Sparkov: CIES LR thấp đi 0,007–0,014, ANN 0,014–0,028). Nền phải là cùng các dòng gốc ở mọi run."""
+    import src.explainability.cies as cies_mod
+
+    seen = []
+    real = cies_mod.compute_shap
+    monkeypatch.setattr(cies_mod, "compute_shap",
+                        lambda *a, **k: seen.append(np.array(k["X_background"])) or real(*a, **k))
+    df = create_synthetic_data(400)[["amt", "lat", "long", "is_fraud"]]
+    cies_mod.run_cies_experiment(
+        model_name="logistic_regression", imbalance_technique="smote",
+        df_train=df.iloc[:300].reset_index(drop=True), df_test_fixed_eval=df.iloc[300:].reset_index(drop=True),
+        target_col="is_fraud", onehot_cols=[], target_encode_cols=[], n_runs=3,
+    )
+    assert len(seen) == 3 and len(seen[0]) == 100
+    for bg in seen[1:]:
+        np.testing.assert_array_equal(bg, seen[0])
+    # là các dòng của tập train gốc (không phụ thuộc bootstrap)
+    train_rows = {tuple(r) for r in df.iloc[:300][["amt", "lat", "long"]].to_numpy()}
+    assert all(tuple(r) in train_rows for r in seen[0])
+
+
 def _notebook_calls(name):
     """(code, {tên hàm: [keyword args]}) của các cell code trong notebook; dòng lệnh shell `!` bị bỏ."""
     import ast

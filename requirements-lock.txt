@@ -1,0 +1,24 @@
+# Phiên bản đúng như lúc tạo kết quả trong results/ (Python 3.12.13, macOS arm64, CPU).
+# Dùng file này để tái lập từng chữ số: resample (imbalanced-learn/scikit-learn), model và SHAP đều
+# phụ thuộc phiên bản. requirements.txt chỉ ghi phiên bản tối thiểu để chạy được.
+pandas==2.3.3
+numpy==2.3.5
+matplotlib==3.10.0
+seaborn==0.13.2
+kagglehub==1.0.2
+ydata-profiling==4.18.4
+jupyter==1.1.1
+ipykernel==7.3.0
+python-dotenv==1.2.3
+scipy==1.16.3
+setuptools==81.0.0
+scikit-learn==1.9.1
+imbalanced-learn==0.14.2
+xgboost==3.4.1
+catboost==1.2.10
+shap==0.52.0
+torch==2.14.0
+optuna==5.0.0
+pyarrow==25.0.1
+tqdm==4.70.0
+pytest==9.1.1

@@ -4,7 +4,7 @@ title: "Pipeline Fraud Detection CIES — báo cáo trạng thái"
 
 # Pipeline Fraud Detection CIES — báo cáo trạng thái
 
-Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-26), không phải thiết kế trong `AGENT_SPEC.md` (mục 11 của file đó liệt kê các chỗ lệch spec). Sơ đồ kiến trúc: [`system_architecture.html`](system_architecture.html).
+Tài liệu phản ánh **code hiện tại** (cập nhật 2026-10-03), không phải thiết kế trong `AGENT_SPEC.md` (mục 11 của file đó liệt kê các chỗ lệch spec). Sơ đồ kiến trúc: [`system_architecture.html`](system_architecture.html).
 
 ## Bảng giải thích từng bước
 
@@ -26,7 +26,7 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-26), không 
 | **SHAP — Linear** | `LinearExplainer` (exact) cho Logistic Regression | `src/explainability/shap_utils.py::_compute_shap_linear` |
 | **SHAP — Tree** | `TreeExplainer` (exact) cho Random Forest, XGBoost, CatBoost. Tự nhận diện cả 2 dạng output binary-classification của shap: `list` (API cũ) và ndarray 3 chiều `(n_samples, n_features, n_classes)` — dạng sau đã xác nhận là output thật của `RandomForestClassifier` trên `shap==0.52.0`, trước đây bị bỏ sót gây lỗi shape khi chạy CIES cho Random Forest | `src/explainability/shap_utils.py::_compute_shap_tree` |
 | **SHAP — Deep (ANN)** | `DeepExplainer` (xấp xỉ DeepLIFT, tất định, giải thích logit) cho ANN; tự lùi về `KernelExplainer` nếu Deep lỗi. Đã đo trên ANN thật: Kernel chạy lặp 2 lần cùng model chỉ khớp nhau Spearman ~0.85 (nhiễu lấy mẫu riêng, làm điểm CIES của ANN thấp giả) và chậm hơn ~5x; Deep giống hệt qua các lần chạy, cộng dồn đúng. Vẫn là xấp xỉ — không so thô với TreeSHAP | `src/explainability/shap_utils.py::_compute_shap_deep` |
-| **CIES — ĐÃ IMPLEMENT** | Bootstrap resample train → re-encode từ đầu → xử lý mất cân bằng → train → SHAP trên eval set cố định, lặp N_RUNS lần | `src/explainability/cies.py::run_cies_experiment` |
+| **CIES — ĐÃ IMPLEMENT** | Bootstrap resample train → re-encode từ đầu → xử lý mất cân bằng → train → SHAP trên eval set cố định, lặp N_RUNS lần. Seed của run thứ i (= i) đặt cho cả bootstrap, resampler và model, nên CIES đo dao động khi **train lại từ đầu** (dữ liệu + tính ngẫu nhiên của thuật toán), không chỉ của dữ liệu. Dữ liệu nền SHAP (LR, ANN) là cùng 100 dòng gốc ở mọi run, encode theo mapping của run | `src/explainability/cies.py::run_cies_experiment` |
 | **CIES — Stability metric** | Rank-weighted distance (trọng số `1/min(rank_a, rank_b)` theo THỨ HẠNG từng feature, chuẩn hoá tổng = 1; trước đây bị gán theo vị trí cột nên phụ thuộc thứ tự cột) trung bình trên mọi cặp run, `cies_score = 1 − khoảng cách trung bình`; kèm Spearman trung bình để đối chiếu | `src/explainability/cies.py::compute_stability_metric / compute_rank_weighted_distance / shap_to_ranks` |
 | **CIES — Feature-level** | Stability cấp từng feature (mean\|SHAP\|, hệ số biến thiên, rank_std) — chỉ cho Sparkov | `src/explainability/cies.py::compute_feature_level_cies` |
 | **CIES — chạy cách ly** | Wrap `run_cies_experiment` trong subprocess riêng | `src/explainability/cies.py::run_cies_experiment_isolated` |
@@ -50,7 +50,7 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-09-26), không 
 **Cách chạy.** Chia theo thời gian, không có cột định danh khách hàng, tham số tune 50 trial trên 3 fold thời gian (vùng tìm ban đầu, `design_decisions.md` mục 8–9), 1 seed (42).
 - **Benchmark:** train trên toàn bộ tập train (Sparkov 1.296.675 dòng; ULB 227.846), chấm trên test không resample (Sparkov 555.719 dòng, 2.145 fraud; ULB 56.961 dòng, **75 fraud**).
 - **CIES:** 20 lần bootstrap; Sparkov lấy mẫu phân tầng 100.000 dòng (21 feature), ULB toàn bộ train (29 feature); SHAP trên 250 mẫu đánh giá cố định (50 fraud). ANN dùng DeepExplainer ở cả 200 run (`run_logs[i]["explainer"]`).
-- LR, RF, XGBoost, CatBoost chạy local; ANN chạy trên Kaggle (GPU T4).
+- Tune và benchmark: LR, RF, XGBoost, CatBoost chạy local; ANN trên Kaggle (GPU T4). CIES: mọi model chạy local (CPU).
 
 Nguồn: `results/model_benchmark_results(_ulb).csv`, `results/cies_summary_results(_ulb).json`. **In đậm**: cao nhất trong 5 kỹ thuật của model đó (PR-AUC, CIES); _nghiêng_: CIES thấp nhất. FP = số giao dịch thật bị báo là fraud ở ngưỡng 0,5.
 
@@ -58,11 +58,11 @@ Nguồn: `results/model_benchmark_results(_ulb).csv`, `results/cies_summary_resu
 
 | Model | Kỹ thuật | PR-AUC | F1 | FP (ngưỡng 0,5) | CIES | Spearman |
 |---|---|---|---|---|---|---|
-| Logistic Regression | smote | **0,1215** | 0,0426 | 70.996 | 0,9122 | 0,7792 |
-| Logistic Regression | smote_enn | 0,1191 | 0,0417 | 72.817 | 0,9112 | 0,7748 |
-| Logistic Regression | adasyn | 0,0958 | 0,0280 | 121.316 | **0,9279** | 0,8399 |
-| Logistic Regression | borderline_smote | 0,1208 | 0,0329 | 98.881 | _0,9061_ | 0,7312 |
-| Logistic Regression | class_weighting | 0,1206 | 0,0449 | 67.074 | 0,9242 | 0,8206 |
+| Logistic Regression | smote | **0,1215** | 0,0426 | 70.996 | 0,9237 | 0,7876 |
+| Logistic Regression | smote_enn | 0,1191 | 0,0417 | 72.817 | 0,9225 | 0,7827 |
+| Logistic Regression | adasyn | 0,0958 | 0,0280 | 121.316 | **0,9404** | 0,8587 |
+| Logistic Regression | borderline_smote | 0,1208 | 0,0329 | 98.881 | _0,9113_ | 0,7405 |
+| Logistic Regression | class_weighting | 0,1206 | 0,0449 | 67.074 | 0,9339 | 0,8238 |
 | Random Forest | smote | 0,8465 | 0,7613 | 730 | 0,9609 | 0,9572 |
 | Random Forest | smote_enn | 0,8414 | 0,7227 | 1.100 | **0,9637** | 0,9611 |
 | Random Forest | adasyn | 0,8378 | 0,7380 | 885 | 0,9565 | 0,9440 |
@@ -78,21 +78,21 @@ Nguồn: `results/model_benchmark_results(_ulb).csv`, `results/cies_summary_resu
 | CatBoost | adasyn | 0,8821 | 0,7060 | 1.323 | 0,9515 | 0,9540 |
 | CatBoost | borderline_smote | 0,8804 | 0,7356 | 1.054 | _0,9510_ | 0,9475 |
 | CatBoost | class_weighting | 0,8809 | 0,4905 | 4.063 | **0,9730** | 0,9763 |
-| ANN | smote | **0,8803** | 0,4619 | 4.461 | _0,8431_ | 0,6777 |
-| ANN | smote_enn | 0,8774 | 0,4180 | 5.463 | 0,8469 | 0,6735 |
-| ANN | adasyn | 0,8751 | 0,3959 | 6.043 | 0,8564 | 0,7081 |
-| ANN | borderline_smote | 0,8700 | 0,5262 | 3.303 | 0,8471 | 0,6566 |
-| ANN | class_weighting | 0,8655 | 0,2413 | 13.045 | **0,9062** | 0,8091 |
+| ANN | smote | **0,8803** | 0,4619 | 4.461 | _0,8690_ | 0,7176 |
+| ANN | smote_enn | 0,8774 | 0,4180 | 5.463 | 0,8759 | 0,7610 |
+| ANN | adasyn | 0,8751 | 0,3959 | 6.043 | 0,8994 | 0,7880 |
+| ANN | borderline_smote | 0,8700 | 0,5262 | 3.303 | 0,8810 | 0,7717 |
+| ANN | class_weighting | 0,8655 | 0,2413 | 13.045 | **0,9205** | 0,8642 |
 
 ### ULB
 
 | Model | Kỹ thuật | PR-AUC | F1 | FP (ngưỡng 0,5) | CIES | Spearman |
 |---|---|---|---|---|---|---|
-| Logistic Regression | smote | 0,6865 | 0,1680 | 634 | 0,8997 | 0,7488 |
-| Logistic Regression | smote_enn | 0,6859 | 0,1650 | 648 | **0,9004** | 0,7511 |
-| Logistic Regression | adasyn | 0,6778 | 0,0423 | 3.116 | 0,8795 | 0,6722 |
-| Logistic Regression | borderline_smote | 0,6991 | 0,2630 | 341 | _0,8367_ | 0,5249 |
-| Logistic Regression | class_weighting | **0,7007** | 0,0904 | 1.340 | 0,8737 | 0,6266 |
+| Logistic Regression | smote | 0,6865 | 0,1680 | 634 | 0,9011 | 0,7513 |
+| Logistic Regression | smote_enn | 0,6859 | 0,1650 | 648 | **0,9016** | 0,7541 |
+| Logistic Regression | adasyn | 0,6778 | 0,0423 | 3.116 | 0,8792 | 0,6734 |
+| Logistic Regression | borderline_smote | 0,6991 | 0,2630 | 341 | _0,8367_ | 0,5251 |
+| Logistic Regression | class_weighting | **0,7007** | 0,0904 | 1.340 | 0,8742 | 0,6287 |
 | Random Forest | smote | **0,8194** | 0,5970 | 66 | **0,9507** | 0,9266 |
 | Random Forest | smote_enn | 0,8190 | 0,5782 | 75 | 0,9502 | 0,9258 |
 | Random Forest | adasyn | 0,8115 | 0,2813 | 316 | 0,9403 | 0,8724 |
@@ -108,11 +108,11 @@ Nguồn: `results/model_benchmark_results(_ulb).csv`, `results/cies_summary_resu
 | CatBoost | adasyn | 0,7691 | 0,3289 | 240 | 0,9178 | 0,7839 |
 | CatBoost | borderline_smote | 0,7777 | 0,7229 | 31 | _0,9033_ | 0,7448 |
 | CatBoost | class_weighting | **0,7990** | 0,5622 | 81 | **0,9316** | 0,8430 |
-| ANN | smote | 0,8026 | 0,6040 | 66 | 0,8877 | 0,7617 |
-| ANN | smote_enn | 0,7894 | 0,5894 | 71 | **0,8890** | 0,7503 |
-| ANN | adasyn | 0,7927 | 0,6105 | 57 | 0,8803 | 0,7474 |
-| ANN | borderline_smote | **0,8143** | 0,7160 | 29 | _0,8757_ | 0,7035 |
-| ANN | class_weighting | 0,7939 | 0,0586 | 2.177 | 0,8846 | 0,7044 |
+| ANN | smote | 0,8026 | 0,6040 | 66 | **0,8923** | 0,7731 |
+| ANN | smote_enn | 0,7894 | 0,5894 | 71 | 0,8866 | 0,7511 |
+| ANN | adasyn | 0,7927 | 0,6105 | 57 | 0,8880 | 0,7577 |
+| ANN | borderline_smote | **0,8143** | 0,7160 | 29 | _0,8649_ | 0,6715 |
+| ANN | class_weighting | 0,7939 | 0,0586 | 2.177 | 0,8841 | 0,6805 |
 
 ### Nhận xét (1 seed — là quan sát, chưa kiểm định thống kê)
 
@@ -122,17 +122,17 @@ số báo nhầm ở ngưỡng 0,5 — `benchmark_false_positives.png` (4); PR-A
 CIES vs PR-AUC — `cies_vs_prauc.png` (7); đồng thuận feature giữa kỹ thuật — `technique_agreement_summary.png` (8); thứ hạng feature
 qua các run của tổ hợp ổn định nhất/kém nhất — `cies_rank_stability_*.png` (9).
 
-1. **Borderline-SMOTE cho CIES thấp nhất ở 9/10 cặp (model, dataset)** — mọi model trên ULB, 4/5 model trên Sparkov (ngoại lệ: ANN Sparkov, nơi SMOTE thấp nhất và Borderline-SMOTE đứng 3/5). Đây là xu hướng nhất quán nhất của thí nghiệm. Về độ lớn: chênh với kỹ thuật kế tiếp 0,0005–0,011 trên Sparkov, 0,005–0,037 trên ULB — chưa kiểm được có vượt nhiễu giữa các seed hay không.
-2. **Model quyết định mức CIES nhiều hơn kỹ thuật trên Sparkov, không rõ bằng trên ULB.** Sparkov: 3 model cây 0,945–0,973, LR 0,906–0,928, **ANN thấp nhất 0,843–0,906**; chênh giữa 5 kỹ thuật trong cùng model chỉ 0,017–0,022 (riêng ANN 0,063). ULB: RF cao nhất (0,928–0,951), nhưng chênh giữa kỹ thuật của LR (0,064) ngang khoảng cách giữa các model. Thứ hạng CIES của 25 tổ hợp tương quan Spearman 0,75 giữa 2 dataset.
-3. **CIES trên ULB thấp hơn Sparkov ở 21/25 tổ hợp** (chênh TB 0,022; ngoại lệ là ANN: 4/5 kỹ thuật cao hơn trên ULB) — nhưng **không kết luận được "ULB kém ổn định hơn"**: CIES tăng theo số fraud trong mẫu bootstrap (kiểm tra độ nhạy, mục "Lệch so với spec" 1: RF × SMOTE 0,945 ở 289 fraud → 0,961 ở 579), và mẫu ULB có 417 fraud so với 579 của Sparkov. Chênh lệch giữa 2 dataset vì vậy lẫn giữa đặc tính dữ liệu và cỡ mẫu. Điều chắc chắn: giả thuyết ban đầu "ULB có vài feature PCA gánh tín hiệu nên SHAP ổn định hơn" không được dữ liệu ủng hộ.
+1. **Borderline-SMOTE cho CIES thấp nhất ở 9/10 cặp (model, dataset)** — mọi model trên ULB, 4/5 model trên Sparkov (ngoại lệ: ANN Sparkov, nơi SMOTE thấp nhất và Borderline-SMOTE đứng 3/5). Đây là xu hướng nhất quán nhất của thí nghiệm. Về độ lớn: chênh với kỹ thuật kế tiếp 0,0005–0,011 trên Sparkov, 0,012–0,038 trên ULB. So với sai số jackknife của 1 điểm CIES (bỏ lần lượt 1 trong 20 run: 0,002–0,006; ANN Sparkov 0,013): ở cả 9 cặp, Borderline-SMOTE thua kỹ thuật tốt nhất của cùng model hơn 2 lần sai số; nhưng so với kỹ thuật kế tiếp thì 4/9 cặp chưa vượt 2 lần sai số (LR, XGBoost, CatBoost Sparkov; ANN ULB). Chưa chạy nhiều seed.
+2. **Model quyết định mức CIES nhiều hơn kỹ thuật trên Sparkov, không rõ bằng trên ULB.** Sparkov: 3 model cây 0,945–0,973, LR 0,911–0,940, **ANN thấp nhất 0,869–0,920**; chênh giữa 5 kỹ thuật trong cùng model chỉ 0,017–0,029 (riêng ANN 0,051). Tách phương sai của 25 điểm CIES (2 chiều, không lặp): model giải thích 86% trên Sparkov, kỹ thuật 7%. ULB: RF cao nhất (0,928–0,951), nhưng chênh giữa kỹ thuật của LR (0,065) ngang khoảng cách giữa các model; model 77%, kỹ thuật 17%. Thứ hạng CIES của 25 tổ hợp tương quan Spearman 0,76 giữa 2 dataset.
+3. **CIES trên ULB thấp hơn Sparkov ở 23/25 tổ hợp** (chênh TB 0,030; ngoại lệ: ANN × SMOTE và ANN × SMOTE-ENN) — nhưng **không kết luận được "ULB kém ổn định hơn"**: CIES tăng theo số fraud trong mẫu bootstrap (kiểm tra độ nhạy, mục "Lệch so với spec" 1: RF × SMOTE 0,945 ở 289 fraud → 0,961 ở 579), và mẫu ULB có 417 fraud so với 579 của Sparkov. Chênh lệch giữa 2 dataset vì vậy lẫn giữa đặc tính dữ liệu và cỡ mẫu. Điều chắc chắn: giả thuyết ban đầu "ULB có vài feature PCA gánh tín hiệu nên SHAP ổn định hơn" không được dữ liệu ủng hộ.
 4. **`class_weighting`: CIES cao nhất ở XGBoost, CatBoost, ANN trên Sparkov** (không có sinh dòng tổng hợp nên các lần bootstrap chỉ khác nhau ở dữ liệu thật) — **nhưng trên ULB chỉ đúng với CatBoost**, nên không khái quát. Ở ngưỡng 0,5 nó báo nhầm nhiều nhất trên Sparkov: FP của RF 1.450, XGBoost 4.606, CatBoost 4.063, ANN 13.045 (so với 522–6.043 ở các kỹ thuật resample của cùng model) → F1 thấp nhất ở 4/5 model. PR-AUC không phụ thuộc ngưỡng nên ít bị ảnh hưởng (cao nhất ở RF Sparkov, LR và CatBoost ULB). Chưa dò ngưỡng tối ưu.
 5. **Hiệu năng.** Model tốt nhất: Sparkov CatBoost × SMOTE (PR-AUC 0,887), ULB RF × SMOTE (0,819). SMOTE cho PR-AUC cao nhất ở 4/5 model trên Sparkov. ADASYN cho PR-AUC thấp nhất ở 2/5 model trên Sparkov (LR, RF) và 3/5 trên ULB (LR, XGBoost, CatBoost). LR rất yếu trên Sparkov (0,10–0,12) nhưng khá trên ULB (0,68–0,70): feature PCA của ULB gần tuyến tính hơn; trên Sparkov tín hiệu `hour` có dạng "cao ban đêm" (22h–3h: 1,4–2,9% fraud; giờ khác ~0,1%) mà 1 hệ số tuyến tính không mô tả được (notebook 06, mục 3).
-6. **SMOTE-ENN gần như trùng SMOTE:** chênh PR-AUC ≤ 0,005 trên Sparkov (≤ 0,013 trên ULB), chênh CIES ≤ 0,004 — ENN chỉ bỏ 0,82% số dòng sau SMOTE (2.578.338 → 2.557.109 trên Sparkov) nhưng là bước tốn thời gian nhất (resample Sparkov 145 phút; CIES ULB của 4 model chạy local 26–41 phút/tổ hợp, trong khi các tổ hợp khác có ghi thời gian đều dưới 19 phút).
+6. **SMOTE-ENN gần như trùng SMOTE:** chênh PR-AUC ≤ 0,005 trên Sparkov (≤ 0,013 trên ULB), chênh CIES ≤ 0,007 — ENN chỉ bỏ 0,82% số dòng sau SMOTE (2.578.338 → 2.557.109 trên Sparkov) nhưng là bước tốn thời gian nhất (resample Sparkov 145 phút; CIES ULB 25–41 phút/tổ hợp, trong khi phần lớn tổ hợp khác dưới 20 phút).
 7. **Hiệu năng và độ ổn định giải thích: độc lập trên Sparkov, cùng chiều trên ULB.** Spearman(CIES, PR-AUC) trên Sparkov 0,15 (3 model cây: −0,07) — vd. CatBoost × SMOTE có PR-AUC cao nhất nhưng CIES chỉ trung bình của CatBoost (0,956). Trên ULB 0,49 (3 model cây: 0,66), nhưng PR-AUC ULB dựa trên 75 fraud nên dao động nhiều. Kết luận "chọn theo PR-AUC không đảm bảo giải thích ổn định" chỉ đứng được trên Sparkov.
-8. **Đổi kỹ thuật imbalance ít đổi feature được coi là quan trọng — trừ khi đổi sang `class_weighting`.** Đồng thuận thứ hạng feature (cùng công thức rank-weighted của CIES, trên mean\|SHAP\| trung bình 20 run) giữa các kỹ thuật resample với nhau: 0,947–0,996 trên Sparkov, 0,919–1,000 trên ULB; giữa `class_weighting` và các kỹ thuật resample thấp hơn ở model cây và ANN (Sparkov: RF 0,854–0,901, XGBoost 0,902–0,930, CatBoost 0,922–0,939, ANN 0,907–0,925), riêng LR Sparkov không (0,972–0,982). Hình: `reports/figures/technique_agreement_summary.png`.
-9. **CIES và Spearman lệch nhau** ở ANN Sparkov (CIES 0,84–0,91, Spearman 0,66–0,81) và LR ULB (0,84–0,90 / 0,52–0,75): top feature giữ vị trí, phần đuôi xáo trộn — CIES phạt nhẹ phần đuôi (trọng số 1/rank), Spearman thì không.
+8. **Đổi kỹ thuật imbalance ít đổi feature được coi là quan trọng — trừ khi đổi sang `class_weighting`.** Đồng thuận thứ hạng feature (cùng công thức rank-weighted của CIES, trên mean\|SHAP\| trung bình 20 run) giữa các kỹ thuật resample với nhau: 0,947–0,996 trên Sparkov, 0,909–1,000 trên ULB; giữa `class_weighting` và các kỹ thuật resample thấp hơn ở model cây và ANN (Sparkov: RF 0,854–0,901, XGBoost 0,902–0,930, CatBoost 0,922–0,939, ANN 0,903–0,922), riêng LR Sparkov không (0,966–0,980). Hình: `reports/figures/technique_agreement_summary.png`.
+9. **CIES và Spearman lệch nhau** ở ANN Sparkov (CIES 0,87–0,92, Spearman 0,72–0,86) và LR ULB (0,84–0,90 / 0,53–0,75): top feature giữ vị trí, phần đuôi xáo trộn — CIES phạt nhẹ phần đuôi (trọng số 1/rank), Spearman thì không.
 
-**Giới hạn cần nói kèm:** 1 seed; test ULB chỉ 75 fraud và mỗi khối validation lúc tune chỉ 24–36 fraud; vài tham số sát biên (`design_decisions.md` mục 8–9: ULB XGBoost `max_depth=3`, CatBoost `depth=4`, ANN `epochs=5`; Sparkov ANN `dropout=0,124`, RF `max_depth=27`); ANN train trên GPU có thể không lặp lại tuyệt đối giữa các lần chạy (chưa đo).
+**Giới hạn cần nói kèm:** 1 seed; test ULB chỉ 75 fraud và mỗi khối validation lúc tune chỉ 24–36 fraud; vài tham số sát biên (`design_decisions.md` mục 8–9: ULB XGBoost `max_depth=3`, CatBoost `depth=4`, ANN `epochs=5`; Sparkov ANN `dropout=0,124`, RF `max_depth=27`); ANN chỉ tái lập được về mặt thống kê giữa các máy (giới hạn 17).
 
 ## Tham khảo: kết quả thiết kế trước (chia ngẫu nhiên, còn cột định danh — không so sánh trực tiếp được)
 
@@ -200,6 +200,9 @@ Nguồn: `results/model_benchmark_results.csv`, `results/cies_summary_results.js
 13. **`shap` 0.52 đọc sai giá trị nền (`expected_value`) của XGBoost 3.x** — lệch 1 hằng số (0,063 trong phép thử). Giá trị SHAP từng feature thì **trùng khít** với TreeSHAP do chính XGBoost tính (`pred_contribs`, sai số 0), nên CIES và mọi biểu đồ (chỉ dùng SHAP từng feature) không bị ảnh hưởng. Không dùng `expected_value` của XGBoost cho việc gì.
 14. **Target encoding của tập train dùng 5-fold xáo trộn (out-of-fold)**: giá trị encode của 1 dòng train có thể dùng nhãn của các dòng train xảy ra sau nó. Tập test và các khối validation lúc tune không bao giờ thấy nhãn tương lai (test dùng thống kê của toàn bộ train; tune encode riêng từng fold theo thời gian). Đây là cách target encoding chuẩn (Micci-Barreca 2001); Fraud Detection Handbook thì tính đặc trưng rủi ro theo cửa sổ quá khứ có độ trễ — chỉ ảnh hưởng feature lúc train, không ảnh hưởng tính hợp lệ của đánh giá.
 15. **F1 và FP đo ở ngưỡng 0,5**: resample về 1:1 hoặc đánh trọng số lớp làm xác suất dự đoán bị đẩy lên so với tỷ lệ fraud thật, nên F1 ở ngưỡng cố định không so sánh công bằng giữa các kỹ thuật (xem nhận xét 4 ở mục Kết quả). PR-AUC không phụ thuộc ngưỡng là chỉ số chính.
+16. **CIES đo dao động khi train lại từ đầu, không chỉ dao động của dữ liệu.** Run thứ i dùng seed i cho bootstrap, cho resampler (SMOTE…) và cho model (khởi tạo ANN, lấy mẫu của RF/XGBoost). Vậy CIES gộp 2 nguồn: dữ liệu train đổi (bootstrap) và tính ngẫu nhiên của thuật toán. Các yếu tố cố định giữa 20 run: tập eval, tham số model, kỹ thuật imbalance, dữ liệu nền SHAP. 5 kỹ thuật dùng chung seed nên chung 20 mẫu bootstrap (so sánh theo cặp).
+17. **ANN chỉ tái lập được về mặt thống kê giữa các máy.** Cùng code, cùng seed, chạy trên GPU Kaggle và CPU local: mean\|SHAP\| từng run lệch tới 40–140% ở vài feature (khác phần cứng → khác thứ tự phép tính số thực → khác trọng số sau train), nhưng CIES gần như trùng (ANN × SMOTE 0,843 / 0,838; ANN × class_weighting 0,906 / 0,907). Model còn lại tái lập từng chữ số trên cùng máy (đã kiểm LR × SMOTE: 20/20 run trùng tuyệt đối).
+18. **PR-AUC và CIES đến từ 2 cách train khác nhau.** PR-AUC: model train 1 lần trên toàn bộ train (Sparkov 1,3 triệu dòng). CIES: 20 model train trên bootstrap của mẫu 100.000 dòng (Sparkov), cùng tham số đã tune trên toàn bộ train. Tương quan PR-AUC–CIES (nhận xét 7) vì vậy so 2 đại lượng đo trên 2 cỡ dữ liệu khác nhau; ULB không bị vì CIES dùng toàn bộ train.
 
 ## Đánh đổi đã đo
 
@@ -243,6 +246,7 @@ Ba cách hợp lệ độc lập cho kết quả gần nhau nên không phải l
 - **Notebook 05 chạy CIES ULB bằng tham số của Sparkov**: `run_cies_experiment_isolated` không truyền `params`, nên `build_model` tự nạp `best_params.json` (Sparkov). Nay notebook 05 tune ULB riêng, và cả benchmark lẫn CIES truyền `params=ulb_params(model_name)` (báo lỗi nếu thiếu, không âm thầm dùng tham số Sparkov). Cache resample của ULB ở thư mục riêng `resampled_ulb/` — chung thư mục thì ghi đè cache của Sparkov.
 - **`encode_test` ghép lệch hàng khi `df_test` có index khác 0..n-1** (phát hiện khi rà soát, chưa ảnh hưởng kết quả nào): cột one-hot dựng từ `pd.Categorical` có index 0..n-1 được ghép theo nhãn index → số dòng nhân đôi, nửa là NaN. Mọi nơi gọi hiện tại đều truyền index mặc định (đã kiểm: `test_encoded.parquet` tái tạo khớp từng giá trị, không NaN). Nay `encode_test` reset index như `encode_train`.
 - **CIES không ghi explainer thực sự đã dùng**: ANN tự lùi DeepExplainer → KernelExplainer khi Deep lỗi (vd. version `shap` khác trên Kaggle), mà Kernel có nhiễu lấy mẫu riêng làm CIES thấp giả tạo — trước đây không để lại dấu vết trong kết quả, chỉ có dòng cảnh báo trong log. Nay mỗi run ghi `run_logs[i]["explainer"]` (`linear`/`tree`/`deep`/`kernel`).
+- **Dữ liệu nền SHAP của LR và ANN đổi theo từng run CIES**: nền là 100 dòng đầu của tập bootstrap của chính run đó. LinearExplainer và DeepExplainer đo SHAP so với nền (LR: `coef·(x − trung bình nền)`), nên mốc so sánh dịch theo run và thứ hạng dao động thêm vì nền chứ không vì model — nhất là các cột one-hot `category_*` hiếm (trung bình trên 100 dòng của 1 category ~3% dao động mạnh) và `amt` (đuôi dài). Kiểm chứng: giữ nguyên các model đã train, chỉ cố định nền → CIES LR × SMOTE Sparkov 0,912 → 0,924, ANN × SMOTE 0,838 → 0,867. TreeExplainer không dùng nền nên RF/XGBoost/CatBoost không bị ảnh hưởng. Nay nền là cùng 100 dòng gốc của tập train ở mọi run, encode theo mapping của run. Đã chạy lại CIES của LR và ANN trên 2 dataset: Sparkov LR tăng 0,005–0,013, ANN tăng 0,014–0,043; ULB đổi từ −0,011 đến +0,008 (feature PCA liên tục, chỉ `Amount` hưởng lợi). Kết luận định tính giữ nguyên (Borderline-SMOTE thấp nhất 9/10 cặp; cây > LR > ANN trên Sparkov), khoảng cách cây với LR/ANN hẹp lại.
 
 **Trạng thái kết quả:** xem bảng "Trạng thái chạy thực nghiệm" — 4 model × 2 dataset đã có tune, benchmark, CIES theo thiết kế hiện tại; còn ANN.
 

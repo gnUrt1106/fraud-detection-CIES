@@ -28,7 +28,7 @@ from typing import List, Optional, Dict, Any, Tuple
 from scipy.stats import spearmanr
 
 from src.config import (
-    N_RUNS, TARGET_COL, RESULTS_DIR,
+    N_RUNS, SEED, TARGET_COL, RESULTS_DIR,
     ONEHOT_COLS, TARGET_ENCODE_COLS, MODEL_NAMES, IMBALANCE_TECHNIQUES,
 )
 from src.data.encoding import encode_train, encode_test
@@ -315,6 +315,13 @@ def run_cies_experiment(
         if col in df_train.columns
     }
 
+    # Dữ liệu nền SHAP: CÙNG các dòng gốc ở mọi run (mỗi run encode chúng bằng mapping của run đó,
+    # như tập eval). LinearExplainer (LR) và DeepExplainer (ANN) đo SHAP so với nền này; lấy nền từ
+    # tập bootstrap của từng run thì mốc so sánh đổi theo run và thứ hạng dao động thêm vì nền chứ
+    # không vì model — đo trên Sparkov: CIES LR thấp đi 0,007–0,014, ANN 0,014–0,028. TreeExplainer
+    # không dùng nền. 100 dòng: shap.maskers.Independent (LR) mặc định chỉ giữ tối đa 100 dòng.
+    background_raw = df_train.sample(n=min(100, len(df_train)), random_state=SEED).reset_index(drop=True)
+
     shap_values_runs = []
     run_logs = []
     last_feature_names = None
@@ -380,13 +387,12 @@ def run_cies_experiment(
             )
             trained_model = train_model(model, X_res, y_res, model_name=model_name)
 
-            # 5. SHAP trên tập eval CỐ ĐỊNH
-            # 100 dòng nền, không phải 200: shap.maskers.Independent (dùng cho LinearExplainer
-            # của LR) mặc định max_samples=100 và tự cắt bớt nếu đưa nhiều hơn — trước đây đưa
-            # 200 dòng thì bị cắt xuống 100 ở mọi run (in cảnh báo mỗi lần), nay đưa đúng 100
-            # ngay từ đầu để không còn thao tác cắt thừa. Việc cắt vốn tất định (random_state=0
-            # cố định trong shap.utils.sample), không phải nguồn nhiễu giữa các run.
-            X_background = X_train[:min(100, len(X_train))]
+            # 5. SHAP trên tập eval CỐ ĐỊNH, nền cố định (background_raw)
+            encoded_bg = encode_test(background_raw, encoding_maps, target_encode_cols=target_encode_cols)
+            for col in train_feature_cols:
+                if col not in encoded_bg.columns:
+                    encoded_bg[col] = 0.0
+            X_background = encoded_bg[train_feature_cols].values
             shap_vals, explainer_used = compute_shap(
                 trained_model, model_name, X_eval,
                 X_background=X_background, return_explainer=True,

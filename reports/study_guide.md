@@ -22,7 +22,7 @@ trên GitHub; trong IDE thì mở file rồi `Ctrl/Cmd+G` → số dòng.
   gian**, encode riêng từng fold.
 - **Kết quả chính:**
   1. **Borderline-SMOTE cho giải thích kém ổn định nhất ở 9/10 cặp model × dataset.**
-  2. Model quyết định mức ổn định nhiều hơn kỹ thuật (Sparkov: cây 0,945–0,973; LR 0,906–0,928; ANN 0,843–0,906).
+  2. Model quyết định mức ổn định nhiều hơn kỹ thuật (Sparkov: cây 0,945–0,973; LR 0,911–0,940; ANN 0,869–0,920).
   3. PR-AUC cao **không** đảm bảo giải thích ổn định (Sparkov: Spearman −0,15 khi bỏ LR).
   4. Đổi kỹ thuật chỉ làm PR-AUC chênh ≤ 3,4 điểm % trong cùng model; class weighting báo nhầm nhiều nhất ở ngưỡng 0,5.
 
@@ -115,12 +115,13 @@ Mỗi file: **vai trò → dòng cần đọc → cần nhớ → câu dễ bị
 - [`compute_stability_metric`](../src/explainability/cies.py#L148): so mọi cặp trong 20 run (190 cặp);
   [`cies_score = 1 − khoảng cách TB`](../src/explainability/cies.py#L200); kèm Spearman trung bình để đối chiếu.
 - [`run_cies_experiment`](../src/explainability/cies.py#L269) — mỗi run (thuộc 5 bước):
-  1. [Bootstrap train](../src/explainability/cies.py#L336) (lấy có hoàn lại, seed = số thứ tự run);
-  2. [Encode lại từ đầu](../src/explainability/cies.py#L341) (có `groups` chống rò nhãn);
-  3. [Áp kỹ thuật imbalance](../src/explainability/cies.py#L368);
+  0. Trước vòng lặp: [chọn 100 dòng nền SHAP cố định](../src/explainability/cies.py#L323) từ tập train gốc (dùng cho LR, ANN);
+  1. [Bootstrap train](../src/explainability/cies.py#L343) (lấy có hoàn lại, seed = số thứ tự run — seed này cũng đặt cho resampler và model);
+  2. [Encode lại từ đầu](../src/explainability/cies.py#L348) (có `groups` chống rò nhãn);
+  3. [Áp kỹ thuật imbalance](../src/explainability/cies.py#L375);
   4. Train model (tham số cố định đã tune);
-  5. [SHAP trên tập đánh giá **cố định**](../src/explainability/cies.py#L390) (250 mẫu test: 50 fraud + 200 hợp lệ);
-     [run có SHAP toàn 0 bị loại](../src/explainability/cies.py#L397) (tránh CIES = 1 giả).
+  5. [SHAP trên tập đánh giá **cố định**](../src/explainability/cies.py#L396) (250 mẫu test: 50 fraud + 200 hợp lệ), so với dữ liệu nền cố định;
+     [run có SHAP toàn 0 bị loại](../src/explainability/cies.py#L403) (tránh CIES = 1 giả).
 - [`compute_condition_agreement_matrix`](../src/explainability/cies.py#L118): đồng thuận **giữa các kỹ thuật** (khác CIES: CIES là
   giữa các run của cùng 1 kỹ thuật).
 - **Hỏi:** *"CIES của em có giống bài gốc không?"* → mục 4, câu 8.
@@ -185,7 +186,8 @@ fraudTrain.csv / fraudTest.csv ──preprocess (sắp thời gian, thêm hour/d
    nhưng nguồn nhiễu là **dữ liệu huấn luyện** (bootstrap) thay vì nhiễu đầu vào, vì câu hỏi là ảnh hưởng của kỹ thuật imbalance.
 9. **"Sao Borderline-SMOTE kém ổn định nhất?"** — Kết quả: hạng 5 ở 9/10 cặp. Cách hiểu (chưa kiểm chứng): nó chỉ sinh mẫu quanh các
    fraud nằm ở ranh giới, mà tập ranh giới đổi theo từng mẫu bootstrap → dữ liệu tổng hợp khác nhau nhiều giữa các run. Chênh lệch nhỏ
-   (0,0005–0,011 trên Sparkov), mới 1 seed.
+   (0,0005–0,011 trên Sparkov). Sai số jackknife của 1 điểm CIES 0,002–0,006: ở cả 9 cặp, nó thua kỹ thuật tốt nhất hơn 2 lần sai số, nhưng
+   4/9 cặp chưa tách được khỏi kỹ thuật kế tiếp; mới 1 seed.
 10. **"Class weighting F1 thấp mà PR-AUC vẫn tốt?"** — Trọng số đẩy xác suất lên → ở ngưỡng 0,5 báo nhầm nhiều (XGBoost 4.606 so với
     1.110–1.915); PR-AUC không phụ thuộc ngưỡng nên ít bị ảnh hưởng. Dò ngưỡng sẽ khắc phục (chưa làm).
 11. **"Sao không so CIES giữa Sparkov và ULB?"** — CIES tăng theo số fraud trong mẫu bootstrap (RF × SMOTE: 0,894 ở 58 fraud → 0,961 ở
@@ -197,7 +199,16 @@ fraudTrain.csv / fraudTest.csv ──preprocess (sắp thời gian, thêm hour/d
 14. **"Kết quả so với nghiên cứu khác?"** — Wu (2026): cùng tập test gốc, không định danh, XGBoost AP 0,930–0,934 (có thêm feature
     velocity theo thẻ); luận văn CatBoost 0,887 không dùng velocity. Không so với bài chia ngẫu nhiên (con số bị thổi phồng).
 15. **"Hạn chế lớn nhất?"** — 1 seed; ULB ít fraud (75 ở test, 24–36 mỗi khối validation); tune tách khỏi imbalance; vài tham số sát
-    biên; Sparkov là dữ liệu mô phỏng (gần như mọi khách đều bị lộ thẻ).
+    biên; Sparkov là dữ liệu mô phỏng (gần như mọi khách đều bị lộ thẻ); PR-AUC (train trên toàn bộ train) và CIES (bootstrap từ mẫu
+    100k) đến từ 2 cách train khác nhau; ANN chỉ tái lập được về mặt thống kê giữa các máy.
+16. **"LR/ANN kém ổn định là do model hay do cách tính SHAP?"** — LinearExplainer và DeepExplainer đo SHAP so với 1 tập dữ liệu nền
+    (LR: `hệ số × (x − trung bình nền)`); TreeExplainer không cần nền. Dữ liệu nền là cùng 100 dòng gốc ở mọi run, nên mốc so sánh không
+    đổi và CIES chỉ đo dao động của model. (Nếu lấy nền từ mẫu bootstrap của từng run, CIES LR thấp đi tới 0,013, ANN tới 0,043 — vì mốc dịch theo run.)
+17. **"CIES đo nhiễu gì?"** — Dao động khi **train lại từ đầu**: seed của run đổi mẫu bootstrap, phần ngẫu nhiên của SMOTE… và của
+    model (khởi tạo ANN, lấy mẫu của RF/XGBoost). Cố định: tập eval, tham số, kỹ thuật, dữ liệu nền SHAP. 5 kỹ thuật dùng chung 20 mẫu
+    bootstrap nên so sánh giữa kỹ thuật là so theo cặp.
+18. **"CIES 0,91 là cao hay thấp?"** — Thứ hạng hoàn toàn ngẫu nhiên cho CIES ≈ 0,56 (không phải 0); chỉ đổi chỗ top-1 với top-2 cho
+    0,976 (21 feature). CIES 0,91 nghĩa là trung bình các run đảo hạng nhiều hơn 1 lần đổi chỗ top-2.
 
 ---
 
@@ -209,8 +220,10 @@ fraudTrain.csv / fraudTest.csv ──preprocess (sắp thời gian, thêm hour/d
 | ULB train / test | 227.846 (417 fraud) / 56.961 (75 fraud) |
 | Feature sau encode | Sparkov 21, ULB 29 |
 | PR-AUC test tốt nhất | Sparkov CatBoost × SMOTE **0,887**; ULB RF × SMOTE **0,819** |
-| CIES Sparkov | cây 0,945–0,973 · LR 0,906–0,928 · ANN 0,843–0,906; cao nhất CatBoost × class weighting **0,973** |
+| CIES Sparkov | cây 0,945–0,973 · LR 0,911–0,940 · ANN 0,869–0,920; cao nhất CatBoost × class weighting **0,973** |
 | Kết quả nhất quán nhất | Borderline-SMOTE CIES thấp nhất **9/10** cặp |
+| Phương sai CIES do model / kỹ thuật | Sparkov **86% / 7%**; ULB 77% / 17% |
+| Mốc đọc CIES (21 feature) | ngẫu nhiên ≈ **0,56**; đổi chỗ top-1/top-2 = **0,976** |
 | Tác động kỹ thuật lên PR-AUC | ≤ **3,4** điểm % trong cùng model |
 | Chia ngẫu nhiên vs thời gian (XGBoost) | 0,932 vs 0,882; giữ định danh + chia thời gian: 0,240 |
 | Độ nhạy cỡ mẫu (RF × SMOTE) | 0,894 (58 fraud) → 0,961 (579 fraud) |
