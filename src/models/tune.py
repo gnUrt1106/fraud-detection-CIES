@@ -8,7 +8,7 @@ Phương pháp: Decoupled Baseline Pre-tuning (Trường phái Controlled Experi
     - Đóng băng (freeze) bộ tham số này khi so sánh 5 kỹ thuật imbalance và chạy CIES,
       đảm bảo không phát sinh biến gây nhiễu (confounding bias) về độ phức tạp mô hình.
 
-RÀNG BUỘC (spec mục 5.2):
+RÀNG BUỘC:
     - CatBoost: KHÔNG dùng cat_features trong search space.
 """
 

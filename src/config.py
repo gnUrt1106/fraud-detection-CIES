@@ -60,7 +60,9 @@ ULB_FILE = "creditcard.csv"
 TARGET_COL = "is_fraud"          # Sparkov
 ULB_TARGET_COL = "Class"         # ULB
 
-# ===== Các cột numerical chính (Sparkov) =====
+# ===== Các cột số trong dữ liệu Sparkov gốc — chỉ dùng cho EDA (notebook 01) =====
+# Phần lớn là cột định danh (CUSTOMER_IDENTITY_COLS) hoặc thời gian thô, KHÔNG vào model; feature của
+# model là amt, hour, day_of_week, age + cột encode (xem src/data/preprocess.py).
 NUMERICAL_COLS = [
     "amt", "lat", "long", "merch_lat", "merch_long",
     "city_pop", "unix_time",
@@ -74,8 +76,8 @@ NUMERICAL_COLS = [
 CUSTOMER_IDENTITY_COLS = ["lat", "long", "city", "state", "job", "city_pop", "merch_lat", "merch_long"]
 
 # ===== Encoding strategy theo cardinality (Sparkov) =====
-# Spec mục 3.1 — KHÔNG one-hot cho high-cardinality. `state` (one-hot) và `city`, `job` (target encoding) của
-# spec gốc đã bỏ: là cột định danh khách hàng (CUSTOMER_IDENTITY_COLS ở trên).
+# KHÔNG one-hot cho high-cardinality (merchant: 693 giá trị → target encoding). `state`, `city`, `job` không dùng:
+# là cột định danh khách hàng (CUSTOMER_IDENTITY_COLS ở trên).
 ONEHOT_COLS = ["gender", "category"]
 TARGET_ENCODE_COLS = ["merchant"]
 
@@ -104,7 +106,7 @@ MODEL_NAMES = [
 # 0.887 → 0.766 khi ép hợp lệ (SMOTENC độc lập cho 0.733; lấy mẫu theo trọng số 0.736) —
 # giá trị phân số vô tình cô lập dòng tổng hợp khỏi vùng dữ liệu thật. Đặt False để quay về
 # SMOTE thuần (one-hot phân số) nếu muốn so sánh với cách làm phổ biến trong literature.
-# MẶC ĐỊNH False (SMOTE thuần, như literature/spec): trên xgboost x smote, 100k dòng, CIES gần như
+# MẶC ĐỊNH False (SMOTE thuần, như literature): trên xgboost x smote, 100k dòng, CIES gần như
 # không đổi giữa hai chế độ (0.957 khi False, 0.959 khi True) nhưng PR-AUC tụt mạnh khi True,
 # nên chọn cách so sánh được với các bài dùng SMOTE chuẩn. Đặt True để chạy ablation.
 SNAP_SYNTHETIC_ONEHOT = False

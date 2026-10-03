@@ -34,12 +34,12 @@ Mỗi file: **vai trò → dòng cần đọc → cần nhớ → câu dễ bị
 
 ### 2.1 [`src/config.py`](../src/config.py) — mọi hằng số (đọc hết, 111 dòng)
 - [`SEED = 42`, `N_RUNS = 20`](../src/config.py#L10) — tái lập được, 20 lần bootstrap.
-- [`CUSTOMER_IDENTITY_COLS`](../src/config.py#L63) và chú thích ngay trên (dòng 55–62): vì sao bỏ lat/long, city, state, job,
+- [`CUSTOMER_IDENTITY_COLS`](../src/config.py#L74) và chú thích ngay trên (dòng 55–62): vì sao bỏ lat/long, city, state, job,
   city_pop, merch_lat/long.
-- [`ONEHOT_COLS`, `TARGET_ENCODE_COLS`](../src/config.py#L67): gender, category → one-hot; merchant → target encoding.
-- [`ULB_FEATURE_COLS`](../src/config.py#L75): V1..V28 + Amount, **không có Time**.
-- [`SNAP_SYNTHETIC_ONEHOT = False`](../src/config.py#L98) và chú thích dòng 84–97.
-- [`IMBALANCE_TECHNIQUES`](../src/config.py#L101): đúng 5 kỹ thuật, không thêm bớt.
+- [`ONEHOT_COLS`, `TARGET_ENCODE_COLS`](../src/config.py#L78): gender, category → one-hot; merchant → target encoding.
+- [`ULB_FEATURE_COLS`](../src/config.py#L86): V1..V28 + Amount, **không có Time**.
+- [`SNAP_SYNTHETIC_ONEHOT = False`](../src/config.py#L109) và chú thích dòng 84–97.
+- [`IMBALANCE_TECHNIQUES`](../src/config.py#L112): đúng 5 kỹ thuật, không thêm bớt.
 - **Hỏi:** *"Sao Sparkov chỉ còn 7 feature?"* → amt, category, merchant, hour, day_of_week, age, gender; các cột còn lại là mã/định
   danh (1 cột hoặc tổ hợp chỉ ra đúng 1 khách) → model học thuộc "khách nào từng bị hack" (mục 4, câu 2).
 
@@ -54,10 +54,10 @@ Mỗi file: **vai trò → dòng cần đọc → cần nhớ → câu dễ bị
 ### 2.3 [`src/data/encoding.py`](../src/data/encoding.py) — encoding (235 dòng)
 - [`stratified_kfold_target_encode`](../src/data/encoding.py#L30): target encoding **out-of-fold** trên train (mỗi dòng được encode
   bằng thống kê của các fold khác → nhãn của chính nó không lọt vào). Làm mịn: category hiếm bị kéo về trung bình.
-  [Prior lấy từ fold train](../src/data/encoding.py#L82), không phải toàn train.
-- [`full_mapping`](../src/data/encoding.py#L94): test dùng thống kê **toàn bộ train**, không bao giờ fit trên test.
+  [Prior lấy từ fold train](../src/data/encoding.py#L80), không phải toàn train.
+- [`full_mapping`](../src/data/encoding.py#L92): test dùng thống kê **toàn bộ train**, không bao giờ fit trên test.
 - Tham số `groups` (dòng 52–55): bootstrap có dòng trùng → bản sao cùng 1 fold (StratifiedGroupKFold), tránh rò nhãn.
-- [`encode_test`](../src/data/encoding.py#L179): merchant chưa thấy → trung bình toàn cục; one-hot giữ đúng cột của train.
+- [`encode_test`](../src/data/encoding.py#L177): merchant chưa thấy → trung bình toàn cục; one-hot giữ đúng cột của train.
 - **Hỏi:** *"Target encoding có rò rỉ không?"* → trên train: out-of-fold; test: chỉ thống kê train; lúc tune: encode riêng từng fold
   thời gian (mục 2.6). Hạn chế đã ghi: trong train, fold xáo trộn nên 1 dòng có thể dùng nhãn của dòng train xảy ra sau — chỉ ảnh
   hưởng feature lúc train, không ảnh hưởng tập test (`pipeline_report.md`, giới hạn 14).
@@ -115,13 +115,13 @@ Mỗi file: **vai trò → dòng cần đọc → cần nhớ → câu dễ bị
 - [`compute_stability_metric`](../src/explainability/cies.py#L148): so mọi cặp trong 20 run (190 cặp);
   [`cies_score = 1 − khoảng cách TB`](../src/explainability/cies.py#L200); kèm Spearman trung bình để đối chiếu.
 - [`run_cies_experiment`](../src/explainability/cies.py#L269) — mỗi run (thuộc 5 bước):
-  0. Trước vòng lặp: [chọn 100 dòng nền SHAP cố định](../src/explainability/cies.py#L323) từ tập train gốc (dùng cho LR, ANN);
-  1. [Bootstrap train](../src/explainability/cies.py#L343) (lấy có hoàn lại, seed = số thứ tự run — seed này cũng đặt cho resampler và model);
-  2. [Encode lại từ đầu](../src/explainability/cies.py#L348) (có `groups` chống rò nhãn);
-  3. [Áp kỹ thuật imbalance](../src/explainability/cies.py#L375);
+  0. Trước vòng lặp: [chọn 100 dòng nền SHAP cố định](../src/explainability/cies.py#L322) từ tập train gốc (dùng cho LR, ANN);
+  1. [Bootstrap train](../src/explainability/cies.py#L342) (lấy có hoàn lại, seed = số thứ tự run — seed này cũng đặt cho resampler và model);
+  2. [Encode lại từ đầu](../src/explainability/cies.py#L347) (có `groups` chống rò nhãn);
+  3. [Áp kỹ thuật imbalance](../src/explainability/cies.py#L374);
   4. Train model (tham số cố định đã tune);
-  5. [SHAP trên tập đánh giá **cố định**](../src/explainability/cies.py#L396) (250 mẫu test: 50 fraud + 200 hợp lệ), so với dữ liệu nền cố định;
-     [run có SHAP toàn 0 bị loại](../src/explainability/cies.py#L403) (tránh CIES = 1 giả).
+  5. [SHAP trên tập đánh giá **cố định**](../src/explainability/cies.py#L395) (250 mẫu test: 50 fraud + 200 hợp lệ), so với dữ liệu nền cố định;
+     [run có SHAP toàn 0 bị loại](../src/explainability/cies.py#L402) (tránh CIES = 1 giả).
 - [`compute_condition_agreement_matrix`](../src/explainability/cies.py#L118): đồng thuận **giữa các kỹ thuật** (khác CIES: CIES là
   giữa các run của cùng 1 kỹ thuật).
 - **Hỏi:** *"CIES của em có giống bài gốc không?"* → mục 4, câu 8.

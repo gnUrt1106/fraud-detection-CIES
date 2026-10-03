@@ -45,7 +45,7 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 │   ├── explainability/       # shap_utils.py, cies.py (thuật toán CIES)
 │   ├── visualization/        # dataset.py, explain.py
 │   └── utils/                # isolation.py (mỗi tổ hợp chạy trong tiến trình riêng), jsonio.py
-├── tests/test_pipeline.py    # 46 test
+├── tests/test_pipeline.py    # 47 test
 ├── results/                  # Kết quả thí nghiệm (xem bên dưới)
 └── requirements.txt  requirements-lock.txt  .env.example
 ```
@@ -88,14 +88,14 @@ Chạy theo thứ tự (notebook mở bằng `jupyter lab` từ thư mục gốc
 
 1. **Tải Sparkov**: `python -m src.data.download` → `data/raw/`.
 2. **`02_preprocessing.ipynb`**: sinh `data/processed/*.parquet` (và tải + chia ULB).
-3. **Tune Sparkov**: `src.models.tune.tune_all_models(train_raw)` (local) hoặc `kaggle_pipeline.ipynb` (Kaggle GPU, nên dùng cho ANN) →
-   `results/best_params.json`.
+3. **Tune Sparkov**: `src.models.tune.tune_all_models(train_raw)` (local; mặc định 50 trial × 3 fold thời gian như thí nghiệm) hoặc
+   `kaggle_pipeline.ipynb` (Kaggle GPU, nên dùng cho ANN) → `results/best_params.json`. Kết quả tune đã kèm trong `results/`.
 4. **`03_train_models.ipynb`**, **`04_cies_experiment.ipynb`**: benchmark và CIES Sparkov.
 5. **`05_cies_experiment_ulb.ipynb`**: tune, benchmark và CIES cho ULB (tham số riêng của ULB).
 6. **`06_visualizations.ipynb`**: biểu đồ và nhận xét.
 
 Mỗi tổ hợp được lưu ngay khi xong, chạy lại sẽ bỏ qua phần đã có (kết quả đã kèm trong `results/`, nên notebook 03–06 chạy lại chỉ vẽ lại
-biểu đồ). Chạy test: `python -m pytest tests -q` (46 test).
+biểu đồ). Chạy test: `python -m pytest tests -q` (47 test).
 
 **Tái lập.** `results/` được tạo trên macOS arm64 (CPU), trừ tune và benchmark của ANN chạy trên GPU Kaggle. Cùng cấu hình đó và
 `requirements-lock.txt`, chạy lại cho kết quả trùng từng chữ số (đã kiểm: dữ liệu sau tiền xử lý, benchmark, CIES của LR, CatBoost, ANN).

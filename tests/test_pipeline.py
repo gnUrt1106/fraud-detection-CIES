@@ -1037,6 +1037,32 @@ def _notebook_calls(name):
     return code, calls
 
 
+def test_eda_time_features_match_the_pipeline():
+    """`unix_time` của Sparkov lệch đúng 7 năm so với `trans_date_trans_time` (2012 thay vì 2019): EDA từng lấy
+    thời gian từ nó nên thứ trong tuần sai hoàn toàn và tuổi bị trừ 7 năm (tuổi nhỏ nhất in ra 6), rồi lại tính
+    tuổi bằng `số ngày // 365` — khác feature `age` của model ở ~42% số dòng. Chạy chính các ô code của EDA và
+    so với `preprocess_sparkov`: hour, day_of_week, age phải trùng."""
+    from src.data.preprocess import preprocess_sparkov
+
+    nb = json.loads((Path(__file__).resolve().parent.parent / "notebooks" / "01_eda.ipynb").read_text(encoding="utf-8"))
+    code = ["".join(c["source"]) for c in nb["cells"] if c["cell_type"] == "code"]
+    time_cell = next(c for c in code if "df['trans_datetime'] =" in c)
+    age_cell = next(c for c in code if "df['age'] =" in c)
+
+    ts = pd.to_datetime(["2019-03-01 23:10:00", "2019-11-20 02:00:00", "2020-06-15 13:45:00"])
+    raw = pd.DataFrame({
+        "trans_date_trans_time": ts.strftime("%Y-%m-%d %H:%M:%S"),
+        "unix_time": ((ts - pd.Timedelta(days=2557)) - pd.Timestamp("1970-01-01")) // pd.Timedelta(seconds=1),  # như Sparkov
+        "dob": ["1990-07-15", "1975-01-02", "2005-06-20"],  # trước / sau / đúng quanh sinh nhật
+        "amt": [10.0, 20.0, 30.0], "is_fraud": [0, 1, 0],
+    })
+    eda = raw.copy()
+    exec(time_cell + "\n" + age_cell, {"pd": pd, "df": eda, "TARGET_COL": "is_fraud"})
+    ref = preprocess_sparkov(raw)
+    for col in ("hour", "day_of_week", "age"):
+        np.testing.assert_array_equal(eda[col].to_numpy(), ref[col].to_numpy(), err_msg=col)
+
+
 def test_ulb_notebook_uses_ulb_params_and_own_resample_cache():
     """Notebook 05 từng gọi CIES không truyền params → build_model nạp tham số của Sparkov cho ULB.
 

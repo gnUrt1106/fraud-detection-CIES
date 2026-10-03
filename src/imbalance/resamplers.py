@@ -1,9 +1,9 @@
 """
 resamplers.py — Wrapper cho 5 kỹ thuật xử lý mất cân bằng.
 
-CHÍNH XÁC 5 kỹ thuật — KHÔNG thêm, KHÔNG bớt (spec mục 4.1).
+CHÍNH XÁC 5 kỹ thuật — KHÔNG thêm, KHÔNG bớt (phạm vi đề tài).
 
-Danh sách CẤM (spec mục 4.2):
+Ngoài phạm vi đề tài (không dùng):
     - GAN-based oversampling (SMOTE-GAN, GANified-SMOTE...)
     - Focal loss / cost-sensitive nâng cao
     - Random undersampling đơn thuần

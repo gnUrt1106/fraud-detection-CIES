@@ -5,7 +5,7 @@ CIES đo độ ổn định của SHAP values qua nhiều lần bootstrap resamp
 Sử dụng rank-weighted distance function — phạt nặng hơn khi top features
 thay đổi thứ hạng, nhẹ hơn khi features ít quan trọng thay đổi.
 
-Pseudo-code bắt buộc (spec mục 7.1):
+Quy trình mỗi run:
     1. Bootstrap resample train (KHÔNG đổi eval set)
     2. Encoding fit lại trên resample (KHÔNG dùng lại encoding cũ)
     3. Imbalance handling
@@ -292,8 +292,7 @@ def run_cies_experiment(
     """
     Chạy thí nghiệm CIES cho 1 tổ hợp (model × imbalance technique).
 
-    Theo pseudo-code bắt buộc (spec mục 7.1):
-        Mỗi run: bootstrap resample → re-encode → resample → train → SHAP trên eval cố định
+    Mỗi run: bootstrap resample → re-encode → resample → train → SHAP trên eval cố định
 
     Args:
         model_name: Tên model
@@ -342,7 +341,7 @@ def run_cies_experiment(
     logger.info(f"=== CIES Experiment: {combination_name} ({n_runs} runs) ===")
 
     for run_idx in range(n_runs):
-        seed = run_idx  # Spec: dùng range(N_RUNS) làm seeds
+        seed = run_idx  # run thứ i dùng seed i cho bootstrap, resampler và model
         logger.info(f"  Run {run_idx + 1}/{n_runs} (seed={seed})")
 
         try:

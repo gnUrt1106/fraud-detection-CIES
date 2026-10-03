@@ -1,7 +1,7 @@
 """
 metrics.py — Evaluation metrics cho fraud detection.
 
-Metric chính: PR-AUC (spec mục 8)
+Metric chính: PR-AUC
     - KHÔNG dùng ROC-AUC làm metric quyết định (có thể báo cáo tham khảo)
     - Báo cáo kèm: Precision@Recall cố định, F1, F2
     - Test set giữ nguyên phân phối gốc — KHÔNG resample test
@@ -26,7 +26,7 @@ def evaluate_model(
     recall_targets: tuple = (0.5, 0.7, 0.8),
 ) -> Dict[str, float]:
     """
-    Đánh giá model với đầy đủ metrics theo spec.
+    Đánh giá model với đầy đủ metrics.
 
     Args:
         y_true: Ground truth labels

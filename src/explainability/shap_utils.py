@@ -1,7 +1,7 @@
 """
 shap_utils.py — SHAP explainability utilities.
 
-Mapping explainer bắt buộc theo model (spec mục 6.1):
+Mapping explainer theo model:
     - Logistic Regression → shap.LinearExplainer (exact)
     - Random Forest       → shap.TreeExplainer (exact)
     - XGBoost             → shap.TreeExplainer (exact)

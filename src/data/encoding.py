@@ -1,15 +1,15 @@
 """
 encoding.py — Encoding pipeline cho categorical features.
 
-Thứ tự pipeline (spec mục 3.3):
+Thứ tự pipeline:
     1. Split train/test THEO THỜI GIAN (src/data/preprocess.py)
     2. Encoding: fit trên train → transform test
     3. Imbalance handling: CHỈ áp dụng lên train, SAU khi encode
 
-Encoding strategy (spec mục 3.1, cột theo config.ONEHOT_COLS / TARGET_ENCODE_COLS):
+Encoding strategy (cột theo config.ONEHOT_COLS / TARGET_ENCODE_COLS):
     - One-hot: gender, category (low cardinality)
     - Stratified K-fold Target Encoding: merchant (high cardinality)
-    (state, city, job đã bị bỏ khỏi feature — là cột định danh khách hàng, xem AGENT_SPEC §8)
+    (state, city, job đã bị bỏ khỏi feature — là cột định danh khách hàng, xem config.CUSTOMER_IDENTITY_COLS)
 
 RÀNG BUỘC:
     - PHẢI dùng StratifiedKFold, KHÔNG KFold thường
@@ -39,7 +39,6 @@ def stratified_kfold_target_encode(
     """
     Stratified K-fold Target Encoding cho 1 cột categorical.
 
-    Pseudo-code bắt buộc tuân thủ từ spec mục 3.2.
     Dùng StratifiedKFold (KHÔNG KFold thường) để đảm bảo mỗi fold
     có tỷ lệ fraud/legit cân bằng.
 
@@ -76,9 +75,8 @@ def stratified_kfold_target_encode(
 
     for train_idx, val_idx in splits:
         fold_train = df_reset.iloc[train_idx]
-        # Prior làm mịn tính CHỈ từ fold train. Dùng trung bình toàn bộ train (bản cũ, theo
-        # pseudo-code gốc của spec) thì nhãn của chính các dòng validation lọt vào prior —
-        # rò rỉ nhỏ nhưng có thật, và dễ loại bỏ hoàn toàn.
+        # Prior làm mịn tính CHỈ từ fold train. Dùng trung bình toàn bộ train thì nhãn của chính
+        # các dòng validation lọt vào prior — rò rỉ nhỏ nhưng có thật, và dễ loại bỏ hoàn toàn.
         fold_mean = fold_train[target_col].mean()
         stats = fold_train.groupby(col)[target_col].agg(["mean", "count"])
         # Smoothing: category hiếm bị kéo về fold_mean
@@ -189,7 +187,7 @@ def encode_test(
     """
     Encode tập test dùng thống kê đã tính trên TOÀN BỘ train.
 
-    RÀNG BUỘC (spec mục 3.2):
+    RÀNG BUỘC:
     - Test dùng full mapping từ toàn bộ train (không k-fold)
     - KHÔNG fit lại trên test
 

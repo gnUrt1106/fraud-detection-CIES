@@ -1,7 +1,7 @@
 """
 train.py — Build và train 5 models cho fraud detection.
 
-RÀNG BUỘC QUAN TRỌNG (spec mục 5.2):
+RÀNG BUỘC QUAN TRỌNG:
     CatBoost PHẢI dùng chung bộ feature đã encode sẵn — KHÔNG dùng
     cơ chế Ordered Target Statistics nội tại (KHÔNG truyền cat_features).
 
@@ -168,8 +168,8 @@ def build_model(
         }
         if params:
             lr_params.update(params)
-        # StandardScaler — feature chưa scale (amt, lat/long, hour, target-encode
-        # probability...) chênh lệch scale lớn khiến lbfgs khó hội tụ trong
+        # StandardScaler — feature chưa scale (amt tới ~29.000, age, hour, merchant_encoded
+        # ~1e-2...) chênh lệch scale lớn khiến lbfgs khó hội tụ trong
         # max_iter (ConvergenceWarning). Cây (RF/XGBoost/CatBoost) bất biến với scaling;
         # ANN có StandardScaler riêng trong _train_ann (BatchNorm nằm SAU lớp Linear đầu).
         return {"kind": "lr", "model": LogisticRegression(**lr_params), "scaler": StandardScaler()}
@@ -220,7 +220,7 @@ def build_model(
     elif model_name == "catboost":
         from catboost import CatBoostClassifier
 
-        # RÀNG BUỘC (spec 5.2): KHÔNG truyền cat_features — dùng feature đã encode chung
+        # RÀNG BUỘC: KHÔNG truyền cat_features — dùng feature đã encode chung
         cb_params = {
             "iterations": 200,
             "depth": 6,
@@ -344,11 +344,10 @@ def _train_ann(
     class_weights = model_dict.get("class_weights")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Chuẩn hoá input: feature thô có thang cực khác nhau (Sparkov: unix_time ~1e9,
-    # city_pop ~1e6, target-encoded ~1e-2; ULB: Time/Amount ~1e3-1e5). Không scale thì
-    # lớp Linear đầu nhận giá trị khổng lồ và train gần như hỏng — đo trên Sparkov:
-    # PR-AUC 0.16 (không scale) vs 0.74 (có scale). BatchNorm nằm SAU lớp Linear đầu nên
-    # không cứu được. Scaler lưu vào model_dict để predict/SHAP dùng lại đúng.
+    # Chuẩn hoá input: feature thô có thang rất khác nhau (Sparkov: amt tới ~29.000, age 14–96,
+    # merchant_encoded ~1e-2; ULB: Amount tới ~20.000, V1..V28 độ lệch chuẩn 0,3–2). Không scale
+    # thì lớp Linear đầu nhận giá trị khổng lồ và train gần như hỏng; BatchNorm nằm SAU lớp Linear đầu nên
+    # không cứu được (test_ann_scaling_and_batch_of_one). Scaler lưu vào model_dict để predict/SHAP dùng lại đúng.
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train)
     model_dict["input_scaler"] = scaler
