@@ -1,6 +1,6 @@
 # Hướng dẫn ôn tập source code — để trả lời khi bảo vệ
 
-Mọi số liệu dưới đây lấy từ `results/` và `reports/` (thiết kế hiện tại, cập nhật 2026-09-27). Link dạng `file#Lxx` mở đúng dòng
+Mọi số liệu dưới đây lấy từ `results/` và `reports/` (thiết kế hiện tại, cập nhật 2026-10-03). Link dạng `file#Lxx` mở đúng dòng
 trên GitHub; trong IDE thì mở file rồi `Ctrl/Cmd+G` → số dòng.
 
 **Cách ôn (3 vòng):**
@@ -32,13 +32,13 @@ trên GitHub; trong IDE thì mở file rồi `Ctrl/Cmd+G` → số dòng.
 
 Mỗi file: **vai trò → dòng cần đọc → cần nhớ → câu dễ bị hỏi**.
 
-### 2.1 [`src/config.py`](../src/config.py) — mọi hằng số (đọc hết, 111 dòng)
+### 2.1 [`src/config.py`](../src/config.py) — mọi hằng số (đọc hết, 128 dòng)
 - [`SEED = 42`, `N_RUNS = 20`](../src/config.py#L10) — tái lập được, 20 lần bootstrap.
-- [`CUSTOMER_IDENTITY_COLS`](../src/config.py#L79) và chú thích ngay trên (dòng 55–62): vì sao bỏ lat/long, city, state, job,
+- [`CUSTOMER_IDENTITY_COLS`](../src/config.py#L79) và chú thích ngay trên (dòng 74–78): vì sao bỏ lat/long, city, state, job,
   city_pop, merch_lat/long.
 - [`ONEHOT_COLS`, `TARGET_ENCODE_COLS`](../src/config.py#L84): gender, category → one-hot; merchant → target encoding.
 - [`ULB_FEATURE_COLS`](../src/config.py#L92): V1..V28 + Amount, **không có Time**.
-- [`SNAP_SYNTHETIC_ONEHOT = False`](../src/config.py#L115) và chú thích dòng 84–97.
+- [`SNAP_SYNTHETIC_ONEHOT = False`](../src/config.py#L115) và chú thích dòng 104–114.
 - [`IMBALANCE_TECHNIQUES`](../src/config.py#L118): đúng 5 kỹ thuật, không thêm bớt.
 - **Hỏi:** *"Sao Sparkov chỉ còn 7 feature?"* → amt, category, merchant, hour, day_of_week, age, gender; các cột còn lại là mã/định
   danh (1 cột hoặc tổ hợp chỉ ra đúng 1 khách) → model học thuộc "khách nào từng bị hack" (mục 4, câu 2).
@@ -51,7 +51,7 @@ Mỗi file: **vai trò → dòng cần đọc → cần nhớ → câu dễ bị
 - **Nhớ số:** Sparkov train 1.296.675 dòng (7.506 fraud, 0,579%), test 555.719 (2.145 fraud, 0,386%); ULB train 227.846 (417 fraud),
   test 56.961 (75 fraud).
 
-### 2.3 [`src/data/encoding.py`](../src/data/encoding.py) — encoding (235 dòng)
+### 2.3 [`src/data/encoding.py`](../src/data/encoding.py) — encoding (240 dòng)
 - [`stratified_kfold_target_encode`](../src/data/encoding.py#L30): target encoding **out-of-fold** trên train (mỗi dòng được encode
   bằng thống kê của các fold khác → nhãn của chính nó không lọt vào). Làm mịn: category hiếm bị kéo về trung bình.
   [Prior lấy từ fold train](../src/data/encoding.py#L80), không phải toàn train.
@@ -62,7 +62,7 @@ Mỗi file: **vai trò → dòng cần đọc → cần nhớ → câu dễ bị
   thời gian (mục 2.6). Hạn chế đã ghi: trong train, fold xáo trộn nên 1 dòng có thể dùng nhãn của dòng train xảy ra sau — chỉ ảnh
   hưởng feature lúc train, không ảnh hưởng tập test (`pipeline_report.md`, giới hạn 14).
 
-### 2.4 [`src/imbalance/resamplers.py`](../src/imbalance/resamplers.py) — 5 kỹ thuật (211 dòng)
+### 2.4 [`src/imbalance/resamplers.py`](../src/imbalance/resamplers.py) — 5 kỹ thuật (215 dòng)
 - [`get_resampler`](../src/imbalance/resamplers.py#L34): SMOTE, SMOTEENN, ADASYN, BorderlineSMOTE — tham số mặc định imbalanced-learn
   (k=5; borderline-1, m=10; ENN k=3 làm sạch cả 2 lớp), cân bằng về 1:1.
 - [`get_class_weights`](../src/imbalance/resamplers.py#L65): class weighting = `compute_class_weight("balanced")`
@@ -73,7 +73,7 @@ Mỗi file: **vai trò → dòng cần đọc → cần nhớ → câu dễ bị
   tính lại, không dùng nhầm.
 - **Hỏi:** *"SMOTE nội suy cột one-hot ra giá trị 0,7/0,3 có sai không?"* → mục 4, câu 7.
 
-### 2.5 [`src/models/train.py`](../src/models/train.py) — tạo/train/dự đoán model (495 dòng)
+### 2.5 [`src/models/train.py`](../src/models/train.py) — tạo/train/dự đoán model (494 dòng)
 - [`build_model`](../src/models/train.py#L131): đọc từng nhánh model. Class weighting đưa vào model:
   LR/RF `class_weight` ([166](../src/models/train.py#L166), [185](../src/models/train.py#L185)); XGBoost
   [`scale_pos_weight` = w₁/w₀](../src/models/train.py#L211); CatBoost [`class_weights`](../src/models/train.py#L237); ANN
@@ -84,7 +84,7 @@ Mỗi file: **vai trò → dòng cần đọc → cần nhớ → câu dễ bị
 - **Hỏi:** *"Sao LR trên Sparkov kém (PR-AUC 0,12)?"* → tín hiệu `hour` có dạng "cao ban đêm" (22h–3h: 1,4–2,9% fraud, giờ khác
   ~0,1%) mà 1 hệ số tuyến tính không mô tả được; trên ULB (feature PCA gần tuyến tính) LR đạt 0,69–0,70.
 
-### 2.6 [`src/models/tune.py`](../src/models/tune.py) — Optuna (490 dòng)
+### 2.6 [`src/models/tune.py`](../src/models/tune.py) — Optuna (499 dòng)
 - [`sample_hyperparameters`](../src/models/tune.py#L37): vùng tìm từng model (thuộc tên tham số chính: LR `C`; RF `n_estimators`,
   `max_depth`, `min_samples_*`; XGBoost/CatBoost số cây, độ sâu, `learning_rate`; ANN `lr`, `dropout`, `epochs`, `batch_size`).
 - [`time_series_folds`](../src/models/tune.py#L94): 1/3 cuối train chia 3 khối validation liên tiếp, mỗi fold train trên **mọi dòng
@@ -94,35 +94,38 @@ Mỗi file: **vai trò → dòng cần đọc → cần nhớ → câu dễ bị
   [MedianPruner](../src/models/tune.py#L229) cắt trial kém sau fold đầu; [TPE seed 42](../src/models/tune.py#L243); checkpoint SQLite.
 - Tune trên dữ liệu **chưa xử lý mất cân bằng**, tham số dùng chung cho 5 kỹ thuật (mục 4, câu 4).
 - **Nhớ số (PR-AUC CV):** Sparkov LR 0,246 · RF 0,912 · XGBoost 0,921 · CatBoost 0,924 · ANN 0,919; ULB LR 0,809 · RF 0,794 ·
-  XGBoost 0,810 · CatBoost 0,812 · ANN 0,803.
+  XGBoost 0,809 · CatBoost 0,812 · ANN 0,803.
 
 ### 2.7 [`src/evaluation/metrics.py`](../src/evaluation/metrics.py) — chỉ số (78 dòng)
 - [PR-AUC = `average_precision_score`](../src/evaluation/metrics.py#L50) — chỉ số chính, không phụ thuộc ngưỡng.
 - [F1, F2, FP… ở ngưỡng 0,5](../src/evaluation/metrics.py#L45) — chỉ tham khảo (mục 4, câu 10).
 
-### 2.8 [`src/explainability/shap_utils.py`](../src/explainability/shap_utils.py) — SHAP (243 dòng)
+### 2.8 [`src/explainability/shap_utils.py`](../src/explainability/shap_utils.py) — SHAP (226 dòng)
 - [`EXPLAINER_MAP`](../src/explainability/shap_utils.py#L23): LR → LinearExplainer; RF/XGBoost/CatBoost → TreeExplainer (chính xác);
   ANN → DeepExplainer (xấp xỉ, tất định; Kernel chỉ dự phòng).
-- [`_compute_shap_linear`](../src/explainability/shap_utils.py#L86): LR giải thích trong **không gian đã scale** (cùng scaler lúc train).
-- [`_compute_shap_tree`](../src/explainability/shap_utils.py#L120): chuẩn hoá output về (mẫu × feature) cho lớp fraud.
-- [`_compute_shap_deep`](../src/explainability/shap_utils.py#L202): ANN; nếu lỗi thì lùi Kernel và **ghi lại** explainer đã dùng.
+- [`compute_shap`](../src/explainability/shap_utils.py#L36): LR và ANN **bắt buộc** truyền dữ liệu nền (`X_background`), thiếu là báo lỗi
+  ngay — không âm thầm lấy tập eval làm nền (mốc sai mà không ai biết). Model cây không cần nền.
+- [`_compute_shap_linear`](../src/explainability/shap_utils.py#L82): LR giải thích trong **không gian đã scale** (cùng scaler lúc train);
+  dùng **mọi dòng** nền (`max_samples=len(nền)` — mặc định của shap chỉ giữ 100 dòng, mốc sẽ đổi theo mẫu con).
+- [`_compute_shap_tree`](../src/explainability/shap_utils.py#L109): chuẩn hoá output về (mẫu × feature) cho lớp fraud.
+- [`_compute_shap_deep`](../src/explainability/shap_utils.py#L186): ANN; nếu lỗi thì lùi Kernel và **ghi lại** explainer đã dùng.
 - **Hỏi:** *"Sao ANN dùng Deep chứ không Kernel?"* → Kernel tự có nhiễu lấy mẫu (2 lần chạy cùng model chỉ khớp Spearman ~0,85) làm
   CIES thấp giả; Deep tất định. Cả 200 run ANN đều dùng Deep.
 
 ### 2.9 [`src/explainability/cies.py`](../src/explainability/cies.py) — **trái tim của đề tài** (đọc kỹ nhất)
-- [`compute_rank_weighted_distance`](../src/explainability/cies.py#L44): [trọng số `1/min(hạng_a, hạng_b)`](../src/explainability/cies.py#L70),
+- [`compute_rank_weighted_distance`](../src/explainability/cies.py#L43): [trọng số `1/min(hạng_a, hạng_b)`](../src/explainability/cies.py#L69),
   chuẩn hoá tổng = 1; khoảng cách = Σ trọng số × |chênh hạng| / (số feature − 1).
-- [`compute_stability_metric`](../src/explainability/cies.py#L148): so mọi cặp trong 20 run (190 cặp);
-  [`cies_score = 1 − khoảng cách TB`](../src/explainability/cies.py#L200); kèm Spearman trung bình để đối chiếu.
-- [`run_cies_experiment`](../src/explainability/cies.py#L280) — mỗi run (thuộc 5 bước):
-  0. Trước vòng lặp: [chọn dữ liệu nền SHAP cố định](../src/explainability/cies.py#L334) từ tập train gốc (LR: toàn bộ; ANN: 1000 dòng);
-  1. [Bootstrap train](../src/explainability/cies.py#L357) (lấy có hoàn lại, seed = số thứ tự run — seed này cũng đặt cho resampler và model);
-  2. [Encode lại từ đầu](../src/explainability/cies.py#L362) (có `groups` chống rò nhãn);
-  3. [Áp kỹ thuật imbalance](../src/explainability/cies.py#L379);
+- [`compute_stability_metric`](../src/explainability/cies.py#L147): so mọi cặp trong 20 run (190 cặp);
+  [`cies_score = 1 − khoảng cách TB`](../src/explainability/cies.py#L199); kèm Spearman trung bình để đối chiếu.
+- [`run_cies_experiment`](../src/explainability/cies.py#L279) — mỗi run (thuộc 5 bước):
+  0. Trước vòng lặp: [chọn dữ liệu nền SHAP cố định](../src/explainability/cies.py#L333) từ tập train gốc (LR: toàn bộ; ANN: 1000 dòng);
+  1. [Bootstrap train](../src/explainability/cies.py#L356) (lấy có hoàn lại, seed = số thứ tự run — seed này cũng đặt cho resampler và model);
+  2. [Encode lại từ đầu](../src/explainability/cies.py#L361) (có `groups` chống rò nhãn);
+  3. [Áp kỹ thuật imbalance](../src/explainability/cies.py#L378);
   4. Train model (tham số cố định đã tune);
-  5. [SHAP trên tập đánh giá **cố định**](../src/explainability/cies.py#L396) (250 mẫu test: 50 fraud + 200 hợp lệ), so với dữ liệu nền cố định;
-     [run có SHAP toàn 0 bị loại](../src/explainability/cies.py#L403) (tránh CIES = 1 giả).
-- [`compute_condition_agreement_matrix`](../src/explainability/cies.py#L118): đồng thuận **giữa các kỹ thuật** (khác CIES: CIES là
+  5. [SHAP trên tập đánh giá **cố định**](../src/explainability/cies.py#L395) (250 mẫu test: 50 fraud + 200 hợp lệ), so với dữ liệu nền cố định;
+     [run có SHAP toàn 0 bị loại](../src/explainability/cies.py#L402) (tránh CIES = 1 giả).
+- [`compute_condition_agreement_matrix`](../src/explainability/cies.py#L117): đồng thuận **giữa các kỹ thuật** (khác CIES: CIES là
   giữa các run của cùng 1 kỹ thuật).
 - **Hỏi:** *"CIES của em có giống bài gốc không?"* → mục 4, câu 8.
 
@@ -134,6 +137,7 @@ Mỗi file: **vai trò → dòng cần đọc → cần nhớ → câu dễ bị
 ### 2.11 Notebook (đọc phần chữ + kết quả, không cần thuộc code)
 | Notebook | Vai trò |
 |---|---|
+| `01_eda` | Khám phá Sparkov: mức mất cân bằng, phân bố số tiền, tỷ lệ fraud theo thứ/category/giới tính/tuổi |
 | `02_preprocessing` | Gọi preprocess + encoding, lưu `data/processed/` |
 | `03_train_models` | Benchmark 25 tổ hợp Sparkov |
 | `04_cies_experiment` | CIES Sparkov (mẫu phân tầng 100.000 dòng); mục 8: kiểm tra độ nhạy cỡ mẫu |
@@ -142,8 +146,8 @@ Mỗi file: **vai trò → dòng cần đọc → cần nhớ → câu dễ bị
 | `kaggle_pipeline` | Chạy ANN trên GPU Kaggle (tune → benchmark → CIES, Sparkov rồi ULB) |
 
 ### 2.12 Tài liệu lập luận (đọc để trả lời "vì sao")
-- `reports/design_decisions.md` — lý do + số đo cho từng quyết định (chia thời gian, bỏ định danh, tune, 50 trial, vùng tìm, SMOTE chuẩn, ANN).
-- `reports/pipeline_report.md` — mục "Kết quả" (2 bảng + 9 nhận xét) và "Lệch so với spec" (15 giới hạn).
+- `reports/design_decisions.md` — lý do + số đo cho từng quyết định (chia thời gian, bỏ định danh, tune, 50 trial, vùng tìm, SMOTE chuẩn, ANN, dữ liệu nền SHAP).
+- `reports/pipeline_report.md` — mục "Kết quả" (2 bảng + 9 nhận xét) và "Lệch so với spec" (20 giới hạn).
 - `reports/literature_support.md`, `reports/benchmark_literature.md` — nguồn tài liệu đã kiểm chứng; cách nói về khoảng trống nghiên cứu.
 
 ---
@@ -195,12 +199,13 @@ fraudTrain.csv / fraudTest.csv ──preprocess (sắp thời gian, thêm hour/d
 12. **"Sao lấy mẫu 100.000 dòng cho CIES Sparkov?"** — 20 run × 25 tổ hợp trên 1,3 triệu dòng quá nặng; 100k giữ đúng tỷ lệ fraud (579
     fraud). Đã kiểm tra độ nhạy; mốc 100k tính lại trùng từng chữ số.
 13. **"PR-AUC cao thì giải thích có ổn định hơn không?"** — Sparkov: không (Spearman −0,15 bỏ LR; CatBoost × SMOTE PR-AUC cao nhất nhưng
-    CIES trung bình; ANN PR-AUC ngang CatBoost nhưng CIES thấp nhất). ULB: cùng chiều (0,49) nhưng test chỉ 75 fraud.
+    CIES trung bình; ANN PR-AUC ngang CatBoost nhưng CIES thấp nhất). ULB: cùng chiều (0,50) nhưng test chỉ 75 fraud.
 14. **"Kết quả so với nghiên cứu khác?"** — Wu (2026): cùng tập test gốc, không định danh, XGBoost AP 0,930–0,934 (có thêm feature
     velocity theo thẻ); luận văn CatBoost 0,887 không dùng velocity. Không so với bài chia ngẫu nhiên (con số bị thổi phồng).
 15. **"Hạn chế lớn nhất?"** — 1 seed; ULB ít fraud (75 ở test, 24–36 mỗi khối validation); tune tách khỏi imbalance; vài tham số sát
     biên; Sparkov là dữ liệu mô phỏng (gần như mọi khách đều bị lộ thẻ); PR-AUC (train trên toàn bộ train) và CIES (bootstrap từ mẫu
-    100k) đến từ 2 cách train khác nhau; ANN chỉ tái lập được về mặt thống kê giữa các máy.
+    100k) đến từ 2 cách train khác nhau; ANN chỉ tái lập được về mặt thống kê giữa các máy; `age` tính theo năm (lệch +1 tuổi ở
+    44,6% dòng chưa tới sinh nhật — giới hạn 19); mốc SHAP của model cây đổi theo từng run (giới hạn 20, câu 16).
 16. **"LR/ANN kém ổn định là do model hay do cách tính SHAP?"** — LinearExplainer và DeepExplainer đo SHAP so với 1 tập dữ liệu nền
     (LR: `hệ số × (x − trung bình nền)`). Nền giống nhau ở mọi run và đủ lớn: LR dùng toàn bộ tập train, ANN dùng 1000 dòng (với 100 dòng,
     chỉ đổi dòng nào làm nền đã làm CIES ANN lệch tới 0,031). Model cây thì khác: TreeExplainer lấy mốc từ dữ liệu train của chính từng

@@ -7,7 +7,7 @@ Nhóm 3 (CIES): heatmap model × kỹ thuật, thứ hạng kỹ thuật trong t
 qua các bootstrap run, CIES theo cỡ mẫu, trade-off với PR-AUC, đồng thuận feature giữa các kỹ thuật.
 Nhóm 4 (benchmark): PR-AUC theo kỹ thuật (độ lệch trong model), số báo nhầm ở ngưỡng 0,5.
 
-Dữ liệu CIES lấy từ file JSON do `merge_cies_result()` (hoặc `save_cies_results()`) ghi; các biểu đồ theo run
+Dữ liệu CIES lấy từ file JSON do `merge_cies_result()` ghi; các biểu đồ theo run
 cần trường `mean_abs_shap` trong `run_logs` (chỉ có ở kết quả chạy SAU khi
 `run_cies_experiment` bắt đầu lưu trường này).
 """

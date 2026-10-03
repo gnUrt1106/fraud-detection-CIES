@@ -75,7 +75,7 @@ NUMERICAL_COLS = [
 # Mỗi cột (hoặc tổ hợp) gần như chỉ ra đúng 1 khách hàng: 98,6% cặp (lat, long) và 90,1% giá trị
 # city_pop chỉ thuộc 1 thẻ, 92,2% city chỉ có 1 thẻ; merch_lat/long luôn nằm trong ~1,4° quanh nhà
 # khách. Model dùng chúng để học thuộc "khách nào từng bị hack" — chia theo thời gian (XGBoost,
-# class_weighting) cho PR-AUC 0,24 khi giữ, 0,88 khi bỏ. Xem reports/pipeline_report.md.
+# class_weighting) cho PR-AUC 0,24 khi giữ, 0,88 khi bỏ.
 CUSTOMER_IDENTITY_COLS = ["lat", "long", "city", "state", "job", "city_pop", "merch_lat", "merch_long"]
 
 # ===== Encoding strategy theo cardinality (Sparkov) =====

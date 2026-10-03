@@ -106,13 +106,7 @@ hiện tại — số trong `results/` là của nền hiện tại).
 **Lưu ý kỹ thuật:** torch (ANN) và xgboost không được nạp chung 1 tiến trình (xung đột OpenMP) — mọi model/tổ hợp chạy qua
 `src/utils/isolation.py::run_isolated`.
 
-## Tài liệu phương pháp
-
-Lý do cho từng quyết định thiết kế, báo cáo đầy đủ và sơ đồ kiến trúc nằm trong repo GitHub (không kèm trong bản nộp):
-[design_decisions.md](https://github.com/gnUrt1106/fraud-detection-CIES/blob/main/reports/design_decisions.md) ·
-[pipeline_report.md](https://github.com/gnUrt1106/fraud-detection-CIES/blob/main/reports/pipeline_report.md) ·
-[system_architecture.html](https://github.com/gnUrt1106/fraud-detection-CIES/blob/main/reports/system_architecture.html) ·
-[literature_support.md](https://github.com/gnUrt1106/fraud-detection-CIES/blob/main/reports/literature_support.md).
+## Ghi chú phương pháp
 
 CIES trong đồ án là **biến thể** của CIES gốc (Văduva et al., 2026, arXiv:2603.05024): bài gốc nhiễu hoá đầu vào lúc suy luận; đồ án
 nhiễu hoá dữ liệu huấn luyện (bootstrap + train lại) và đo trên thứ hạng feature.

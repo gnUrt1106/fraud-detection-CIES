@@ -22,7 +22,6 @@ RÀNG BUỘC KHÔNG ĐƯỢC VI PHẠM:
 import numpy as np
 import pandas as pd
 import logging
-import json
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
 from scipy.stats import spearmanr
@@ -328,7 +327,7 @@ def run_cies_experiment(
     # Dữ liệu nền SHAP: CÙNG các dòng gốc ở mọi run (mỗi run encode chúng bằng mapping của run đó,
     # như tập eval). LinearExplainer (LR) và DeepExplainer (ANN) đo SHAP so với nền này; nền đổi theo
     # run (vd. lấy từ mẫu bootstrap) thì thứ hạng dao động thêm vì mốc chứ không vì model. Mẫu nhỏ
-    # cũng làm kết quả phụ thuộc việc chọn dòng nào (reports/design_decisions.md mục 12), nên:
+    # cũng làm kết quả phụ thuộc việc chọn dòng nào (100 dòng: CIES ANN lệch tới 0,031 theo seed chọn nền), nên:
     # LR dùng toàn bộ tập train (chỉ cần trung bình — rẻ); model khác dùng mẫu SHAP_BACKGROUND_N dòng.
     # TreeExplainer không dùng nền.
     if model_name == "logistic_regression":
@@ -517,39 +516,6 @@ def _serialize_cies(obj: Any) -> Any:
     return str(obj)
 
 
-def save_cies_results(
-    results: List[Dict[str, Any]],
-    output_path: Optional[Path] = None,
-    filename: str = "cies_results.json",
-):
-    """
-    Lưu kết quả CIES ra file JSON — GHI ĐÈ toàn bộ file bằng đúng `results` truyền vào.
-
-    CHỈ an toàn khi có ĐÚNG 1 tiến trình ghi vào file này (vòng lặp tuần tự chuẩn của
-    notebook 04/05: đọc 1 lần lúc khởi động, tự thêm dần vào list trong bộ nhớ, ghi đè
-    sau mỗi tổ hợp — list trong bộ nhớ luôn phản ánh đúng toàn bộ file vì không ai khác
-    ghi vào đó). Nếu chạy NHIỀU tiến trình song song cùng ghi 1 file (vd. chạy thêm vài
-    tổ hợp "phụ" cho nhanh), dùng merge_cies_result() cho từng tổ hợp thay vì hàm này —
-    nếu không, tiến trình nào ghi sau sẽ ĐÈ MẤT kết quả tiến trình khác vừa thêm (đã xảy
-    ra thật: chạy 3 tiến trình CIES song song làm mất 1 tổ hợp đã xong).
-
-    Args:
-        results: List kết quả từ run_cies_experiment()
-        output_path: Thư mục output (mặc định RESULTS_DIR)
-        filename: Tên file
-    """
-    if output_path is None:
-        output_path = RESULTS_DIR
-
-    output_path.mkdir(parents=True, exist_ok=True)
-    filepath = output_path / filename
-
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(results, f, default=_serialize_cies, indent=2, ensure_ascii=False)
-
-    logger.info(f"CIES results saved to: {filepath}")
-
-
 def combo_order_key(model_name: Any, technique: Any) -> Tuple[int, int]:
     """Vị trí của (model, kỹ thuật) theo MODEL_NAMES × IMBALANCE_TECHNIQUES; tên lạ xếp cuối."""
     m = MODEL_NAMES.index(model_name) if model_name in MODEL_NAMES else len(MODEL_NAMES)
@@ -565,8 +531,8 @@ def merge_cies_result(
     """
     Đọc LẠI file kết quả ngay trước khi ghi, rồi chỉ thay/thêm đúng 1 tổ hợp
     (model_name, imbalance_technique) của `result` — an toàn khi nhiều tiến trình cùng
-    ghi vào 1 file (khác save_cies_results(), vốn ghi đè cả file bằng list trong bộ nhớ
-    của riêng tiến trình gọi nó, làm mất kết quả do tiến trình khác thêm vào giữa chừng).
+    ghi vào 1 file (khoá + ghi atomic qua `update_json`). Ghi đè cả file bằng list trong bộ nhớ
+    của 1 tiến trình thì làm mất kết quả do tiến trình khác thêm vào giữa chừng (đã xảy ra thật).
 
     Returns:
         Toàn bộ nội dung file sau khi ghi.

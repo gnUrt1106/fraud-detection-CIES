@@ -38,7 +38,6 @@ def compute_shap(
     model_name: str,
     X_eval: np.ndarray,
     X_background: Optional[np.ndarray] = None,
-    max_background_samples: int = 100,
     return_explainer: bool = False,
 ) -> Any:
     """
@@ -48,8 +47,8 @@ def compute_shap(
         model: Trained model (sklearn/xgb/catboost hoặc dict cho ANN)
         model_name: Tên model để chọn explainer
         X_eval: Feature matrix cần giải thích (CỐ ĐỊNH qua các CIES runs)
-        X_background: Background data cho KernelExplainer (subsample từ train)
-        max_background_samples: Số samples tối đa cho background (KernelExplainer)
+        X_background: Dữ liệu nền — mốc so sánh của SHAP. BẮT BUỘC cho LR (LinearExplainer) và ANN
+            (DeepExplainer); TreeExplainer không dùng. Không tự lấy X_eval làm nền: mốc sai mà không báo gì.
         return_explainer: True → trả thêm tên explainer THỰC SỰ đã dùng ("linear" | "tree" |
             "deep" | "kernel"). ANN có thể lùi từ "deep" về "kernel" khi DeepExplainer lỗi — CIES
             ghi lại tên này để biết điểm của ANN tính bằng explainer nào (Kernel có nhiễu lấy mẫu
@@ -67,25 +66,20 @@ def compute_shap(
             f"Chỉ hỗ trợ: {list(EXPLAINER_MAP.keys())}"
         )
 
+    if explainer_type in ("linear", "deep") and X_background is None:
+        raise ValueError(f"'{model_name}' cần X_background (dữ liệu nền SHAP) — không tự lấy X_eval làm nền")
+
     used = explainer_type
     if explainer_type == "linear":
         values = _compute_shap_linear(model, X_eval, X_background)
     elif explainer_type == "tree":
         values = _compute_shap_tree(model, X_eval)
-    elif explainer_type == "kernel":
-        values = _compute_shap_kernel(
-            model, X_eval, X_background, max_background_samples
-        )
-    elif explainer_type == "deep":
+    else:  # "deep"
         values, used = _compute_shap_deep(model, X_eval, X_background)
-    else:
-        raise ValueError(f"Explainer type '{explainer_type}' không hỗ trợ")
     return (values, used) if return_explainer else values
 
 
-def _compute_shap_linear(
-    model: Any, X_eval: np.ndarray, X_background: Optional[np.ndarray]
-) -> np.ndarray:
+def _compute_shap_linear(model: Any, X_eval: np.ndarray, X_background: np.ndarray) -> np.ndarray:
     """SHAP cho Logistic Regression — LinearExplainer (exact)."""
     from src.models.train import model_kind
 
@@ -97,12 +91,7 @@ def _compute_shap_linear(
         scaler = model["scaler"]
         model = model["model"]
         X_eval = scaler.transform(X_eval)
-        if X_background is not None:
-            X_background = scaler.transform(X_background)
-
-    if X_background is None:
-        # Dùng X_eval làm background nếu không có — không lý tưởng nhưng chấp nhận
-        X_background = X_eval
+        X_background = scaler.transform(X_background)
 
     # max_samples = toàn bộ nền: mặc định Independent chỉ giữ tối đa 100 dòng (tự lấy mẫu con), nên nền
     # lớn hơn bị cắt âm thầm và trung bình nền — mốc của SHAP tuyến tính — đổi theo mẫu con.
@@ -144,11 +133,11 @@ def _compute_shap_tree(model: Any, X_eval: np.ndarray) -> np.ndarray:
 def _compute_shap_kernel(
     model: Any,
     X_eval: np.ndarray,
-    X_background: Optional[np.ndarray],
+    X_background: np.ndarray,
     max_background_samples: int = 100,
 ) -> np.ndarray:
     """
-    SHAP cho ANN — KernelExplainer (XẤP XỈ).
+    SHAP cho ANN — KernelExplainer (XẤP XỈ), chỉ dùng khi DeepExplainer lỗi.
 
     Log cảnh báo rằng đây là xấp xỉ, không so sánh thô với TreeSHAP.
     """
@@ -179,12 +168,7 @@ def _compute_shap_kernel(
     from src.models.train import scale_ann_input
 
     X_eval = scale_ann_input(model, X_eval)
-    if X_background is not None:
-        X_background = scale_ann_input(model, X_background)
-
-    # Background data
-    if X_background is None:
-        X_background = X_eval
+    X_background = scale_ann_input(model, X_background)
 
     # Subsample background để giảm compute
     if len(X_background) > max_background_samples:
@@ -202,7 +186,7 @@ def _compute_shap_kernel(
 def _compute_shap_deep(
     model: Any,
     X_eval: np.ndarray,
-    X_background: Optional[np.ndarray],
+    X_background: np.ndarray,
 ) -> Tuple[np.ndarray, str]:
     """
     SHAP cho ANN — DeepExplainer (xấp xỉ dựa trên DeepLIFT, tất định). Trả (values, "deep"), hoặc
@@ -220,9 +204,6 @@ def _compute_shap_deep(
     ann = model["model"]
     device = model.get("device", torch.device("cpu"))
     ann.eval()  # BatchNorm/Dropout phải ở chế độ eval, nếu không SHAP không tất định
-
-    if X_background is None:
-        X_background = X_eval[:100]
 
     from src.models.train import scale_ann_input
 
