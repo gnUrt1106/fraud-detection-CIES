@@ -23,7 +23,7 @@ import pandas as pd
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import average_precision_score
 
-from src.config import SEED, RESULTS_DIR, MODEL_NAMES, TARGET_COL, project_relpath
+from src.config import SEED, RESULTS_DIR, MODEL_NAMES, TARGET_COL, N_TUNE_TRIALS, project_relpath
 from src.models.train import build_model, train_model, predict_proba
 
 logger = logging.getLogger(__name__)
@@ -144,7 +144,7 @@ def tune_model(
     model_name: str,
     df_train: pd.DataFrame,
     target_col: str = TARGET_COL,
-    n_trials: int = 100,
+    n_trials: int = N_TUNE_TRIALS,
     n_splits: int = 3,
     timeout: Optional[int] = None,
     seed: int = SEED,
@@ -317,17 +317,25 @@ def tune_model(
     }
 
 
-def _merge_write(out_file: Path, model_name: str, entry: Dict[str, Any]) -> Dict[str, Any]:
+def _merge_write(
+    out_file: Path, model_name: str, entry: Dict[str, Any], keep_tuned: bool = False,
+) -> Dict[str, Any]:
     """
     Đọc LẠI file kết quả ngay trước khi ghi rồi chỉ cập nhật mục của `model_name`.
 
     Tránh ghi đè kết quả do tiến trình khác thêm vào file trong lúc lượt chạy này đang tune (một
     lượt RF ~8 giờ đã từng ghi đè các model được merge vào file giữa chừng, vì bản đọc ở đầu lượt
     đã cũ). Trả về nội dung file sau khi ghi.
+
+    keep_tuned=True (ghi lỗi): giữ nguyên mục đã có `best_params`. Ghi đè nó bằng {"error": ...} thì
+    `load_best_params` trả None và `build_model` âm thầm dùng tham số mặc định cho benchmark/CIES.
     """
     from src.utils.jsonio import update_json
 
     def _set(current: Dict[str, Any]) -> Dict[str, Any]:
+        if keep_tuned and (current.get(model_name) or {}).get("best_params") is not None:
+            logger.warning(f"Giữ tham số đã tune của '{model_name}' trong {out_file.name}, không ghi lỗi đè lên.")
+            return current
         current[model_name] = entry
         # Giữ file theo thứ tự MODEL_NAMES, không theo thứ tự tune xong
         rank = {m: i for i, m in enumerate(MODEL_NAMES)}
@@ -340,7 +348,7 @@ def tune_all_models(
     df_train: pd.DataFrame,
     target_col: str = TARGET_COL,
     models: Optional[list] = None,
-    n_trials: int = 100,
+    n_trials: int = N_TUNE_TRIALS,
     n_splits: int = 3,
     output_dir: Optional[Path] = None,
     filename: str = "best_params.json",
@@ -431,7 +439,8 @@ def tune_all_models(
             # xong trước đó — ghi nhận lỗi, in cảnh báo, rồi tune tiếp model kế.
             logger.error(f"'{model_name}' thất bại ({type(e).__name__}: {e}) — bỏ qua, tune tiếp model kế.")
             print(f"  ❌ '{model_name}' thất bại: {e}\n")
-            all_results = _merge_write(out_file, model_name, {"error": f"{type(e).__name__}: {e}"})
+            all_results = _merge_write(out_file, model_name, {"error": f"{type(e).__name__}: {e}"},
+                                       keep_tuned=True)
             continue
 
         if not res.get("complete", True):

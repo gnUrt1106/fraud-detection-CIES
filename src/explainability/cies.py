@@ -266,6 +266,17 @@ def compute_feature_level_cies(
 
 # ===== CIES Experiment Runner =====
 
+def _encode_like_train(
+    df_raw: pd.DataFrame,
+    encoding_maps: Dict[str, Any],
+    target_encode_cols: list,
+    feature_cols: List[str],
+) -> np.ndarray:
+    """Encode dòng raw bằng mapping của run hiện tại, đúng thứ tự cột của tập train (cột thiếu = 0)."""
+    encoded = encode_test(df_raw, encoding_maps, target_encode_cols=target_encode_cols)
+    return encoded.reindex(columns=feature_cols, fill_value=0.0).to_numpy()
+
+
 def run_cies_experiment(
     model_name: str,
     imbalance_technique: str,
@@ -318,8 +329,9 @@ def run_cies_experiment(
     # Dữ liệu nền SHAP: CÙNG các dòng gốc ở mọi run (mỗi run encode chúng bằng mapping của run đó,
     # như tập eval). LinearExplainer (LR) và DeepExplainer (ANN) đo SHAP so với nền này; lấy nền từ
     # tập bootstrap của từng run thì mốc so sánh đổi theo run và thứ hạng dao động thêm vì nền chứ
-    # không vì model — đo trên Sparkov: CIES LR thấp đi 0,007–0,014, ANN 0,014–0,028. TreeExplainer
-    # không dùng nền. 100 dòng: shap.maskers.Independent (LR) mặc định chỉ giữ tối đa 100 dòng.
+    # không vì model — chạy lại đủ 5 kỹ thuật trên Sparkov với nền cố định: CIES LR tăng 0,005–0,013,
+    # ANN tăng 0,014–0,043 (reports/design_decisions.md mục 12). TreeExplainer không dùng nền.
+    # 100 dòng: shap.maskers.Independent (LR) mặc định chỉ giữ tối đa 100 dòng.
     background_raw = df_train.sample(n=min(100, len(df_train)), random_state=SEED).reset_index(drop=True)
 
     shap_values_runs = []
@@ -354,21 +366,11 @@ def run_cies_experiment(
                 groups=row_groups,
             )
 
-            # Encode eval set dùng mapping từ resample hiện tại
-            encoded_eval = encode_test(
-                df_test_fixed_eval, encoding_maps,
-                target_encode_cols=target_encode_cols,
-            )
-
-            # Tách X, y và đảm bảo thứ tự feature cột khớp tuyệt đối
+            # Tách X, y; eval set encode bằng mapping của resample hiện tại, đúng thứ tự cột train
             y_train = encoded_train[target_col].values
             train_feature_cols = [c for c in encoded_train.columns if c != target_col]
-            for col in train_feature_cols:
-                if col not in encoded_eval.columns:
-                    encoded_eval[col] = 0.0
-
             X_train = encoded_train[train_feature_cols].values
-            X_eval = encoded_eval[train_feature_cols].values
+            X_eval = _encode_like_train(df_test_fixed_eval, encoding_maps, target_encode_cols, train_feature_cols)
             last_feature_names = train_feature_cols
 
             # 3. Imbalance handling
@@ -388,11 +390,7 @@ def run_cies_experiment(
             trained_model = train_model(model, X_res, y_res, model_name=model_name)
 
             # 5. SHAP trên tập eval CỐ ĐỊNH, nền cố định (background_raw)
-            encoded_bg = encode_test(background_raw, encoding_maps, target_encode_cols=target_encode_cols)
-            for col in train_feature_cols:
-                if col not in encoded_bg.columns:
-                    encoded_bg[col] = 0.0
-            X_background = encoded_bg[train_feature_cols].values
+            X_background = _encode_like_train(background_raw, encoding_maps, target_encode_cols, train_feature_cols)
             shap_vals, explainer_used = compute_shap(
                 trained_model, model_name, X_eval,
                 X_background=X_background, return_explainer=True,
@@ -432,15 +430,15 @@ def run_cies_experiment(
 
     # Tính CIES
     if len(shap_values_runs) < 2:
-        logger.error(f"Chỉ có {len(shap_values_runs)} runs thành công, cần ít nhất 2.")
-        # Đủ khoá như nhánh thành công — notebook 04/05 truy cập cies_metrics["mean_spearman"]
-        # ngay sau mỗi tổ hợp; thiếu khoá thì KeyError làm sập cả vòng lặp 9-25 tổ hợp.
-        cies_metrics = {
-            "cies_score": 0.0, "mean_rank_distance": 0.0, "std_rank_distance": 0.0,
-            "mean_spearman": 0.0, "n_runs": len(shap_values_runs),
-        }
-    else:
-        cies_metrics = compute_stability_metric(shap_values_runs)
+        # Raise thay vì trả cies_score = 0: bản ghi có "cies_metrics" được notebook 04/05/Kaggle coi
+        # là đã xong (không bao giờ chạy lại) và biểu đồ vẽ 0 như điểm thật. RuntimeError đi qua
+        # run_isolated, notebook ghi bản ghi {"error": ...} và lần chạy sau tự chạy lại tổ hợp này.
+        errors = [r["error"] for r in run_logs if r["status"] == "failed"]
+        raise RuntimeError(
+            f"{combination_name}: chỉ {len(shap_values_runs)}/{n_runs} run thành công, cần ít nhất 2. "
+            f"Lỗi đầu tiên: {errors[0] if errors else '(không có)'}"
+        )
+    cies_metrics = compute_stability_metric(shap_values_runs)
 
     result = {
         "combination": combination_name,

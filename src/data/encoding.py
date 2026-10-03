@@ -140,6 +140,9 @@ def encode_train(
         "target_mappings": {},
         "onehot_cols": onehot_cols,
         "onehot_categories": {},
+        # Giá trị gốc ứng với từng cột dummy: encode_test dùng chúng thay vì cắt tiền tố khỏi tên cột
+        # (cắt tên luôn ra chuỗi, category kiểu số/bool sẽ không khớp và mọi dummy của test = 0).
+        "onehot_values": {},
     }
 
     # --- One-hot encoding ---
@@ -151,7 +154,9 @@ def encode_train(
                 dummies = pd.get_dummies(series_cat, prefix=col, dtype=float)
             else:
                 dummies = pd.get_dummies(df_encoded[col], prefix=col, dtype=float)
+                cats = list(pd.Categorical(df_encoded[col]).categories)  # cùng thứ tự cột dummy
             encoding_maps["onehot_categories"][col] = list(dummies.columns)
+            encoding_maps["onehot_values"][col] = list(cats)
             df_encoded = pd.concat([df_encoded, dummies], axis=1)
             df_encoded.drop(columns=[col], inplace=True)
 
@@ -209,8 +214,10 @@ def encode_test(
     for col in encoding_maps["onehot_cols"]:
         if col in df_encoded.columns:
             expected_cols = encoding_maps["onehot_categories"][col]
-            prefix = f"{col}_"
-            cats = [c[len(prefix):] for c in expected_cols if c.startswith(prefix)]
+            cats = encoding_maps.get("onehot_values", {}).get(col)
+            if cats is None:  # map tạo trước khi có "onehot_values": suy từ tên cột (chỉ đúng với chuỗi)
+                prefix = f"{col}_"
+                cats = [c[len(prefix):] for c in expected_cols if c.startswith(prefix)]
             if cats:
                 series_cat = pd.Categorical(df_encoded[col], categories=cats)
                 dummies = pd.get_dummies(series_cat, prefix=col, dtype=float)
