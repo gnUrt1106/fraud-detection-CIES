@@ -123,6 +123,16 @@ IMBALANCE_TECHNIQUES = [
     "class_weighting",
 ]
 
+# ===== Chế độ chạy lại theo seed (không bootstrap) =====
+# Yêu cầu của giảng viên: độ ổn định đo qua các LẦN CHẠY LẠI trên toàn bộ train (phân phối dữ liệu giữ
+# nguyên, chỉ đổi seed); PR-AUC và CIES lấy từ cùng các lần chạy; SHAP trên toàn bộ test.
+# Xem src/explainability/rerun_stability.py và scripts/run_rerun.py.
+RERUN_N_SEEDS = 10
+# Dữ liệu đã resample theo từng seed: <RESAMPLE_CACHE_RERUN_DIR>/seedNN/train_encoded_<kỹ thuật>.parquet
+RESAMPLE_CACHE_RERUN_DIR = PROCESSED_DATA_DIR / "resampled_rerun"
+# Kết quả mỗi máy ghi 1 file riêng ở đây, rồi `python scripts/run_rerun.py merge` gộp lại
+RERUN_RESULTS_DIR = RESULTS_DIR / "rerun"
+
 # ===== Đảm bảo các thư mục tồn tại =====
 for _dir in [RAW_DATA_DIR, PROCESSED_DATA_DIR, FIGURES_DIR, PROFILING_DIR, RESULTS_DIR]:
     _dir.mkdir(parents=True, exist_ok=True)

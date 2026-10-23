@@ -224,3 +224,156 @@ def _compute_shap_deep(
     if shap_values.ndim == 3:
         shap_values = shap_values[:, :, 0]
     return shap_values, "deep"
+
+
+# ===== mean|SHAP| trên tập LỚN (chia đợt) — dùng cho chế độ chạy lại theo seed =====
+# Chế độ rerun (src/explainability/rerun_stability.py) tính SHAP trên TOÀN BỘ tập test (hàng trăm
+# nghìn dòng). CIES chỉ cần mean|SHAP| từng feature, nên không giữ ma trận (n_dòng x n_feature):
+# tính từng đợt rồi cộng dồn |SHAP|. Explainer chỉ dựng MỘT lần cho cả tập (dựng lại mỗi đợt thì
+# Random Forest/LinearExplainer tốn thời gian vô ích). Kết quả không phụ thuộc kích thước đợt:
+# SHAP của mỗi dòng độc lập với dòng khác khi nền cố định.
+
+SHAP_BACKENDS = ("auto", "shap", "native")
+
+
+def _class1_2d(shap_values: Any) -> np.ndarray:
+    """Quy mọi dạng đầu ra SHAP (list / 3 chiều / 2 chiều) về (n_samples, n_features) của class fraud."""
+    if isinstance(shap_values, list):
+        return np.asarray(shap_values[1])
+    arr = np.asarray(shap_values)
+    if arr.ndim == 3:
+        return arr[:, :, 1]
+    return arr
+
+
+def _make_shap_batch_fn(
+    model: Any,
+    model_name: str,
+    X_background: Optional[np.ndarray],
+    backend: str,
+):
+    """
+    Dựng explainer MỘT lần, trả (hàm_đợt, tên_explainer). `hàm_đợt(X)` trả SHAP (n, n_features).
+
+    backend:
+        "shap"   — shap.TreeExplainer cho mọi cây (giống compute_shap).
+        "native" — XGBoost `pred_contribs` / CatBoost `ShapValues`: cùng thuật toán TreeSHAP chính xác
+                   (đã so khớp với shap.TreeExplainer trong tests), nhưng chạy bằng mã gốc của thư viện
+                   (đa luồng, XGBoost chạy được trên GPU) — nhanh hơn rất nhiều trên tập lớn.
+        "auto"   — "native" cho xgboost/catboost, "shap" cho phần còn lại.
+    Random Forest luôn dùng shap.TreeExplainer (không có đường native).
+    """
+    if backend not in SHAP_BACKENDS:
+        raise ValueError(f"backend phải là một trong {SHAP_BACKENDS}, nhận '{backend}'")
+    explainer_type = EXPLAINER_MAP.get(model_name)
+    if explainer_type is None:
+        raise ValueError(
+            f"Model '{model_name}' không có explainer mapping. Chỉ hỗ trợ: {list(EXPLAINER_MAP.keys())}"
+        )
+    if explainer_type in ("linear", "deep") and X_background is None:
+        raise ValueError(f"'{model_name}' cần X_background (dữ liệu nền SHAP) — không tự lấy X_eval làm nền")
+    if backend == "native" and model_name not in ("xgboost", "catboost"):
+        raise ValueError(f"backend 'native' chỉ hỗ trợ xgboost/catboost, không phải '{model_name}'")
+
+    if explainer_type == "linear":
+        from src.models.train import model_kind
+
+        scaler = None
+        sk_model = model
+        if model_kind(model) == "lr":
+            scaler = model["scaler"]
+            sk_model = model["model"]
+        bg = scaler.transform(X_background) if scaler is not None else X_background
+        # max_samples = toàn bộ nền (xem _compute_shap_linear): mặc định Independent cắt âm thầm còn 100 dòng
+        masker = shap.maskers.Independent(bg, max_samples=len(bg))
+        explainer = shap.LinearExplainer(sk_model, masker)
+
+        def linear_fn(X: np.ndarray) -> np.ndarray:
+            Xs = scaler.transform(X) if scaler is not None else X
+            return _class1_2d(explainer.shap_values(Xs))
+
+        return linear_fn, "linear"
+
+    if explainer_type == "tree":
+        use_native = backend == "native" or (backend == "auto" and model_name in ("xgboost", "catboost"))
+        if use_native and model_name == "xgboost":
+            import xgboost as xgb
+
+            booster = model.get_booster()
+
+            def xgb_fn(X: np.ndarray) -> np.ndarray:
+                # Cột cuối của pred_contribs là bias (giá trị nền) — bỏ đi, giống shap_values.
+                return booster.predict(xgb.DMatrix(np.asarray(X)), pred_contribs=True)[:, :-1]
+
+            return xgb_fn, "tree-native"
+        if use_native and model_name == "catboost":
+            from catboost import Pool
+
+            def cb_fn(X: np.ndarray) -> np.ndarray:
+                return np.asarray(model.get_feature_importance(Pool(np.asarray(X)), type="ShapValues"))[:, :-1]
+
+            return cb_fn, "tree-native"
+
+        tree_explainer = shap.TreeExplainer(model)
+
+        def tree_fn(X: np.ndarray) -> np.ndarray:
+            return _class1_2d(tree_explainer.shap_values(X))
+
+        return tree_fn, "tree"
+
+    # ANN — DeepExplainer. Khác compute_shap: KHÔNG lùi âm thầm về KernelExplainer (nhiễu lấy mẫu riêng
+    # làm CIES thấp giả tạo) — ở chế độ rerun, DeepExplainer lỗi thì dừng và báo lỗi.
+    import torch
+    from src.models.train import model_kind, scale_ann_input
+
+    if model_kind(model) != "ann":
+        raise ValueError("ANN model phải là dict từ build_model()")
+    ann = model["model"]
+    device = model.get("device", torch.device("cpu"))
+    ann.eval()  # BatchNorm/Dropout ở chế độ eval, nếu không SHAP không tất định
+    bg_tensor = torch.FloatTensor(np.asarray(scale_ann_input(model, X_background))).to(device)
+    deep = shap.DeepExplainer(ann, bg_tensor)
+
+    def deep_fn(X: np.ndarray) -> np.ndarray:
+        x_tensor = torch.FloatTensor(np.asarray(scale_ann_input(model, X))).to(device)
+        values = deep.shap_values(x_tensor)
+        if isinstance(values, list):
+            values = values[0]
+        values = np.asarray(values)
+        if values.ndim == 3:
+            values = values[:, :, 0]
+        return values
+
+    return deep_fn, "deep"
+
+
+def compute_mean_abs_shap(
+    model: Any,
+    model_name: str,
+    X_eval: np.ndarray,
+    X_background: Optional[np.ndarray] = None,
+    batch_size: int = 10_000,
+    backend: str = "auto",
+) -> Tuple[np.ndarray, str]:
+    """
+    mean|SHAP| từng feature trên TOÀN BỘ `X_eval`, tính theo từng đợt `batch_size` dòng.
+
+    Returns:
+        (vector mean|SHAP| shape (n_features,), tên explainer thực sự dùng)
+    """
+    if batch_size < 1:
+        raise ValueError(f"batch_size phải >= 1, nhận {batch_size}")
+    n = len(X_eval)
+    if n == 0:
+        raise ValueError("X_eval rỗng")
+    shap_fn, used = _make_shap_batch_fn(model, model_name, X_background, backend)
+
+    total = None
+    for start in range(0, n, batch_size):
+        chunk = X_eval[start:start + batch_size]
+        values = np.asarray(shap_fn(chunk), dtype=np.float64)
+        if values.ndim != 2 or values.shape[0] != len(chunk):
+            raise ValueError(f"SHAP đợt {start}: shape {values.shape}, cần ({len(chunk)}, n_features)")
+        part = np.abs(values).sum(axis=0)
+        total = part if total is None else total + part
+    return total / n, used

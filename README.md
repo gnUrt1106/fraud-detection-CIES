@@ -95,7 +95,26 @@ Chạy theo thứ tự (notebook mở bằng `jupyter lab` từ thư mục gốc
 6. **`06_visualizations.ipynb`**: biểu đồ và nhận xét.
 
 Mỗi tổ hợp được lưu ngay khi xong, chạy lại sẽ bỏ qua phần đã có (kết quả đã kèm trong `results/`, nên notebook 03–06 chạy lại chỉ vẽ lại
-biểu đồ). Chạy test: `python -m pytest tests -q` (49 test).
+biểu đồ). Chạy test: `python -m pytest tests -q` (gồm `tests/test_rerun_stability.py`, 65 test).
+
+### Chạy lại theo seed (không bootstrap)
+
+Đo độ ổn định qua các **lần chạy lại** trên toàn bộ train (dữ liệu và phân phối giữ nguyên, chỉ đổi seed 0–9), PR-AUC và CIES lấy từ
+cùng các lần chạy, SHAP trên **toàn bộ test**, tham số Optuna giữ nguyên (`results/best_params.json`). Mã: `src/explainability/rerun_stability.py`,
+CLI: `scripts/run_rerun.py`.
+
+```bash
+python scripts/run_rerun.py pilot --machine m2 --force-cpu                 # đo giờ trước
+python scripts/run_rerun.py cache --techniques smote_enn --seeds 0-3        # resample theo seed (chia seed cho nhiều máy, rồi copy data/processed/resampled_rerun/)
+python scripts/run_rerun.py train --machine pc4070 --models xgboost catboost ann random_forest
+python scripts/run_rerun.py train --machine ryzen --models logistic_regression --force-cpu
+python scripts/run_rerun.py status
+python scripts/run_rerun.py merge                                           # → results/cies_rerun_summary.json / .csv
+```
+
+Mỗi (model, kỹ thuật) phải chạy trọn 10 seed trên **một** máy/thiết bị; mọi máy dùng cùng file `*_encoded.parquet` (`merge` báo nếu dấu vân tay
+dữ liệu lệch). CIES ở chế độ này **không so sánh trực tiếp** với CIES bootstrap: nguồn dao động chỉ còn tính ngẫu nhiên của thuật toán. Model tất
+định theo seed (LR + class_weighting) cho CIES = 1 — đó là hệ quả của thiết kế, không phải lỗi.
 
 **Tái lập.** `results/` được tạo trên macOS arm64 (CPU), trừ tune và benchmark của ANN chạy trên GPU Kaggle. Cùng cấu hình đó và
 `requirements-lock.txt`, chạy lại cho kết quả trùng từng chữ số (đã kiểm: dữ liệu sau tiền xử lý, benchmark, CIES của LR, CatBoost, ANN).

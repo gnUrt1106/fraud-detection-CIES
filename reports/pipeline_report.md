@@ -277,6 +277,13 @@ Không sửa kết quả nào ở trên — chỉ bỏ phần chết/trùng lặ
 - **Dọn dẹp 2026-09-27:** bỏ hằng màu `C_B` và 4 hàm vẽ không còn dùng (`plot_topk_frequency`, `plot_pairwise_spearman`, `plot_cies_dataset_compare`, `plot_condition_agreement`; `dataset.py`: `plot_hour_category_heatmap`, `plot_velocity`); beeswarm và biểu đồ thứ hạng theo run cố định phần xê dịch ngẫu nhiên của chấm (ảnh giống hệt giữa các lần chạy, git không còn báo thay đổi giả); CatBoost không ghi thư mục log `catboost_info/` (`allow_writing_files=False`, chỉ là file log, không đổi model).
 - **Dọn dẹp 2026-10-03:** bỏ `save_cies_results()` (ghi đè cả file — không nơi nào còn dùng, mọi notebook ghi qua `merge_cies_result()`) cùng test minh hoạ lỗi của nó; bỏ nhánh `"kernel"` không thể chọn trong `compute_shap` và tham số `max_background_samples` chỉ phục vụ nhánh đó (đường lùi Deep → Kernel giữ nguyên); `compute_shap` báo lỗi khi LR/ANN thiếu dữ liệu nền thay vì lặng lẽ lấy tập eval làm nền (`test_compute_shap_requires_a_background_for_linear_and_deep`). Đã kiểm: chạy lại LR × SMOTE ULB trùng tuyệt đối với kết quả đã lưu. Bản nộp (zip) không còn trỏ tới tài liệu ngoài zip: README bỏ mục link GitHub tới `reports/`, chú thích trong `config.py`, `cies.py` và notebook 04 bỏ tham chiếu `reports/` (link duy nhất còn lại tới repo là `REPO_URL` của notebook Kaggle — Kaggle cần clone code để chạy).
 
+## Chế độ chạy lại theo seed (theo yêu cầu giảng viên, thêm sau)
+
+Thêm `src/explainability/rerun_stability.py` + `scripts/run_rerun.py`: bỏ bootstrap, train lại 10 lần (seed 0–9) trên toàn bộ train, PR-AUC và
+CIES từ cùng các lần chạy, SHAP trên toàn bộ test, giữ tham số Optuna. **Chưa có kết quả thật** (chưa chạy): `results/` hiện vẫn là thiết kế bootstrap.
+Khi có kết quả, số CIES mới không so sánh trực tiếp với số cũ (45 cặp thay vì 190; dao động chỉ do thuật toán). Cần lưu ý khi đọc: LR + class_weighting
+tất định → CIES = 1; Random Forest (depth 27) chưa chắc tính được SHAP toàn test trên CPU — quyết định sau khi `pilot`.
+
 ## Việc tiếp theo
 
 1. Chạy nhiều seed cho vài tổ hợp để biết chênh lệch CIES giữa các kỹ thuật (vd. Borderline-SMOTE thấp nhất ở 9/10 cặp, nhưng chỉ chênh 0,0005–0,011 trên Sparkov) có vượt nhiễu hay không.
