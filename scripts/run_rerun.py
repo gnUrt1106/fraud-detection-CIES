@@ -62,6 +62,8 @@ def _add_model_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--force-cpu", action="store_true", help="Ép CPU cho XGBoost/CatBoost/ANN dù máy có GPU NVIDIA")
     p.add_argument("--shap-batch", type=int, default=10_000, help="Số dòng mỗi đợt SHAP (chỉ ảnh hưởng RAM/tốc độ)")
     p.add_argument("--shap-backend", default="auto", choices=rs_backends())
+    p.add_argument("--shap-jobs", type=int, default=1,
+                   help="Số tiến trình tính SHAP song song cho Random Forest (-1 = mọi lõi). Không đổi kết quả; tốn RAM theo số tiến trình")
 
 
 def rs_backends():
@@ -97,7 +99,7 @@ def cmd_pilot(a) -> None:
         logger.info(f"Pilot {m} ...")
         try:
             r = run_isolated(rs.pilot_job, a.data_dir, m, dataset=a.dataset, pilot_rows=a.pilot_rows, shap_batch=a.shap_batch,
-                             shap_backend=a.shap_backend, force_cpu=a.force_cpu, timeout=None)
+                             shap_backend=a.shap_backend, force_cpu=a.force_cpu, shap_jobs=a.shap_jobs, timeout=None)
             out[m] = r
             rows.append(r)
             logger.info(f"  {m}: train {r['seconds_train']}s, SHAP toàn test ước {r['est_seconds_shap_full_test']}s, "
@@ -151,7 +153,7 @@ def cmd_train(a) -> None:
                 r = run_isolated(
                     rs.combo_job, a.data_dir, m, t, seeds, dataset=a.dataset, cache_root=cache_root, shap_rows=a.shap_rows,
                     shap_batch=a.shap_batch, shap_backend=a.shap_backend, force_cpu=a.force_cpu,
-                    machine=a.machine, timeout=None,
+                    machine=a.machine, shap_jobs=a.shap_jobs, timeout=None,
                 )
                 store["results"] = [x for x in store["results"] if x["combination"] != combo] + [r]
                 store["errors"] = [e for e in store["errors"] if e.get("combination") != combo]

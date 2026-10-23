@@ -231,3 +231,13 @@ def test_ulb_loader_params_and_paths(tmp_path):
     assert rs.dataset_params("ulb", "xgboost")
     assert rs.dataset_results_dir("ulb") != rs.dataset_results_dir("sparkov")
     assert rs.dataset_cache_root("ulb").name == "ulb" and rs.dataset_cache_root("sparkov").name != "ulb"
+
+
+def test_parallel_tree_shap_matches_serial(data):
+    X, y, Xt, _ = data
+    trained = train_model(build_model("random_forest", input_dim=X.shape[1], params={"n_estimators": 15, "max_depth": 6}, seed=0),
+                          X, y, model_name="random_forest")
+    serial, used1 = compute_mean_abs_shap(trained, "random_forest", Xt[:120], batch_size=40, n_jobs=1)
+    para, used2 = compute_mean_abs_shap(trained, "random_forest", Xt[:120], batch_size=40, n_jobs=2)
+    assert used1 == used2 == "tree"
+    np.testing.assert_allclose(para, serial, rtol=1e-9, atol=1e-12)

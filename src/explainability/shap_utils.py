@@ -11,6 +11,7 @@ Mapping explainer theo model:
 ANN dùng explainer xấp xỉ — ghi log riêng, không so sánh thô với TreeSHAP.
 """
 
+import os
 import numpy as np
 import shap
 import logging
@@ -347,6 +348,19 @@ def _make_shap_batch_fn(
     return deep_fn, "deep"
 
 
+def _uses_shap_tree_explainer(model_name: str, backend: str) -> bool:
+    """True nếu đường tính là shap.TreeExplainer (Random Forest, hoặc xgboost/catboost khi ép backend 'shap')."""
+    if EXPLAINER_MAP.get(model_name) != "tree":
+        return False
+    return not (backend == "native" or (backend == "auto" and model_name in ("xgboost", "catboost")))
+
+
+def _tree_abs_sum(model: Any, X: np.ndarray) -> np.ndarray:
+    """Tổng |SHAP| theo cột của 1 đợt, bằng shap.TreeExplainer (chạy trong tiến trình con của joblib)."""
+    values = _class1_2d(shap.TreeExplainer(model).shap_values(X))
+    return np.abs(np.asarray(values, dtype=np.float64)).sum(axis=0)
+
+
 def compute_mean_abs_shap(
     model: Any,
     model_name: str,
@@ -354,9 +368,15 @@ def compute_mean_abs_shap(
     X_background: Optional[np.ndarray] = None,
     batch_size: int = 10_000,
     backend: str = "auto",
+    n_jobs: int = 1,
 ) -> Tuple[np.ndarray, str]:
     """
     mean|SHAP| từng feature trên TOÀN BỘ `X_eval`, tính theo từng đợt `batch_size` dòng.
+
+    n_jobs: chỉ dùng cho đường `shap.TreeExplainer` (Random Forest). TreeSHAP của `shap` chạy ĐƠN LUỒNG và giữ GIL
+        (đã đo: dùng luồng không nhanh hơn), nên chia các đợt cho nhiều TIẾN TRÌNH (joblib/loky). Kết quả không đổi
+        (tổng |SHAP| cộng được theo đợt, chỉ khác thứ tự cộng số thực). Các explainer khác bỏ qua tham số này
+        (XGBoost/CatBoost native đã đa luồng, Logistic Regression vector hoá).
 
     Returns:
         (vector mean|SHAP| shape (n_features,), tên explainer thực sự dùng)
@@ -366,6 +386,17 @@ def compute_mean_abs_shap(
     n = len(X_eval)
     if n == 0:
         raise ValueError("X_eval rỗng")
+    if n_jobs != 1 and _uses_shap_tree_explainer(model_name, backend):
+        from joblib import Parallel, delayed
+
+        n_workers = n_jobs if n_jobs > 0 else (os.cpu_count() or 1)
+        # Đợt nhỏ nhất vẫn >= 1 dòng; chia đều cho các tiến trình, mỗi tiến trình dựng explainer 1 lần/đợt.
+        bounds = list(range(0, n, batch_size))
+        parts = Parallel(n_jobs=n_workers)(
+            delayed(_tree_abs_sum)(model, X_eval[a:a + batch_size]) for a in bounds
+        )
+        return np.sum(parts, axis=0) / n, "tree"
+
     shap_fn, used = _make_shap_batch_fn(model, model_name, X_background, backend)
 
     total = None

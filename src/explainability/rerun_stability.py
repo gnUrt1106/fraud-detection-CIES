@@ -227,6 +227,7 @@ def run_rerun_combo(
     background_n: int = SHAP_BACKGROUND_N,
     force_cpu: bool = False,
     machine: str = "",
+    shap_jobs: int = 1,
 ) -> Dict[str, Any]:
     """
     Chạy 1 tổ hợp: với mỗi seed → (resample, đọc cache nếu có) → train → PR-AUC trên TOÀN BỘ test → mean|SHAP| trên
@@ -243,6 +244,7 @@ def run_rerun_combo(
         shap_backend: "auto" | "shap" | "native" (xem shap_utils._make_shap_batch_fn).
         force_cpu: ép chạy CPU (XGBoost/CatBoost/ANN) kể cả khi máy có GPU NVIDIA.
         machine: nhãn máy, chỉ để ghi vào kết quả.
+        shap_jobs: số tiến trình tính SHAP song song cho Random Forest (-1 = mọi lõi); không đổi kết quả.
     """
     if force_cpu:
         # Phải đặt TRƯỚC khi torch/xgboost/catboost được nạp (hàm này chạy trong subprocess spawn riêng).
@@ -300,7 +302,7 @@ def run_rerun_combo(
             t = time.time()
             mean_abs, explainer_used = compute_mean_abs_shap(
                 trained, model_name, X_eval, X_background=X_background,
-                batch_size=shap_batch, backend=shap_backend,
+                batch_size=shap_batch, backend=shap_backend, n_jobs=shap_jobs,
             )
             sec_shap = time.time() - t
             # Model hằng số → SHAP toàn 0 → mọi hạng hoà → CIES = 1 GIẢ. Loại run này (cùng quy ước cies.py).
@@ -397,6 +399,7 @@ def pilot_timing(
     params: Optional[Dict[str, Any]] = None,
     force_cpu: bool = False,
     n_runs_total: int = 50,
+    shap_jobs: int = 1,
 ) -> Dict[str, Any]:
     """
     Train 1 lần (class_weighting — không cần cache resample) trên toàn bộ train, đo thời gian train, dự đoán
@@ -430,7 +433,7 @@ def pilot_timing(
     background = pick_background(X_train, model_name)
     t = time.time()
     compute_mean_abs_shap(trained, model_name, X_test[idx], X_background=background,
-                          batch_size=shap_batch, backend=shap_backend)
+                          batch_size=shap_batch, backend=shap_backend, n_jobs=shap_jobs)
     sec_shap = time.time() - t
     sec_per_row = sec_shap / len(idx)
     est_shap_full = sec_per_row * len(y_test)
