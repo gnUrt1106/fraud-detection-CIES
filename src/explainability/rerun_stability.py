@@ -173,6 +173,11 @@ def summarize_values(values: Sequence[float]) -> Dict[str, float]:
     }
 
 
+def _progress(combination: str, done: int, total: int, seed: int, text: str) -> None:
+    """Dòng tiến độ in thẳng ra console (flush) — logging của process cha không hiện từ process con spawn."""
+    print(f"{time.strftime('%H:%M:%S')} [{combination}] run {done}/{total} (seed {seed}): {text}", flush=True)
+
+
 # ===== Cache resample theo seed (làm được trên máy khác rồi copy sang) =====
 
 def build_resample_cache(
@@ -325,9 +330,12 @@ def run_rerun_combo(
                     "total": round(time.time() - t_run, 1),
                 },
             })
-            logger.info(f"  seed {seed}: PR-AUC {metrics['pr_auc']:.4f} ({time.time() - t_run:.0f}s)")
+            _progress(combination, len(run_logs), len(seeds), seed,
+                      f"PR-AUC {metrics['pr_auc']:.4f} | resample {sec_resample:.0f}s, train {sec_train:.0f}s, "
+                      f"SHAP {sec_shap:.0f}s, tổng {time.time() - t_run:.0f}s")
         except Exception as e:  # noqa: BLE001 — một seed hỏng không làm mất các seed còn lại
             logger.error(f"  seed {seed} failed: {e}")
+            _progress(combination, len(run_logs) + 1, len(seeds), seed, f"LỖI: {type(e).__name__}: {str(e)[:200]}")
             run_logs.append({"seed": seed, "status": "failed", "error": f"{type(e).__name__}: {e}"})
 
     n_ok = len(mean_abs_list)
