@@ -10,8 +10,8 @@ Tài liệu phản ánh **code hiện tại** (cập nhật 2026-10-03), không 
 
 | Bước | Kỹ thuật dùng | File / Function liên quan |
 |---|---|---|
-| **Dataset chính** | Sparkov (`kartik2112/fraud-detection`), tải qua `kagglehub`, ~1.85M dòng, fraud rate ~0.52% | `src/data/download.py::download_dataset`; load ở `notebooks/02_preprocessing.ipynb` |
-| **Dataset phụ** | ULB (`mlg-ulb/creditcardfraud`), ~284K giao dịch, 28 feature PCA sẵn (V1..V28) + Amount | `notebooks/02_preprocessing.ipynb` (mục 7) — tải + chia theo thời gian + lưu parquet; tune, benchmark và CIES riêng cho ULB ở `notebooks/05_cies_experiment_ulb.ipynb` |
+| **Dataset Sparkov** | Sparkov (`kartik2112/fraud-detection`), tải qua `kagglehub`, ~1.85M dòng, fraud rate ~0.52% | `src/data/download.py::download_dataset`; load ở `notebooks/02_preprocessing.ipynb` |
+| **Dataset ULB** | ULB (`mlg-ulb/creditcardfraud`), ~284K giao dịch, 28 feature PCA sẵn (V1..V28) + Amount | `notebooks/02_preprocessing.ipynb` (mục 7) — tải + chia theo thời gian + lưu parquet; tune, benchmark và CIES riêng cho ULB ở `notebooks/05_cies_experiment_ulb.ipynb` |
 | **Feature engineering & cleaning** | Sắp theo thời gian; thêm `hour`, `day_of_week`, `age` (năm giao dịch − năm sinh); bỏ cột ID (`trans_num`, `cc_num`, `first`, `last`, `street`, `zip`, `unix_time`) và **mọi cột định danh khách hàng** (`lat`, `long`, `city`, `state`, `job`, `city_pop`, `merch_lat`, `merch_long`). Feature còn lại: `amt`, `category`, `merchant`, `hour`, `day_of_week`, `age`, `gender` | `src/data/preprocess.py::preprocess_sparkov`; `config.CUSTOMER_IDENTITY_COLS` |
 | **Train/Test Split** | **Theo thời gian.** Sparkov: file gốc `fraudTrain.csv` (2019-01-01 → 2020-06-21, 1.296.675 dòng, fraud 0,579%) / `fraudTest.csv` (2020-06-21 → 2020-12-31, 555.719 dòng, fraud 0,386%). ULB: sắp theo `Time`, 20% cuối làm test (fraud 0,183% / 0,132%) | `notebooks/02_preprocessing.ipynb`; `src/data/preprocess.py::split_ulb_by_time` |
 | **Encoding — One-hot** | `gender`, `category` | `src/data/encoding.py::encode_train / encode_test` |

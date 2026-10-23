@@ -19,29 +19,29 @@ Nếu agent cần thêm 1 kỹ thuật/thư viện mới không có trong spec n
 
 ## 1. DATASET
 
-### 1.1. Dataset chính: Sparkov
+### 1.1. Dataset: Sparkov
 
 - Nguồn: `kaggle.com/datasets/kartik2112/fraud-detection`
 - Tải qua `kagglehub.dataset_download("kartik2112/fraud-detection")`
 - ~1.85M dòng, 23 cột, fraud rate ~0.52%
-- Vai trò: phân tích chính, bao gồm feature-level CIES
+- Vai trò: một trong 2 dataset ĐỐI XỬ NGANG NHAU (theo yêu cầu giảng viên, không phân chính/phụ); đo CIES ổn định giữa các lần chạy lại
 
-### 1.2. Dataset phụ: ULB (ĐÃ CHỐT)
+### 1.2. Dataset: ULB (ĐÃ CHỐT)
 
 - Nguồn: `kaggle.com/datasets/mlg-ulb/creditcardfraud`
 - Tải qua `kagglehub.dataset_download("mlg-ulb/creditcardfraud")`
 - ~284K giao dịch, 30 features (28 PCA + Amount + Time), fraud rate ~0.17%
-- Vai trò: kiểm chứng xu hướng CIES có khái quát hóa không (chỉ cần aggregate CIES, không cần feature-level)
-- **Lưu ý:** Features đã PCA nên SHAP giải thích theo V1..V28, không có ý nghĩa business — chấp nhận được vì chỉ đo aggregate stability
+- Vai trò: dataset thứ hai, đối xử NGANG Sparkov (cùng thiết kế chạy lại theo seed, cùng công thức CIES, SHAP trên toàn bộ test; tham số Optuna riêng)
+- **Lưu ý:** Features đã PCA nên SHAP giải thích theo V1..V28, không có ý nghĩa business — chấp nhận được vì thước đo chính là CIES ổn định giữa các lần chạy (không cần phân tích feature-level)
 
-### 1.3. Phân bổ công sức 2 dataset (KHÔNG đối xứng — có chủ đích)
+### 1.3. Phân bổ công sức 2 dataset (ĐỐI XỨNG — theo yêu cầu giảng viên)
 
-| | Sparkov (chính) | ULB (phụ) |
+| | Sparkov | ULB |
 |---|---|---|
 | Số model chạy | Cả 5 | **Cả 5** (so sánh 1:1 chặt chẽ hơn) |
 | Số kỹ thuật imbalance | Cả 5 | Cả 5 (không rút gọn — đây là biến chính cần khái quát hóa) |
-| Feature-level CIES | Có | Không cần (chỉ cần aggregate CIES) |
-| Mục đích | Đóng góp chính | Kiểm chứng xu hướng RQ1/RQ2 có khái quát hóa không |
+| Thước đo | CIES ổn định giữa các lần chạy lại (aggregate) | CIES ổn định giữa các lần chạy lại (aggregate) |
+| Mục đích | Trả lời RQ1/RQ2 | Trả lời RQ1/RQ2 (kết quả hai dataset đặt cạnh nhau, không phân chính/phụ) |
 
 ### 1.4. Bảng benchmark literature (bắt buộc build trước khi viết kết quả)
 
@@ -62,7 +62,7 @@ fraud-detection-cies/
 │   ├── kaggle_pipeline.ipynb        # tune → benchmark → CIES trên Kaggle (xem mục 11)
 │   ├── 03_train_models.ipynb
 │   ├── 04_cies_experiment.ipynb
-│   ├── 05_cies_experiment_ulb.ipynb # CIES trên dataset phụ
+│   ├── 05_cies_experiment_ulb.ipynb # CIES trên ULB
 │   └── 06_visualizations.ipynb
 ├── src/
 │   ├── config.py
@@ -268,7 +268,7 @@ def run_cies_experiment(model_name, imbalance_technique, df_train, df_test_fixed
 
 ### 7.2. Chi phí tính toán — cảnh báo cho agent
 
-Tổng số lần train = 5 model × 5 kỹ thuật × N_RUNS = 500–750 lần (với dataset chính). Agent cần:
+Tổng số lần train = 5 model × 5 kỹ thuật × N_RUNS = 500–750 lần (với mỗi dataset). Agent cần:
 - Ưu tiên chạy trên Kaggle Notebook/Colab (GPU), không chạy N_RUNS đầy đủ trên máy local
 - Nếu code chạy quá lâu, báo lại cho user để cân nhắc giảm N_RUNS hoặc subsample train trước khi bootstrap — KHÔNG tự ý giảm số kỹ thuật hoặc số model để tiết kiệm thời gian
 

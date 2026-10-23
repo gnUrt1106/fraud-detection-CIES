@@ -8,11 +8,11 @@ giải thích càng đáng tin (CIES = 1: giống hệt nhau ở mọi lần).
 
 - **5 mô hình**: Logistic Regression, Random Forest, XGBoost, CatBoost, ANN (PyTorch).
 - **5 kỹ thuật imbalance**: SMOTE, SMOTE-ENN, ADASYN, Borderline-SMOTE, Class Weighting.
-- **2 dataset**: Sparkov (chính) và ULB Credit Card Fraud (phụ, để kiểm chứng xu hướng).
+- **2 dataset** đối xử ngang nhau: Sparkov và ULB Credit Card Fraud.
 
 ## Dữ liệu
 
-| | Sparkov (chính) | ULB (phụ) |
+| | Sparkov | ULB |
 |---|---|---|
 | Nguồn | [kartik2112/fraud-detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection) | [mlg-ulb/creditcardfraud](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) |
 | Chia train/test | **Theo thời gian**, đúng 2 file gốc: `fraudTrain.csv` (01/2019 → 06/2020, 1.296.675 dòng) / `fraudTest.csv` (06/2020 → 12/2020, 555.719 dòng) | **Theo thời gian**: sắp theo `Time`, 20% cuối làm test (227.846 / 56.961 dòng) |
