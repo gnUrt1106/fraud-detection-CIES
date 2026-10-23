@@ -487,50 +487,102 @@ def merge_rerun_results(per_file: Dict[str, List[Dict[str, Any]]]) -> Dict[str, 
     return {"results": results, "problems": problems}
 
 
-# ===== Wrapper đọc dữ liệu TRONG process con (tránh pickle 1,3 triệu dòng qua spawn) =====
+# ===== Wrapper đọc dữ liệu TRONG process con (tránh pickle dữ liệu lớn qua spawn) =====
+# Hai dataset được đối xử NGANG NHAU (cùng thiết kế, cùng công thức, cùng số seed); chỉ khác nguồn dữ liệu,
+# file tham số Optuna riêng và thư mục cache/kết quả riêng.
 
-def load_encoded_data(data_dir: Optional[Path] = None):
+DATASETS = ("sparkov", "ulb")
+
+
+def dataset_cache_root(dataset: str, cache_root: Optional[Path] = None) -> Path:
+    """Gốc cache resample của dataset (Sparkov giữ nguyên đường dẫn cũ; ULB nằm trong thư mục con `ulb`)."""
+    from src.config import RESAMPLE_CACHE_RERUN_DIR
+
+    base = Path(cache_root) if cache_root is not None else Path(RESAMPLE_CACHE_RERUN_DIR)
+    return base / "ulb" if dataset == "ulb" and cache_root is None else base
+
+
+def dataset_results_dir(dataset: str) -> Path:
+    from src.config import RERUN_RESULTS_DIR
+
+    return Path(RERUN_RESULTS_DIR) / "ulb" if dataset == "ulb" else Path(RERUN_RESULTS_DIR)
+
+
+def dataset_params(dataset: str, model_name: str) -> Optional[Dict[str, Any]]:
     """
-    Đọc train_encoded.parquet / test_encoded.parquet (đã tiền xử lý, encoding fit một lần).
+    Tham số Optuna của model cho dataset. Sparkov: None (build_model tự nạp results/best_params.json).
+    ULB: nạp results/best_params_ulb.json và BÁO LỖI nếu thiếu (không âm thầm dùng tham số của Sparkov).
+    """
+    if dataset != "ulb":
+        return None
+    from src.config import BEST_PARAMS_ULB_FILE
+    from src.models.tune import load_best_params
+
+    params = load_best_params(model_name, filepath=BEST_PARAMS_ULB_FILE)
+    if params is None:
+        raise RuntimeError(f"{model_name} chưa có tham số ULB trong {BEST_PARAMS_ULB_FILE}")
+    return params
+
+
+def load_encoded_data(data_dir: Optional[Path] = None, dataset: str = "sparkov"):
+    """
+    Sparkov: train_encoded.parquet / test_encoded.parquet (encoding fit một lần).
+    ULB: ulb_train.parquet / ulb_test.parquet (đã là số, chia theo thời gian), chỉ lấy ULB_FEATURE_COLS (bỏ Time).
     Trả (X_train, y_train, X_test, y_test, feature_names, onehot_groups).
     """
     import pandas as pd
 
-    from src.config import PROCESSED_DATA_DIR, TARGET_COL
+    from src.config import PROCESSED_DATA_DIR, TARGET_COL, ULB_FEATURE_COLS, ULB_TARGET_COL
     from src.imbalance.resamplers import onehot_groups_from_columns
 
+    if dataset not in DATASETS:
+        raise ValueError(f"dataset phải là một trong {DATASETS}")
     data_dir = Path(data_dir) if data_dir is not None else PROCESSED_DATA_DIR
-    train_df = pd.read_parquet(data_dir / "train_encoded.parquet")
-    test_df = pd.read_parquet(data_dir / "test_encoded.parquet")
-    feature_names = [c for c in train_df.columns if c != TARGET_COL]
-    if [c for c in test_df.columns if c != TARGET_COL] != feature_names:
-        raise ValueError("Cột train_encoded và test_encoded khác nhau (tên hoặc thứ tự)")
-    onehot_groups = onehot_groups_from_columns(feature_names)
+    if dataset == "ulb":
+        train_df = pd.read_parquet(data_dir / "ulb_train.parquet")
+        test_df = pd.read_parquet(data_dir / "ulb_test.parquet")
+        feature_names, target = list(ULB_FEATURE_COLS), ULB_TARGET_COL
+        onehot_groups: List[List[int]] = []
+    else:
+        train_df = pd.read_parquet(data_dir / "train_encoded.parquet")
+        test_df = pd.read_parquet(data_dir / "test_encoded.parquet")
+        target = TARGET_COL
+        feature_names = [c for c in train_df.columns if c != target]
+        if [c for c in test_df.columns if c != target] != feature_names:
+            raise ValueError("Cột train_encoded và test_encoded khác nhau (tên hoặc thứ tự)")
+        onehot_groups = onehot_groups_from_columns(feature_names)
     return (
         train_df[feature_names].to_numpy(dtype=np.float64),
-        train_df[TARGET_COL].to_numpy(),
+        train_df[target].to_numpy(),
         test_df[feature_names].to_numpy(dtype=np.float64),
-        test_df[TARGET_COL].to_numpy(),
+        test_df[target].to_numpy(),
         feature_names,
         onehot_groups,
     )
 
 
-def cache_job(data_dir, technique: str, seed: int, cache_root) -> Dict[str, Any]:
+def cache_job(data_dir, technique: str, seed: int, cache_root, dataset: str = "sparkov") -> Dict[str, Any]:
     """Việc 'cache': đọc dữ liệu rồi build_resample_cache. Top-level — gọi qua run_isolated."""
-    X_train, y_train, _, _, feature_names, onehot_groups = load_encoded_data(data_dir)
+    X_train, y_train, _, _, feature_names, onehot_groups = load_encoded_data(data_dir, dataset)
     return build_resample_cache(technique, X_train, y_train, seed, feature_names, onehot_groups, cache_root)
 
 
-def combo_job(data_dir, model_name: str, technique: str, seeds, **kwargs) -> Dict[str, Any]:
+def combo_job(data_dir, model_name: str, technique: str, seeds, dataset: str = "sparkov", **kwargs) -> Dict[str, Any]:
     """Việc 'train': đọc dữ liệu rồi run_rerun_combo. Top-level — gọi qua run_isolated."""
-    X_train, y_train, X_test, y_test, feature_names, onehot_groups = load_encoded_data(data_dir)
-    return run_rerun_combo(
+    X_train, y_train, X_test, y_test, feature_names, onehot_groups = load_encoded_data(data_dir, dataset)
+    kwargs.setdefault("params", dataset_params(dataset, model_name))
+    result = run_rerun_combo(
         model_name, technique, X_train, y_train, X_test, y_test, feature_names, onehot_groups, seeds, **kwargs,
     )
+    result["dataset"] = dataset
+    result["config"]["dataset"] = dataset
+    if kwargs.get("params"):
+        result["config"]["params_source"] = f"results/best_params_{dataset}.json"
+    return result
 
 
-def pilot_job(data_dir, model_name: str, **kwargs) -> Dict[str, Any]:
+def pilot_job(data_dir, model_name: str, dataset: str = "sparkov", **kwargs) -> Dict[str, Any]:
     """Việc 'pilot': đọc dữ liệu rồi pilot_timing. Top-level — gọi qua run_isolated."""
-    X_train, y_train, X_test, y_test, _, _ = load_encoded_data(data_dir)
+    X_train, y_train, X_test, y_test, _, _ = load_encoded_data(data_dir, dataset)
+    kwargs.setdefault("params", dataset_params(dataset, model_name))
     return pilot_timing(model_name, X_train, y_train, X_test, y_test, **kwargs)

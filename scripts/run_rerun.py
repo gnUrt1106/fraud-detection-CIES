@@ -16,6 +16,7 @@ Ví dụ:
     python scripts/run_rerun.py train --machine pc4070 --models xgboost catboost ann random_forest
     python scripts/run_rerun.py train --machine ryzen --models logistic_regression --force-cpu
     python scripts/run_rerun.py merge
+    python scripts/run_rerun.py train --dataset ulb --machine ryzen   # ULB đối xử ngang Sparkov
 
 Quy tắc: mỗi (model, kỹ thuật) phải chạy trọn mọi seed trên MỘT máy/thiết bị (xem rerun_stability.py).
 """
@@ -42,13 +43,15 @@ from src.utils.isolation import run_isolated  # noqa: E402
 
 logger = logging.getLogger("run_rerun")
 
-SUMMARY_JSON = RESULTS_DIR / "cies_rerun_summary.json"
-SUMMARY_CSV = RESULTS_DIR / "cies_rerun_summary.csv"
 
 
 def _add_common(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--data-dir", type=Path, default=PROCESSED_DATA_DIR, help="Thư mục có train_encoded/test_encoded.parquet")
-    p.add_argument("--cache-root", type=Path, default=RESAMPLE_CACHE_RERUN_DIR, help="Gốc cache resample theo seed")
+    p.add_argument("--dataset", default="sparkov", choices=rs.DATASETS,
+                   help="sparkov hoặc ulb — hai dataset được đối xử ngang nhau, cùng thiết kế")
+    p.add_argument("--data-dir", type=Path, default=PROCESSED_DATA_DIR,
+                   help="Thư mục có train_encoded/test_encoded.parquet (Sparkov) hoặc ulb_train/ulb_test.parquet (ULB)")
+    p.add_argument("--cache-root", type=Path, default=None,
+                   help=f"Gốc cache resample theo seed (mặc định {RESAMPLE_CACHE_RERUN_DIR}; ULB: thư mục con ulb)")
     p.add_argument("--seeds", default=f"0-{RERUN_N_SEEDS - 1}", help="vd. 0-9 hoặc 0,2,5")
     p.add_argument("--techniques", nargs="+", default=list(IMBALANCE_TECHNIQUES), choices=IMBALANCE_TECHNIQUES)
 
@@ -66,23 +69,34 @@ def rs_backends():
     return list(SHAP_BACKENDS)
 
 
-def _check_best_params(models, allow_default: bool) -> None:
-    """Optuna là bắt buộc giữ nguyên: thiếu best_params.json thì build_model lặng lẽ dùng tham số mặc định → dừng."""
+def _check_best_params(models, allow_default: bool, dataset: str = "sparkov") -> None:
+    """Optuna là bắt buộc giữ nguyên: thiếu file tham số thì build_model lặng lẽ dùng tham số mặc định → dừng."""
+    from src.config import BEST_PARAMS_ULB_FILE
     from src.models.tune import load_best_params
 
-    missing = [m for m in models if not load_best_params(m)]
+    path = BEST_PARAMS_ULB_FILE if dataset == "ulb" else None
+    missing = [m for m in models if not load_best_params(m, filepath=path)]
     if missing and not allow_default:
-        sys.exit(f"Thiếu tham số Optuna của {missing} trong results/best_params.json. "
+        sys.exit(f"Thiếu tham số Optuna của {missing} ({path or 'results/best_params.json'}). "
                  f"Copy file đó sang máy này, hoặc thêm --allow-default-params nếu CHỦ Ý dùng tham số mặc định.")
 
 
+def _paths(a):
+    """(thư mục kết quả, gốc cache, file summary json, file summary csv) theo dataset."""
+    suffix = "_ulb" if a.dataset == "ulb" else ""
+    cache_root = getattr(a, "cache_root", None) or rs.dataset_cache_root(a.dataset)
+    return (rs.dataset_results_dir(a.dataset), cache_root,
+            RESULTS_DIR / f"cies_rerun_summary{suffix}.json", RESULTS_DIR / f"cies_rerun_summary{suffix}.csv")
+
+
 def cmd_pilot(a) -> None:
-    _check_best_params(a.models, a.allow_default_params)
+    _check_best_params(a.models, a.allow_default_params, a.dataset)
+    res_dir, _, _, _ = _paths(a)
     out, rows = {}, []
     for m in a.models:
         logger.info(f"Pilot {m} ...")
         try:
-            r = run_isolated(rs.pilot_job, a.data_dir, m, pilot_rows=a.pilot_rows, shap_batch=a.shap_batch,
+            r = run_isolated(rs.pilot_job, a.data_dir, m, dataset=a.dataset, pilot_rows=a.pilot_rows, shap_batch=a.shap_batch,
                              shap_backend=a.shap_backend, force_cpu=a.force_cpu, timeout=None)
             out[m] = r
             rows.append(r)
@@ -91,7 +105,7 @@ def cmd_pilot(a) -> None:
         except Exception as e:  # noqa: BLE001
             out[m] = {"error": str(e)[:2000]}
             logger.error(f"  {m} lỗi: {str(e)[:500]}")
-    rs.atomic_write_json(RERUN_RESULTS_DIR / f"pilot_{a.machine}.json", out)
+    rs.atomic_write_json(res_dir / f"pilot_{a.machine}.json", out)
     print("\nmodel | thiết bị | train(s) | SHAP toàn test ước(s) | giờ/model(50 lần)")
     for r in rows:
         print(f"{r['model']} | {r['device']} | {r['seconds_train']} | {r['est_seconds_shap_full_test']:.0f} | {r['est_hours_for_model']}")
@@ -99,13 +113,14 @@ def cmd_pilot(a) -> None:
 
 def cmd_cache(a) -> None:
     seeds = rs.parse_seeds(a.seeds)
+    _, cache_root, _, _ = _paths(a)
     techs = [t for t in a.techniques if t != "class_weighting"]
     for seed in seeds:
         for t in techs:
             t0 = time.time()
             logger.info(f"Cache {t} seed {seed} ...")
             try:
-                r = run_isolated(rs.cache_job, a.data_dir, t, seed, a.cache_root, timeout=None)
+                r = run_isolated(rs.cache_job, a.data_dir, t, seed, cache_root, dataset=a.dataset, timeout=None)
                 logger.info(f"  xong sau {time.time() - t0:.0f}s: {r.get('n_after')} dòng ({r.get('n_fraud_after')} fraud)")
             except Exception as e:  # noqa: BLE001
                 logger.error(f"  {t} seed {seed} lỗi: {str(e)[:500]}")
@@ -119,9 +134,10 @@ def _load_machine_file(path: Path) -> dict:
 
 
 def cmd_train(a) -> None:
-    _check_best_params(a.models, a.allow_default_params)
+    _check_best_params(a.models, a.allow_default_params, a.dataset)
     seeds = rs.parse_seeds(a.seeds)
-    path = RERUN_RESULTS_DIR / f"{a.machine}.json"
+    res_dir, cache_root, _, _ = _paths(a)
+    path = res_dir / f"{a.machine}.json"
     store = _load_machine_file(path)
     done = {r["combination"] for r in store["results"] if r.get("complete")}
     for m in a.models:
@@ -133,7 +149,7 @@ def cmd_train(a) -> None:
             logger.info(f"=== {combo} ===")
             try:
                 r = run_isolated(
-                    rs.combo_job, a.data_dir, m, t, seeds, cache_root=a.cache_root, shap_rows=a.shap_rows,
+                    rs.combo_job, a.data_dir, m, t, seeds, dataset=a.dataset, cache_root=cache_root, shap_rows=a.shap_rows,
                     shap_batch=a.shap_batch, shap_backend=a.shap_backend, force_cpu=a.force_cpu,
                     machine=a.machine, timeout=None,
                 )
@@ -150,12 +166,13 @@ def cmd_train(a) -> None:
 
 def cmd_status(a) -> None:
     seeds = rs.parse_seeds(a.seeds)
-    print("Cache resample (có file / tổng seed):")
+    res_dir, cache_root, _, _ = _paths(a)
+    print(f"[{a.dataset}] Cache resample (có file / tổng seed):")
     for t in [t for t in a.techniques if t != "class_weighting"]:
-        have = [s for s in seeds if (rs.seed_cache_dir(a.cache_root, s) / f"train_encoded_{t}.parquet").exists()]
+        have = [s for s in seeds if (rs.seed_cache_dir(cache_root, s) / f"train_encoded_{t}.parquet").exists()]
         print(f"  {t}: {len(have)}/{len(seeds)}  thiếu seed: {sorted(set(seeds) - set(have)) or '-'}")
     print("Kết quả theo máy:")
-    for f in sorted(glob.glob(str(RERUN_RESULTS_DIR / "*.json"))):
+    for f in sorted(glob.glob(str(res_dir / "*.json"))):
         if Path(f).name.startswith("pilot_"):
             continue
         s = _load_machine_file(Path(f))
@@ -164,18 +181,19 @@ def cmd_status(a) -> None:
 
 
 def cmd_merge(a) -> None:
+    res_dir, _, summary_json, summary_csv = _paths(a)
     per_file = {}
-    for f in sorted(glob.glob(str(RERUN_RESULTS_DIR / "*.json"))):
+    for f in sorted(glob.glob(str(res_dir / "*.json"))):
         if Path(f).name.startswith("pilot_"):
             continue
         per_file[Path(f).name] = _load_machine_file(Path(f))["results"]
     if not per_file:
-        sys.exit(f"Không có file kết quả nào trong {RERUN_RESULTS_DIR}")
+        sys.exit(f"Không có file kết quả nào trong {res_dir}")
     merged = rs.merge_rerun_results(per_file)
     for p in merged["problems"]:
         logger.warning(p)
-    rs.atomic_write_json(SUMMARY_JSON, {"design": rs.RERUN_DESIGN, **merged})
-    with open(SUMMARY_CSV, "w", newline="", encoding="utf-8") as f:
+    rs.atomic_write_json(summary_json, {"design": rs.RERUN_DESIGN, "dataset": a.dataset, **merged})
+    with open(summary_csv, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["model", "technique", "cies", "mean_spearman", "pr_auc_mean", "pr_auc_std", "pr_auc_min", "pr_auc_max",
                     "n_seeds_ok", "identical_shap", "device", "machine"])
@@ -184,7 +202,7 @@ def cmd_merge(a) -> None:
             w.writerow([r["model_name"], r["imbalance_technique"], round(c["cies_score"], 6), round(c["mean_spearman"], 6),
                         round(p["mean"], 6), round(p["std"], 6), round(p["min"], 6), round(p["max"], 6), p["n"],
                         r["diagnostics"]["identical_mean_abs_shap"], r["config"]["device"], r["config"]["machine"]])
-    print(f"Đã gộp {len(merged['results'])} tổ hợp, {len(merged['problems'])} cảnh báo → {SUMMARY_JSON.name}, {SUMMARY_CSV.name}")
+    print(f"Đã gộp {len(merged['results'])} tổ hợp, {len(merged['problems'])} cảnh báo → {summary_json.name}, {summary_csv.name}")
 
 
 def main() -> None:
@@ -213,6 +231,7 @@ def main() -> None:
     p.set_defaults(fn=cmd_status)
 
     p = sub.add_parser("merge", help="Gộp kết quả các máy")
+    p.add_argument("--dataset", default="sparkov", choices=rs.DATASETS)
     p.set_defaults(fn=cmd_merge)
 
     a = ap.parse_args()

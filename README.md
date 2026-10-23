@@ -95,7 +95,7 @@ Chạy theo thứ tự (notebook mở bằng `jupyter lab` từ thư mục gốc
 6. **`06_visualizations.ipynb`**: biểu đồ và nhận xét.
 
 Mỗi tổ hợp được lưu ngay khi xong, chạy lại sẽ bỏ qua phần đã có (kết quả đã kèm trong `results/`, nên notebook 03–06 chạy lại chỉ vẽ lại
-biểu đồ). Chạy test: `python -m pytest tests -q` (gồm `tests/test_rerun_stability.py`, 65 test).
+biểu đồ). Chạy test: `python -m pytest tests -q` (gồm `tests/test_rerun_stability.py`, 66 test).
 
 ### Chạy lại theo seed (không bootstrap)
 
@@ -111,6 +111,9 @@ python scripts/run_rerun.py train --machine ryzen --models logistic_regression -
 python scripts/run_rerun.py status
 python scripts/run_rerun.py merge                                           # → results/cies_rerun_summary.json / .csv
 ```
+
+ULB được đối xử **ngang Sparkov** (cùng thiết kế, cùng công thức, cùng 10 seed, SHAP trên toàn bộ test, tham số Optuna riêng `best_params_ulb.json`): thêm `--dataset ulb` vào mọi lệnh
+(cache ở `data/processed/resampled_rerun/ulb/`, kết quả ở `results/rerun/ulb/`, tổng hợp `results/cies_rerun_summary_ulb.json/.csv`).
 
 Mỗi (model, kỹ thuật) phải chạy trọn 10 seed trên **một** máy/thiết bị; mọi máy dùng cùng file `*_encoded.parquet` (`merge` báo nếu dấu vân tay
 dữ liệu lệch). CIES ở chế độ này **không so sánh trực tiếp** với CIES bootstrap: nguồn dao động chỉ còn tính ngẫu nhiên của thuật toán. Model tất

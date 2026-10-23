@@ -202,3 +202,32 @@ def test_merge_flags_duplicates_fingerprint_and_incomplete():
 def test_merge_ignores_error_records():
     out = rs.merge_rerun_results({"a.json": [{"combination": "x__y", "error": "boom"}, _fake("xgboost", "smote")]})
     assert len(out["results"]) == 1
+
+
+# ===== ULB đối xử ngang Sparkov =====
+
+def test_ulb_loader_params_and_paths(tmp_path):
+    import pandas as pd
+
+    from src.config import ULB_FEATURE_COLS, ULB_TARGET_COL
+
+    r = np.random.RandomState(0)
+
+    def mk(n):
+        d = pd.DataFrame(r.randn(n, 29), columns=list(ULB_FEATURE_COLS))
+        d["Time"] = np.arange(n)
+        d[ULB_TARGET_COL] = (r.rand(n) < 0.1).astype(int)
+        return d
+
+    mk(200).to_parquet(tmp_path / "ulb_train.parquet")
+    mk(80).to_parquet(tmp_path / "ulb_test.parquet")
+    Xtr, ytr, Xte, yte, names, groups = rs.load_encoded_data(tmp_path, "ulb")
+    assert names == list(ULB_FEATURE_COLS) and "Time" not in names  # bỏ Time như notebook 05
+    assert Xtr.shape == (200, 29) and Xte.shape == (80, 29) and groups == []
+    with pytest.raises(ValueError):
+        rs.load_encoded_data(tmp_path, "khac")
+    # Sparkov dùng best_params.json (None = build_model tự nạp); ULB nạp best_params_ulb.json
+    assert rs.dataset_params("sparkov", "xgboost") is None
+    assert rs.dataset_params("ulb", "xgboost")
+    assert rs.dataset_results_dir("ulb") != rs.dataset_results_dir("sparkov")
+    assert rs.dataset_cache_root("ulb").name == "ulb" and rs.dataset_cache_root("sparkov").name != "ulb"
