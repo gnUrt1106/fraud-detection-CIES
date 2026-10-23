@@ -58,3 +58,7 @@ catboost_info/
 
 # Bản nộp bài tạo bằng git archive (xem .gitattributes) — không commit
 /fraud-detection-CIES.zip
+
+# Giữ ở local, không đưa lên GitHub
+/reports/kien-thuc-dao-sau-CIES.pdf
+/reports/system_architecture.html
