@@ -123,15 +123,23 @@ IMBALANCE_TECHNIQUES = [
     "class_weighting",
 ]
 
-# ===== Chế độ chạy lại theo seed (không bootstrap) =====
-# Yêu cầu của giảng viên: độ ổn định đo qua các LẦN CHẠY LẠI trên toàn bộ train (phân phối dữ liệu giữ
-# nguyên, chỉ đổi seed); PR-AUC và CIES lấy từ cùng các lần chạy; SHAP trên toàn bộ test.
-# Xem src/explainability/rerun_stability.py và scripts/run_rerun.py.
+# ===== Chạy lại theo seed (kết quả chính) =====
+# Độ ổn định đo qua các LẦN CHẠY LẠI trên toàn bộ train: dữ liệu và phân phối giữ nguyên, mỗi lần chỉ đổi seed.
+# PR-AUC và CIES lấy từ cùng các lần chạy. Mã: src/explainability/rerun_stability.py; CLI: scripts/run_rerun.py.
 RERUN_N_SEEDS = 10
 # Dữ liệu đã resample theo từng seed: <RESAMPLE_CACHE_RERUN_DIR>/seedNN/train_encoded_<kỹ thuật>.parquet
 RESAMPLE_CACHE_RERUN_DIR = PROCESSED_DATA_DIR / "resampled_rerun"
-# Kết quả mỗi máy ghi 1 file riêng ở đây, rồi `python scripts/run_rerun.py merge` gộp lại
+# Mỗi lần chạy ghi một file ở đây (`--name`, mặc định `main`); `scripts/run_rerun.py merge` gộp lại
 RERUN_RESULTS_DIR = RESULTS_DIR / "rerun"
+# Tập test dùng để tính SHAP (PR-AUC luôn tính trên TOÀN BỘ test). None = toàn bộ test.
+#   Sparkov: mẫu cố định, phân tầng theo nhãn, bằng 20% tập test (555.719 → 111.144 dòng; 429/2.145 fraud), dùng chung cho
+#            mọi model, kỹ thuật và seed. SHAP của Random Forest/CatBoost trên toàn bộ 555 nghìn dòng × 50 lần train
+#            tốn hàng chục giờ.
+#   ULB:     toàn bộ test (56.961 dòng, 75 fraud) — đã nhỏ, không cần lấy mẫu.
+# Đối chiếu mẫu 20% với toàn bộ test (15 tổ hợp XGBoost/ANN/Logistic Regression): PR-AUC giống hệt, |ΔCIES| <= 0,0022,
+# top-3 feature trùng nhau (reports/pipeline_report.md). Bài gốc CIES (arXiv:2603.05024) tính trên 100 dòng test ngẫu nhiên.
+# Ghi đè từng lần chạy: `scripts/run_rerun.py train --shap-rows all|N`.
+RERUN_SHAP_TEST_FRACTION = {"sparkov": 0.20, "ulb": None}
 
 # ===== Đảm bảo các thư mục tồn tại =====
 for _dir in [RAW_DATA_DIR, PROCESSED_DATA_DIR, FIGURES_DIR, PROFILING_DIR, RESULTS_DIR]:

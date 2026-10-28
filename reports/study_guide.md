@@ -89,7 +89,7 @@ Mỗi file: **vai trò → dòng cần đọc → cần nhớ → câu dễ bị
   `max_depth`, `min_samples_*`; XGBoost/CatBoost số cây, độ sâu, `learning_rate`; ANN `lr`, `dropout`, `epochs`, `batch_size`).
 - [`time_series_folds`](../src/models/tune.py#L94): 1/3 cuối train chia 3 khối validation liên tiếp, mỗi fold train trên **mọi dòng
   trước** khối đó ([dòng 103](../src/models/tune.py#L103)).
-- [`encode_time_folds`](../src/models/tune.py#L107): encode riêng từng fold chỉ bằng dữ liệu trước khối validation.
+- [`encode_time_folds`](../src/models/tune.py#L107): encode riêng từng fold chỉ bằng dữ liệu trước khối validation (phần train của fold vẫn out-of-fold qua `encode_train`; khối validation chỉ tra bảng như tập test).
 - [`tune_model`](../src/models/tune.py#L143): objective = PR-AUC trung bình 3 fold ([215](../src/models/tune.py#L215));
   [MedianPruner](../src/models/tune.py#L229) cắt trial kém sau fold đầu; [TPE seed 42](../src/models/tune.py#L243); checkpoint SQLite.
 - Tune trên dữ liệu **chưa xử lý mất cân bằng**, tham số dùng chung cho 5 kỹ thuật (mục 4, câu 4).
@@ -210,7 +210,7 @@ fraudTrain.csv / fraudTest.csv ──preprocess (sắp thời gian, thêm hour/d
     (LR: `hệ số × (x − trung bình nền)`). Nền giống nhau ở mọi run và đủ lớn: LR dùng toàn bộ tập train, ANN dùng 1000 dòng (với 100 dòng,
     chỉ đổi dòng nào làm nền đã làm CIES ANN lệch tới 0,031). Model cây thì khác: TreeExplainer lấy mốc từ dữ liệu train của chính từng
     run, nên **so mức CIES giữa cây và LR/ANN không cùng điều kiện mốc** (RF với mốc cố định: +0,029) — so giữa kỹ thuật trong cùng
-    model thì không bị ảnh hưởng.
+    model được coi là ít bị ảnh hưởng (cùng loại mốc), nhưng mức ảnh hưởng chỉ mới đo cho RF × class weighting.
 17. **"CIES đo nhiễu gì?"** — Dao động khi **train lại từ đầu**: seed của run đổi mẫu bootstrap, phần ngẫu nhiên của SMOTE… và của
     model (khởi tạo ANN, lấy mẫu của RF/XGBoost). Cố định: tập eval, tham số, kỹ thuật, dữ liệu nền SHAP. 5 kỹ thuật dùng chung 20 mẫu
     bootstrap nên so sánh giữa kỹ thuật là so theo cặp.

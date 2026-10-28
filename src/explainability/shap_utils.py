@@ -262,7 +262,12 @@ def _make_shap_batch_fn(
                    (đã so khớp với shap.TreeExplainer trong tests), nhưng chạy bằng mã gốc của thư viện
                    (đa luồng, XGBoost chạy được trên GPU) — nhanh hơn rất nhiều trên tập lớn.
         "auto"   — "native" cho xgboost/catboost, "shap" cho phần còn lại.
-    Random Forest luôn dùng shap.TreeExplainer (không có đường native).
+    Random Forest: "auto"/"shap" = shap.TreeExplainer (đơn luồng, chậm); "native" = chuyển rừng sang XGBoost rồi dùng
+        TreeSHAP chính xác của XGBoost, GPU nếu máy có (src/explainability/rf_gpu_shap.py) — khớp shap.TreeExplainer đến
+        sai số float32 (có test). Tên explainer ghi trong kết quả: "tree-xgb-gpu" hoặc "tree-xgb-cpu".
+    ANN: "auto"/"shap" = shap.DeepExplainer (lặp từng dòng, rất chậm); "native" = DeepLIFT Rescale theo lô trên GPU
+        (src/explainability/deeplift_native.py) — cùng thuật toán, khớp DeepExplainer đến sai số float32 (có test),
+        nhanh hơn hàng trăm lần. Tên explainer ghi trong kết quả: "deep-native".
     """
     if backend not in SHAP_BACKENDS:
         raise ValueError(f"backend phải là một trong {SHAP_BACKENDS}, nhận '{backend}'")
@@ -273,8 +278,8 @@ def _make_shap_batch_fn(
         )
     if explainer_type in ("linear", "deep") and X_background is None:
         raise ValueError(f"'{model_name}' cần X_background (dữ liệu nền SHAP) — không tự lấy X_eval làm nền")
-    if backend == "native" and model_name not in ("xgboost", "catboost"):
-        raise ValueError(f"backend 'native' chỉ hỗ trợ xgboost/catboost, không phải '{model_name}'")
+    if backend == "native" and model_name not in ("xgboost", "catboost", "ann", "random_forest"):
+        raise ValueError(f"backend 'native' chỉ hỗ trợ xgboost/catboost/ann/random_forest, không phải '{model_name}'")
 
     if explainer_type == "linear":
         from src.models.train import model_kind
@@ -315,6 +320,12 @@ def _make_shap_batch_fn(
 
             return cb_fn, "tree-native"
 
+        if backend == "native" and model_name == "random_forest":
+            # Rừng sklearn → XGBoost (từng cây, ngưỡng, cover giữ nguyên) → TreeSHAP chính xác của XGBoost, GPU nếu có.
+            from src.explainability.rf_gpu_shap import make_rf_gpu_shap_fn
+
+            return make_rf_gpu_shap_fn(model, device="auto")
+
         tree_explainer = shap.TreeExplainer(model)
 
         def tree_fn(X: np.ndarray) -> np.ndarray:
@@ -333,6 +344,15 @@ def _make_shap_batch_fn(
     device = model.get("device", torch.device("cpu"))
     ann.eval()  # BatchNorm/Dropout ở chế độ eval, nếu không SHAP không tất định
     bg_tensor = torch.FloatTensor(np.asarray(scale_ann_input(model, X_background))).to(device)
+    if backend == "native":
+        from src.explainability.deeplift_native import make_deeplift_fn
+
+        native = make_deeplift_fn(ann, bg_tensor)
+
+        def native_fn(X: np.ndarray) -> np.ndarray:
+            return native(torch.FloatTensor(np.asarray(scale_ann_input(model, X))).to(device))
+
+        return native_fn, "deep-native"
     deep = shap.DeepExplainer(ann, bg_tensor)
 
     def deep_fn(X: np.ndarray) -> np.ndarray:
@@ -353,6 +373,20 @@ def _uses_shap_tree_explainer(model_name: str, backend: str) -> bool:
     if EXPLAINER_MAP.get(model_name) != "tree":
         return False
     return not (backend == "native" or (backend == "auto" and model_name in ("xgboost", "catboost")))
+
+
+def _is_cpu_ann(model: Any) -> bool:
+    """True nếu model là dict ANN đang nằm trên CPU (ANN trên GPU không chia tiến trình)."""
+    return isinstance(model, dict) and getattr(model.get("device"), "type", "cpu") == "cpu"
+
+
+def _deep_abs_sum(model: Any, X_background: np.ndarray, X: np.ndarray, torch_threads: int) -> np.ndarray:
+    """Tổng |SHAP| theo cột của 1 đợt, bằng shap.DeepExplainer (chạy trong tiến trình con của joblib)."""
+    import torch
+
+    torch.set_num_threads(torch_threads)
+    shap_fn, _ = _make_shap_batch_fn(model, "ann", X_background, "auto")
+    return np.abs(np.asarray(shap_fn(X), dtype=np.float64)).sum(axis=0)
 
 
 def _tree_abs_sum(model: Any, X: np.ndarray) -> np.ndarray:
@@ -377,6 +411,10 @@ def compute_mean_abs_shap(
         (đã đo: dùng luồng không nhanh hơn), nên chia các đợt cho nhiều TIẾN TRÌNH (joblib/loky). Kết quả không đổi
         (tổng |SHAP| cộng được theo đợt, chỉ khác thứ tự cộng số thực). Các explainer khác bỏ qua tham số này
         (XGBoost/CatBoost native đã đa luồng, Logistic Regression vector hoá).
+        ANN trên CPU cũng dùng tham số này: DeepExplainer của thư viện shap lặp TỪNG dòng (mỗi dòng một lượt lan truyền
+        ngược trên toàn bộ dữ liệu nền) nên bị giới hạn bởi độ trễ, không bởi số lõi; chia các đợt cho nhiều tiến
+        trình (mỗi tiến trình ít luồng torch hơn). SHAP từng dòng độc lập nên kết quả giống đến sai số làm tròn
+        (thứ tự cộng số thực và số luồng torch khác nhau); ANN trên GPU bỏ qua tham số này.
 
     Returns:
         (vector mean|SHAP| shape (n_features,), tên explainer thực sự dùng)
@@ -396,6 +434,20 @@ def compute_mean_abs_shap(
             delayed(_tree_abs_sum)(model, X_eval[a:a + batch_size]) for a in bounds
         )
         return np.sum(parts, axis=0) / n, "tree"
+
+    if n_jobs != 1 and EXPLAINER_MAP.get(model_name) == "deep" and _is_cpu_ann(model) and backend != "native":
+        from joblib import Parallel, delayed
+
+        if X_background is None:
+            raise ValueError(f"'{model_name}' cần X_background (dữ liệu nền SHAP) — không tự lấy X_eval làm nền")
+        n_workers = max(1, min(n_jobs if n_jobs > 0 else (os.cpu_count() or 1), n))
+        threads = max(1, (os.cpu_count() or 1) // n_workers)
+        # Chia nhỏ hơn số tiến trình (~4 phần mỗi tiến trình) để các tiến trình xong gần cùng lúc.
+        rows = max(1, min(batch_size, -(-n // (n_workers * 4))))
+        parts = Parallel(n_jobs=n_workers)(
+            delayed(_deep_abs_sum)(model, X_background, X_eval[a:a + rows], threads) for a in range(0, n, rows)
+        )
+        return np.sum(parts, axis=0) / n, "deep"
 
     shap_fn, used = _make_shap_batch_fn(model, model_name, X_background, backend)
 

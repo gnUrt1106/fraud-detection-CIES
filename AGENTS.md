@@ -3,7 +3,7 @@
 ## Project Overview
 - Nghiên cứu độ ổn định của giải thích SHAP (chỉ số CIES) dưới 5 kỹ thuật xử lý mất cân bằng, trên 5 model và 2 dataset (Sparkov, ULB).
 - Ngôn ngữ chính: Python. Dùng virtual environment `.venv`.
-- Đọc `AGENT_SPEC.md` trước khi đổi bất cứ thứ gì liên quan tới thiết kế thí nghiệm (encoding, kỹ thuật imbalance, SHAP, CIES): đó là các quyết định đã chốt. Mục 11 của file đó ghi các chỗ code hiện tại lệch spec.
+- Đọc `AGENT_SPEC.md` trước khi đổi bất cứ thứ gì liên quan tới thiết kế thí nghiệm (encoding, kỹ thuật imbalance, SHAP, CIES): đó là các quyết định đã chốt. Mục 11 của file đó ghi các chỗ code hiện tại lệch spec; mục 12 là thiết kế đo CIES chính thức (chạy lại theo seed).
 
 ## Hướng dẫn chi tiết
 Xem các file trong `.agents/rules/`:
@@ -22,4 +22,6 @@ Tra cứu nhanh: `FILE_REFERENCE.md` (chức năng từng file), `reports/system
 - Trong notebook Kaggle, `!pip install` phải đặt spec trong ngoặc kép (`"optuna>=3.4.0"`), nếu không `>` thành chuyển hướng file.
 - Không đổi công thức CIES, danh sách 5 kỹ thuật, hay cách encoding mà không hỏi người dùng — chúng ảnh hưởng tính hợp lệ của thí nghiệm.
 - **Chia train/test theo thời gian, không đưa cột định danh khách hàng vào model** (`AGENT_SPEC.md` §8): chia ngẫu nhiên theo dòng + feature định danh từng cho PR-AUC ảo. Tune cũng validate theo thời gian, encode riêng từng fold.
+- **Kết quả chính dùng chế độ chạy lại theo seed** (`AGENT_SPEC.md` §12, `scripts/run_rerun.py`), không phải bootstrap. Mỗi (model, kỹ thuật) chạy trọn 10 seed trong MỘT lần chạy; mọi tổ hợp của một dataset dùng CÙNG mẫu SHAP: Sparkov = mẫu cố định phân tầng 20% test (111.144 dòng, mặc định của `run_rerun.py`), ULB = toàn bộ test. Không đổi cỡ mẫu giữa chừng (kết quả chỉ lưu mean|SHAP| từng seed, đổi mẫu là train lại) và không trộn file kết quả có mẫu khác vào `merge` — `merge` sẽ cảnh báo. Giảng viên chưa xác nhận việc lấy mẫu này.
+- Backend SHAP `native` (XGBoost/CatBoost, ANN DeepLIFT theo lô, Random Forest qua XGBoost) và SMOTE-ENN trên GPU chỉ được tin khi đã có test/`check` chứng minh trùng bản chuẩn (`tests/test_deeplift_native.py`, `tests/test_rf_gpu_shap.py`, `tests/test_gpu_enn.py`, `scripts/gpu_smote_enn.py check`). Đừng thay đường chuẩn.
 - Cập nhật tài liệu (`README.md`, `FILE_REFERENCE.md`, `reports/pipeline_report.md`) khi thay đổi hành vi hoặc cấu trúc.

@@ -116,7 +116,7 @@ Cùng logic với cách chia train/test ("train quá khứ, chấm tương lai")
 
 **Vấn đề 2 — target encoding thấy nhãn tương lai.** `merchant` được thay bằng tỷ lệ fraud của cửa hàng. Nếu encode 1 lần trên cả tập train rồi mới cắt fold, thì mã hoá của dòng 2019 đã dùng cả các vụ fraud của giai đoạn validation 2020 → model "nhìn trước" giai đoạn nó bị chấm.
 
-*Quyết định:* mỗi fold encode lại **chỉ bằng các dòng trước khối validation** (`tune.py::encode_time_folds`). Có test chứng minh: cửa hàng chỉ bị lợi dụng ở giai đoạn sau thì được mã hoá thấp ở fold train (cách cũ mã hoá cao). Không tốn thêm thời gian: encode cả 3 fold trên toàn bộ dữ liệu mất 1,7 giây, dùng lại cho mọi trial.
+*Quyết định:* mỗi fold encode lại **chỉ bằng các dòng trước khối validation** (`tune.py::encode_time_folds`). Bên trong mỗi fold vẫn làm đúng như benchmark: phần train encode out-of-fold (`encode_train`, 5 fold), khối validation chỉ tra bảng tính từ phần train (`encode_test`). Có test chứng minh: cửa hàng chỉ bị lợi dụng ở giai đoạn sau thì được mã hoá thấp ở fold train (cách cũ mã hoá cao). Không tốn thêm thời gian: encode cả 3 fold trên toàn bộ dữ liệu mất 1,7 giây, dùng lại cho mọi trial.
 
 *Phạm vi:* chỉ ảnh hưởng điểm nội bộ lúc tune. Tập test cuối cùng và CIES vốn đã sạch (test nằm hoàn toàn sau train; mỗi lần bootstrap CIES tự encode lại trên train).
 
@@ -325,7 +325,9 @@ và tỉ lệ ~3% trên 1000 dòng vẫn lệch ±18%. Khoảng dao động này
 từng nhánh lúc train, tức dữ liệu train của chính run đó — cũng đổi theo run. Đo trên RF × class weighting (Sparkov, 10 run): CIES
 0,949 với cách mặc định, 0,978 khi dùng mốc cố định 100 dòng (`feature_perturbation="interventional"`) — chênh +0,029. XGBoost không chạy
 được chế độ này với phiên bản `shap` hiện tại. Vì vậy **so sánh mức CIES giữa họ cây và LR/ANN không cùng điều kiện mốc**; câu hỏi chính
-(so 5 kỹ thuật trong cùng 1 model) không bị ảnh hưởng vì mọi kỹ thuật của 1 model dùng cùng một loại mốc.
+(so 5 kỹ thuật trong cùng 1 model) được coi là ít bị ảnh hưởng vì mọi kỹ thuật của 1 model dùng cùng một loại mốc. Đây là giả định, chưa
+chứng minh: giá trị mốc của mỗi kỹ thuật dựa trên dữ liệu train đã xử lý khác nhau (SMOTE thêm dòng tổng hợp, class weighting đổi trọng số
+trong cây), và chênh lệch chỉ mới đo cho RF × class weighting.
 
 **Hệ quả.** Mọi yếu tố nằm ngoài model đều cố định giữa 20 run (tập eval, tham số, kỹ thuật, dữ liệu nền với LR/ANN). Số CIES hiện tại:
 `reports/pipeline_report.md`, mục Kết quả.

@@ -43,7 +43,7 @@ def _get_ann_class():
             """
             Simple feedforward neural network cho fraud detection.
 
-            Architecture: Input → 128 → ReLU → Dropout → 64 → ReLU → Dropout → 32 → ReLU → 1 → Sigmoid
+            Kiến trúc: Input → 128 → ReLU → BatchNorm → Dropout → 64 → ReLU → BatchNorm → Dropout → 32 → ReLU → 1 (logit)
             """
 
             def __init__(self, input_dim: int, dropout: float = 0.3):

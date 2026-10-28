@@ -1,0 +1,26 @@
+model,technique,cies,mean_spearman,pr_auc_mean,pr_auc_std,pr_auc_min,pr_auc_max,n_seeds_ok,identical_shap,device
+logistic_regression,smote,0.997477,0.998585,0.121689,0.000184,0.121311,0.121933,10,False,cpu (ép)
+logistic_regression,smote_enn,0.998448,0.999076,0.119213,0.000181,0.118858,0.119482,10,False,cpu (ép)
+logistic_regression,adasyn,0.999343,0.999646,0.095791,3e-05,0.095744,0.095841,10,False,cpu (ép)
+logistic_regression,borderline_smote,0.995852,0.997084,0.120686,0.000111,0.120446,0.120894,10,False,cpu (ép)
+logistic_regression,class_weighting,1.0,1.0,0.1206,0.0,0.1206,0.1206,10,True,cpu (ép)
+random_forest,smote,0.969483,0.979596,0.848459,0.001097,0.846743,0.849936,10,False,gpu
+random_forest,smote_enn,0.97159,0.978211,0.844928,0.001224,0.84291,0.846458,10,False,gpu
+random_forest,adasyn,0.987351,0.995267,0.836624,0.001197,0.835332,0.838619,10,False,gpu
+random_forest,borderline_smote,0.983529,0.991342,0.84424,0.001003,0.842729,0.84572,10,False,gpu
+random_forest,class_weighting,0.984598,0.983983,0.872061,0.000881,0.870876,0.873418,10,False,gpu
+xgboost,smote,0.988182,0.991515,0.873371,0.00103,0.872262,0.875871,10,False,gpu
+xgboost,smote_enn,0.993755,0.994055,0.874808,0.000547,0.874232,0.875851,10,False,gpu
+xgboost,adasyn,0.992447,0.995209,0.858784,0.001747,0.855939,0.86116,10,False,gpu
+xgboost,borderline_smote,0.994,0.99518,0.855138,0.001293,0.853301,0.857864,10,False,gpu
+xgboost,class_weighting,0.99498,0.997201,0.872018,0.00073,0.870632,0.873083,10,False,gpu
+catboost,smote,0.96855,0.960202,0.88728,0.000653,0.886492,0.888431,10,False,cpu (ép)
+catboost,smote_enn,0.970034,0.961356,0.885624,0.000836,0.884526,0.887091,10,False,cpu (ép)
+catboost,adasyn,0.965127,0.958268,0.882729,0.001261,0.879884,0.884903,10,False,cpu (ép)
+catboost,borderline_smote,0.972759,0.966407,0.881,0.001318,0.879204,0.883191,10,False,cpu (ép)
+catboost,class_weighting,0.980786,0.97189,0.88033,0.000756,0.878979,0.881574,10,False,cpu (ép)
+ann,smote,0.903122,0.852323,0.878103,0.003382,0.870732,0.881598,10,False,gpu
+ann,smote_enn,0.886754,0.790851,0.874851,0.002914,0.871484,0.879593,10,False,gpu
+ann,adasyn,0.909948,0.894747,0.872001,0.002976,0.865719,0.875611,10,False,gpu
+ann,borderline_smote,0.88597,0.776825,0.865104,0.002877,0.860722,0.871012,10,False,gpu
+ann,class_weighting,0.953999,0.962193,0.868992,0.007835,0.853625,0.877771,10,False,gpu

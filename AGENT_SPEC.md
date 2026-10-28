@@ -2,6 +2,7 @@
 
 > File này dành cho coding agent (Antigravity/Claude Code) đọc và thực thi khi xây dựng project.
 > **Cập nhật 2026-09-21:** các mục 2, 3.2 và 6.1 đã chỉnh cho khớp code; mục **11** (cuối file) liệt kê mọi chỗ code hiện tại lệch bản gốc và trạng thái từng chỗ. Các ràng buộc bắt buộc ở những mục còn lại giữ nguyên.
+> **Thiết kế chạy lại theo seed:** mục **12** mô tả cách đo kết quả chính (yêu cầu của giảng viên): mẫu SHAP, backend GPU/native; các dòng tương ứng ở mục 11. Mục 7 (bootstrap) là thiết kế đầu tiên, không còn là cách đo kết quả chính.
 > Đây KHÔNG phải tài liệu học thuật để đọc hiểu — đây là spec kỹ thuật với quyết định đã chốt, ràng buộc bắt buộc, và lý do (để agent không tự "sửa cho tối ưu hơn" và vô tình phá vỡ tính hợp lệ của thí nghiệm.
 
 ---
@@ -71,13 +72,17 @@ fraud-detection-cies/
 │   │   ├── preprocess.py        # sắp/chia theo thời gian, bỏ cột định danh khách hàng (xem mục 8)
 │   │   └── encoding.py          # Stratified K-fold Target Encoding, one-hot
 │   ├── imbalance/
-│   │   └── resamplers.py        # wrapper cho 5 kỹ thuật, KHÔNG thêm kỹ thuật khác
+│   │   ├── resamplers.py        # wrapper cho 5 kỹ thuật, KHÔNG thêm kỹ thuật khác
+│   │   └── gpu_enn.py           # bước ENN của SMOTE-ENN trên GPU (chỉ dùng khi check trùng bản CPU)
 │   ├── models/
 │   │   ├── train.py             # 5 model, cùng bộ feature input cho tất cả (xem mục 5.2)
 │   │   └── tune.py              # Optuna HPO (ngoài spec gốc — xem mục 11)
 │   ├── explainability/
 │   │   ├── shap_utils.py        # Linear/Tree SHAP; ANN dùng DeepExplainer (Kernel dự phòng)
-│   │   └── cies.py              # thuật toán tính CIES
+│   │   ├── cies.py              # thuật toán tính CIES (bootstrap) + công thức dùng chung
+│   │   ├── rerun_stability.py   # chạy lại theo seed (cách đo chính, mục 12)
+│   │   ├── deeplift_native.py   # DeepLIFT theo lô cho ANN (GPU), khớp shap.DeepExplainer
+│   │   └── rf_gpu_shap.py       # TreeSHAP của Random Forest qua XGBoost (GPU), khớp shap.TreeExplainer
 │   ├── evaluation/
 │   │   └── metrics.py           # PR-AUC chính, không dùng ROC-AUC làm metric quyết định
 │   ├── visualization/           # dataset.py, explain.py
@@ -91,7 +96,8 @@ fraud-detection-cies/
 │   ├── benchmark_literature.md
 │   ├── pipeline_report.md
 │   └── system_architecture.html
-├── tests/test_pipeline.py
+├── scripts/                     # run_rerun.py (CLI chạy lại theo seed), gpu_smote_enn.py, setup_gpu_env.py
+├── tests/                       # test_pipeline.py; test của phần chạy lại theo seed, GPU và backend native
 ├── requirements.txt
 └── README.md
 ```
@@ -233,6 +239,8 @@ Chạy thêm `KernelExplainer` trên 1 model tree-based (ví dụ Random Forest)
 
 ## 7. CIES — THIẾT KẾ THÍ NGHIỆM
 
+> **Từ 2026-10 đây là thiết kế đầu tiên (bootstrap). Cách đo kết quả chính là chạy lại theo seed — xem §12.**
+
 ### 7.1. Pseudo-code bắt buộc
 
 ```python
@@ -308,12 +316,13 @@ Tải dataset qua `kagglehub`, KHÔNG hardcode đường dẫn tải thủ công
 | CatBoost dùng `cat_features` nội tại | CatBoost dùng feature đã encode chung với các model khác |
 | Random KFold cho target encoding | StratifiedKFold |
 | Eval set thay đổi giữa các run CIES | Eval set cố định xuyên suốt N_RUNS |
+| Mẫu SHAP khác nhau giữa các tổ hợp của một dataset | Một mẫu SHAP cố định duy nhất cho mỗi dataset (§12) |
 
 **Nếu trong quá trình code, agent thấy có lý do kỹ thuật để làm khác đi so với bảng trên — DỪNG LẠI, không tự sửa, hỏi user trước.**
 
 ---
 
-## 11. CẬP NHẬT SO VỚI BẢN GỐC (trạng thái 2026-09-27)
+## 11. CẬP NHẬT SO VỚI BẢN GỐC
 
 Mục này ghi lại những chỗ code hiện tại **khác hoặc vượt** so với spec ở trên. Cột "Trạng thái" cho biết đã được người dùng yêu cầu/chấp thuận hay còn cần xác nhận. Ràng buộc bắt buộc ở các mục 0–10 không bị sửa ngoài các chỗ ghi trong bảng.
 
@@ -333,6 +342,12 @@ Mục này ghi lại những chỗ code hiện tại **khác hoặc vượt** so
 | §3.1 Feature/encoding | One-hot `state`; target encoding `city`, `job` | Bỏ `state`, `city`, `job`, `lat`/`long`, `city_pop`, `merch_lat`/`merch_long`, `zip` (định danh khách hàng); còn `amt`, `category`, `merchant`, `hour`, `day_of_week`, `age`, `gender` | **Người dùng chốt 2026-09-26** (XGBoost, chia theo thời gian: PR-AUC 0,24 khi giữ, 0,88 khi bỏ) |
 | §5/§7 Validation khi tune | (không quy định) | Validation theo thời gian, cửa sổ mở rộng 3 fold, thay 5-fold xáo trộn; mỗi fold fit encoding riêng trên dòng trước khối validation | **Người dùng chốt 2026-09-26** — nhất quán với cách chia train/test |
 | §9 Môi trường | Local dùng subsample nhỏ; train thật trên Kaggle | LR, RF, XGBoost, CatBoost chạy đầy đủ trên máy local (tune, benchmark, CIES); ANN chạy trên Kaggle GPU qua `kaggle_pipeline.ipynb` (`MODELS_SCOPE = ["ann"]`, `RUN_ULB = True`). Mỗi tổ hợp chạy trong subprocess `spawn`; `timeout=None` cho tune và benchmark | Đúng tinh thần spec |
+| §7 Thiết kế đo CIES (kết quả chính) | Bootstrap train 20 run, encode lại mỗi run | Chạy lại 10 seed (0–9) trên toàn bộ train, không bootstrap, encoding fit một lần; PR-AUC và CIES từ cùng các run; tham số Optuna đóng băng; hai dataset đối xử ngang nhau | **Giảng viên yêu cầu.** Xem §12. Bootstrap giữ làm thiết kế đầu tiên (kết quả tham khảo) |
+| §7.1 Tập eval SHAP | Một tập eval cố định | Sparkov: mẫu cố định phân tầng theo nhãn = 20% tập test (111.144/555.719 dòng, 429/2.145 fraud); ULB: toàn bộ test (56.961 dòng) | **Giảng viên ban đầu yêu cầu toàn bộ test; mẫu 20% chưa được giảng viên xác nhận.** Bằng chứng: 15 tổ hợp có cả bản test đầy đủ lẫn bản 20% (PR-AUC giống hệt, \|ΔCIES\| ≤ 0,0022); CatBoost và Random Forest chưa đối chiếu |
+| §6.1 Cách tính SHAP | `shap.*Explainer` | Thêm backend `native` (cùng thuật toán, nhanh hơn, dùng GPU): XGBoost `pred_contribs` / CatBoost `ShapValues`; ANN DeepLIFT Rescale theo lô; Random Forest chuyển sang XGBoost rồi TreeSHAP của XGBoost. Tên explainer ghi trong từng kết quả | Đã kiểm khớp bản `shap` đến sai số float32 (tests). ULB dùng `shap` cho Random Forest và ANN |
+| §4.1 SMOTE-ENN | Chạy CPU | Bước ENN chạy trên GPU (`gpu_enn.py`), chính xác (float64), chỉ được dùng sau khi `gpu_smote_enn.py check` xác nhận trùng khít file CPU | Đã check seed 0: trùng khít (2.557.107 dòng, 1.288.931 fraud); ~44 phút/seed so với ~145 phút trên CPU |
+| §9 Môi trường | Local subsample nhỏ; Kaggle GPU | Windows, CPU hoặc GPU NVIDIA tùy tổ hợp; mỗi (model, kỹ thuật) trọn 10 seed trong một lần chạy | Do thời gian và giới hạn Kaggle; thiết bị ghi trong `config` của từng kết quả |
+| §3.3 Chia train/test | Một tỉ lệ cho cả hai dataset | Sparkov 70/30 (hai file gốc, theo thời gian); ULB 80/20 (theo thời gian) | Mỗi dataset giữ chia theo thời gian chuẩn của nó; "20%" ở Sparkov là 20% của tập test, ở ULB là 20% của cả dataset — báo cáo ghi số dòng tuyệt đối |
 
 ### Quy ước kỹ thuật thêm
 - Tham số tối ưu lưu ở `results/best_params.json` (Sparkov, `build_model` tự nạp) và `results/best_params_ulb.json` (ULB — benchmark/CIES ULB truyền tường minh `params=`, báo lỗi nếu thiếu, không bao giờ dùng tham số Sparkov cho ULB).
@@ -340,3 +355,27 @@ Mục này ghi lại những chỗ code hiện tại **khác hoặc vượt** so
 - Kết quả benchmark/CIES lưu ngay sau mỗi tổ hợp và bỏ qua tổ hợp đã có khi chạy lại.
 - Không nạp torch và xgboost trong cùng một process (xem `src/utils/isolation.py`).
 
+---
+
+## 12. THIẾT KẾ CHẠY LẠI THEO SEED (yêu cầu giảng viên) — cách đo kết quả chính
+
+Thay §7 cho kết quả chính. Mã: `src/explainability/rerun_stability.py`; CLI: `scripts/run_rerun.py` (pilot / cache / train / status / merge).
+
+**Ràng buộc bắt buộc:**
+- 10 seed (0–9). Train trên TOÀN BỘ train, phân phối giữ nguyên; encoding fit MỘT lần (`train_encoded.parquet`); mỗi run chỉ đổi seed của resampler và model — nguồn dao động duy nhất là tính ngẫu nhiên của thuật toán.
+- PR-AUC (trên TOÀN BỘ test) và SHAP lấy từ CÙNG model của mỗi run — không tách nhánh hiệu năng / nhánh ổn định.
+- Tham số model giữ nguyên từ Optuna (`results/best_params.json`, ULB: `best_params_ulb.json`), không tune lại. Thiếu file tham số thì dừng, không âm thầm dùng tham số mặc định.
+- CIES = công thức hiện có (`compute_stability_metric`) trên 10 bảng hạng (45 cặp). KHÔNG đổi công thức.
+- Sparkov và ULB đối xử NGANG nhau: cùng thiết kế, cùng 5 model × 5 kỹ thuật, cùng 10 seed (không chính/phụ).
+- Mỗi (model, kỹ thuật) chạy trọn 10 seed trong MỘT lần chạy, cùng thiết bị: khác thiết bị hay kiến trúc thì phép tính số thực khác, lẫn vào chính thứ cần đo. Dữ liệu đã resample (cache theo kỹ thuật + seed, không phụ thuộc model) dùng chung cho mọi model. `merge` báo: trùng tổ hợp, thiếu seed, lệch dấu vân tay dữ liệu, lệch mẫu SHAP.
+- **Tập eval SHAP:** Sparkov = mẫu CỐ ĐỊNH, phân tầng theo nhãn, bằng 20% tập test (111.144/555.719 dòng; 429/2.145 fraud); ULB = toàn bộ test (56.961 dòng, 75 fraud). MỘT mẫu duy nhất cho mọi model, kỹ thuật và seed (`config.RERUN_SHAP_TEST_FRACTION`, `resolve_shap_rows`, `stratified_eval_indices`). KHÔNG lấy mẫu khác nhau giữa các lần chạy. KHÔNG đổi cỡ mẫu giữa chừng: kết quả chỉ lưu mean|SHAP| từng seed nên đổi mẫu là train lại. Giảng viên ban đầu yêu cầu toàn bộ test — mẫu 20% **cần giảng viên xác nhận**.
+- Run có SHAP toàn 0 bị loại; tổ hợp cần ≥ 2 seed thành công. Model tất định theo seed (Logistic Regression + class_weighting) cho CIES = 1: hệ quả của thiết kế, `diagnostics.identical_mean_abs_shap` đánh dấu.
+- CIES chế độ này KHÔNG so sánh trực tiếp với CIES bootstrap (45 cặp thay vì 190; dao động chỉ do thuật toán).
+
+**Chi tiết kỹ thuật (đã kiểm khớp bản chuẩn, không đổi ý nghĩa thí nghiệm):**
+- `--shap-backend`: `shap` (thư viện) | `native` | `auto` (native cho XGBoost/CatBoost, `shap` cho phần còn lại). `native` chỉ có cho xgboost, catboost, ann, random_forest; Logistic Regression luôn là `LinearExplainer`.
+- Random Forest `native`: mỗi cây sklearn → cây XGBoost (cấu trúc, đặc trưng tách giữ nguyên; ngưỡng đổi sang float32 liền sau để `x ≤ thr` ⇔ `x < s`; cover = `weighted_n_node_samples`; giá trị lá = P(lớp 1)/số cây), tính `pred_contribs` (GPUTreeShap nếu có GPU). Cộng dồn theo cây nên chia nhóm cây không đổi kết quả.
+- ANN `native`: DeepLIFT Rescale theo lô trên GPU, cùng thuật toán `shap.DeepExplainer`; chỉ hỗ trợ MLP Linear/ReLU/BatchNorm1d/Dropout 1 logit, kiến trúc khác báo lỗi, không lùi âm thầm.
+- torch và xgboost không nạp chung một tiến trình (`run_isolated`). `--force-cpu` đặt `CUDA_VISIBLE_DEVICES=-1`.
+- `train` ghi `results/rerun/<name>.json` (`--name`, mặc định `main`) sau MỖI tổ hợp hoàn tất (tổ hợp bị ngắt giữa chừng mất toàn bộ seed của nó); chạy lại cùng lệnh sẽ bỏ qua tổ hợp đã xong.
+- Kết quả chạy SHAP trên toàn bộ test (đối chiếu mẫu) đặt ở `results/full_test_reference/`, KHÔNG để trong `results/rerun/`.

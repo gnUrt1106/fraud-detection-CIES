@@ -1,22 +1,23 @@
 """
 rerun_stability.py — Độ ổn định của giải thích qua các LẦN CHẠY LẠI (chỉ đổi seed), không bootstrap.
 
-Khác `cies.run_cies_experiment` (bootstrap lấy mẫu lại train + fit lại encoding mỗi run), chế độ này theo
-yêu cầu của giảng viên:
+Khác `cies.run_cies_experiment` (bootstrap lấy mẫu lại train + fit lại encoding mỗi run), chế độ này:
     - Train trên TOÀN BỘ train (dữ liệu và phân phối giữ nguyên); encoding fit MỘT lần (file
       train_encoded.parquet); mỗi run chỉ đổi seed (resampler + model) — nguồn dao động duy nhất là
       tính ngẫu nhiên của thuật toán ("các lần hội tụ khác nhau").
     - PR-AUC (toàn bộ test) và SHAP lấy từ CÙNG model của mỗi run — không tách nhánh hiệu năng / nhánh ổn định.
-    - SHAP tính trên TOÀN BỘ test (phân phối thật), chia đợt, chỉ giữ mean|SHAP| từng feature.
+    - SHAP tính trên tập eval CỐ ĐỊNH ở phân phối thật, chia đợt, chỉ giữ mean|SHAP| từng feature. Mặc định theo
+      dataset (config.RERUN_SHAP_TEST_FRACTION): Sparkov = mẫu phân tầng 20% test (111.144 dòng), ULB = toàn bộ test.
+      PR-AUC luôn tính trên TOÀN BỘ test. Xem `resolve_shap_rows`.
     - Tham số model giữ nguyên từ Optuna (results/best_params.json), không tune lại.
     - CIES = công thức cũ (compute_stability_metric), trên n_seeds bảng hạng (10 seed = 45 cặp).
 
 Lưu ý khi đọc kết quả: model tất định (vd. Logistic Regression + class_weighting) cho 10 model GIỐNG HỆT
 nhau → CIES = 1. Đó không phải lỗi; `diagnostics.identical_mean_abs_shap` đánh dấu trường hợp này.
 
-Mỗi tổ hợp (model × kỹ thuật) PHẢI chạy trọn mọi seed trên 1 máy/thiết bị: khi đo dao động theo seed,
-sai khác số học giữa CPU/GPU hay giữa kiến trúc cùng cỡ với thứ cần đo. Dữ liệu đã resample thì dùng
-chung được giữa các máy (cache theo (kỹ thuật, seed), không phụ thuộc model).
+Mỗi tổ hợp (model × kỹ thuật) PHẢI chạy trọn mọi seed trong cùng một lần chạy, trên cùng một thiết bị: khi đo
+dao động theo seed, sai khác số học giữa CPU và GPU cùng cỡ với thứ cần đo. Dữ liệu đã resample dùng chung
+cho mọi model (cache theo (kỹ thuật, seed), không phụ thuộc model).
 
 Không import torch/xgboost ở top-level (xem src/utils/isolation.py): hàm chạy tổ hợp phải được gọi qua
 run_isolated.
@@ -30,7 +31,7 @@ import platform
 import time
 from importlib import metadata as importlib_metadata
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 
@@ -93,8 +94,36 @@ def stratified_eval_indices(y: np.ndarray, n: Optional[int], seed: int = SEED) -
     return np.sort(idx)
 
 
+def resolve_shap_rows(dataset: str, n_test: int, shap_rows: Any = None) -> Optional[int]:
+    """
+    Số dòng test dùng tính SHAP (None = toàn bộ test) theo chính sách của dataset.
+
+        shap_rows=None   → mặc định của dataset: round(config.RERUN_SHAP_TEST_FRACTION[dataset] × n_test).
+                           Sparkov: 20% × 555.719 = 111.144 dòng; ULB: None (toàn bộ test).
+        shap_rows="all"  → toàn bộ test (vd. chạy đối chiếu với mẫu).
+        shap_rows=<số>   → đúng số đó (vd. 111144 như các lần chạy trước khi có chính sách mặc định).
+    Mẫu lấy bằng `stratified_eval_indices` (phân tầng theo nhãn, cố định theo SEED) nên cùng n_test và cùng số dòng
+    cho đúng cùng một tập dòng ở mọi model/seed.
+    """
+    from src.config import RERUN_SHAP_TEST_FRACTION
+
+    if isinstance(shap_rows, str):
+        if shap_rows.strip().lower() in ("all", "full"):
+            return None
+        shap_rows = int(shap_rows)
+    if shap_rows is not None:
+        return int(shap_rows)
+    if dataset not in RERUN_SHAP_TEST_FRACTION:
+        raise ValueError(f"dataset phải là một trong {tuple(RERUN_SHAP_TEST_FRACTION)}, nhận '{dataset}'")
+    frac = RERUN_SHAP_TEST_FRACTION[dataset]
+    if frac is None:
+        return None
+    n = int(round(frac * int(n_test)))
+    return None if n >= int(n_test) else max(2, n)
+
+
 def data_fingerprint(*arrays: np.ndarray) -> str:
-    """Dấu vân tay nội dung dữ liệu — để chắc chắn mọi máy chạy trên CÙNG file đã tiền xử lý."""
+    """Dấu vân tay nội dung dữ liệu — để chắc chắn mọi tổ hợp chạy trên CÙNG file đã tiền xử lý."""
     h = hashlib.sha1()
     for a in arrays:
         a = np.ascontiguousarray(a)
@@ -104,7 +133,7 @@ def data_fingerprint(*arrays: np.ndarray) -> str:
 
 
 def environment_info() -> Dict[str, Any]:
-    """Thông tin máy + phiên bản thư viện (importlib.metadata — KHÔNG import torch/xgboost vào process này)."""
+    """Thông tin môi trường chạy: Python, nền tảng, phiên bản thư viện (importlib.metadata — KHÔNG import torch/xgboost vào process này)."""
     versions = {}
     for pkg in _VERSION_PACKAGES:
         try:
@@ -115,7 +144,6 @@ def environment_info() -> Dict[str, Any]:
         "python": platform.python_version(),
         "platform": platform.platform(),
         "machine_arch": platform.machine(),
-        "cpu_count": os.cpu_count(),
         "versions": versions,
     }
 
@@ -152,7 +180,7 @@ def _json_default(obj: Any) -> Any:
 
 
 def atomic_write_json(path: Path, data: Any) -> None:
-    """Ghi JSON atomic (file tạm + os.replace). Dùng cho file RIÊNG của 1 máy/1 tiến trình — không khoá chéo tiến trình."""
+    """Ghi JSON atomic (file tạm + os.replace). Dùng cho file RIÊNG của 1 tiến trình — không khoá chéo tiến trình."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
@@ -178,7 +206,7 @@ def _progress(combination: str, done: int, total: int, seed: int, text: str) -> 
     print(f"{time.strftime('%H:%M:%S')} [{combination}] run {done}/{total} (seed {seed}): {text}", flush=True)
 
 
-# ===== Cache resample theo seed (làm được trên máy khác rồi copy sang) =====
+# ===== Cache resample theo seed =====
 
 def build_resample_cache(
     technique: str,
@@ -191,7 +219,7 @@ def build_resample_cache(
 ) -> Dict[str, Any]:
     """
     Tính (hoặc đọc lại) dữ liệu train đã resample của (kỹ thuật, seed) và lưu parquet. Cùng seed thì mọi model dùng
-    chung. SMOTE-ENN trên toàn bộ train ~145 phút/lần (đã đo) — đây là việc nên chia cho nhiều máy.
+    chung. SMOTE-ENN trên toàn bộ train ~145 phút/lần trên CPU (đã đo) nên cache là bắt buộc.
     class_weighting không resample nên không có gì để cache.
     """
     from src.imbalance.resamplers import apply_imbalance_cached
@@ -231,7 +259,6 @@ def run_rerun_combo(
     shap_backend: str = "auto",
     background_n: int = SHAP_BACKGROUND_N,
     force_cpu: bool = False,
-    machine: str = "",
     shap_jobs: int = 1,
 ) -> Dict[str, Any]:
     """
@@ -244,11 +271,11 @@ def run_rerun_combo(
         seeds: danh sách seed (mặc định của dự án: 0..9; seed i dùng cho resampler và model).
         cache_root: gốc cache resample theo seed; None = không cache.
         params: tham số model; None = build_model tự nạp results/best_params.json (Optuna, không tune lại).
-        shap_rows: None = SHAP trên toàn bộ test; số nguyên = mẫu phân tầng cố định cỡ đó (chỉ để chạy thử/đo giờ).
+        shap_rows: None = SHAP trên toàn bộ test; số nguyên = mẫu phân tầng cố định cỡ đó. (Chính sách mặc định theo
+            dataset — Sparkov 20% test — do `combo_job` quyết định qua `resolve_shap_rows`, không phải hàm này.)
         shap_batch: số dòng mỗi đợt SHAP (chỉ ảnh hưởng bộ nhớ/tốc độ, không ảnh hưởng kết quả).
         shap_backend: "auto" | "shap" | "native" (xem shap_utils._make_shap_batch_fn).
-        force_cpu: ép chạy CPU (XGBoost/CatBoost/ANN) kể cả khi máy có GPU NVIDIA.
-        machine: nhãn máy, chỉ để ghi vào kết quả.
+        force_cpu: ép chạy CPU (XGBoost/CatBoost/ANN) kể cả khi có GPU NVIDIA.
         shap_jobs: số tiến trình tính SHAP song song cho Random Forest (-1 = mọi lõi); không đổi kết quả.
     """
     if force_cpu:
@@ -377,6 +404,7 @@ def run_rerun_combo(
             "n_test": int(len(y_test)),
             "n_eval_shap": int(len(X_eval)),
             "n_eval_fraud": int(np.sum(y_eval == 1)),
+            "shap_sample_fraction": round(len(X_eval) / len(y_test), 6),
             "shap_rows_setting": shap_rows,
             "shap_batch": shap_batch,
             "shap_backend": shap_backend,
@@ -384,7 +412,6 @@ def run_rerun_combo(
             "background_n": int(len(X_background)),
             "data_fingerprint": data_fingerprint(X_train, y_train, X_test, y_test),
             "device": "cpu (ép)" if force_cpu else ("gpu" if _has_gpu() else "cpu"),
-            "machine": machine,
             "params_source": "tham số truyền vào" if params else "results/best_params.json",
             "environment": environment_info(),
         },
@@ -462,11 +489,11 @@ def pilot_timing(
     }
 
 
-# ===== Gộp kết quả từ nhiều máy =====
+# ===== Gộp kết quả các lần chạy =====
 
 def merge_rerun_results(per_file: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
     """
-    Gộp danh sách kết quả của nhiều file (mỗi máy 1 file). Trả:
+    Gộp danh sách kết quả của nhiều file (mỗi lần chạy 1 file). Trả:
         {"results": [...], "problems": [...]}.
     Báo `problems` (không tự chọn bản nào) khi: cùng 1 tổ hợp xuất hiện ở nhiều file; dấu vân tay dữ liệu
     khác nhau giữa các tổ hợp; tổ hợp chưa đủ seed (`complete` = False).
@@ -475,6 +502,7 @@ def merge_rerun_results(per_file: Dict[str, List[Dict[str, Any]]]) -> Dict[str, 
     seen: Dict[str, str] = {}
     results: List[Dict[str, Any]] = []
     fingerprints: Dict[str, List[str]] = {}
+    eval_sets: Dict[Any, List[str]] = {}
     for fname, items in per_file.items():
         for r in items:
             if "cies_metrics" not in r:
@@ -488,10 +516,21 @@ def merge_rerun_results(per_file: Dict[str, List[Dict[str, Any]]]) -> Dict[str, 
                 problems.append(f"Tổ hợp '{combo}' ({fname}) chưa đủ seed thành công.")
             fp = r.get("config", {}).get("data_fingerprint")
             fingerprints.setdefault(fp, []).append(combo)
+            n_eval = r.get("config", {}).get("n_eval_shap")
+            if n_eval is not None:  # file kết quả cũ không có trường này → bỏ qua, không báo oan
+                eval_sets.setdefault((n_eval, r.get("config", {}).get("n_eval_fraud")), []).append(combo)
             results.append(r)
     if len(fingerprints) > 1:
         detail = "; ".join(f"{fp}: {len(c)} tổ hợp" for fp, c in fingerprints.items())
-        problems.append(f"Dấu vân tay dữ liệu KHÁC nhau giữa các tổ hợp ({detail}) — các máy không dùng cùng file đã tiền xử lý.")
+        problems.append(f"Dấu vân tay dữ liệu KHÁC nhau giữa các tổ hợp ({detail}) — các tổ hợp không dùng cùng file đã tiền xử lý.")
+    if len(eval_sets) > 1:
+        detail = "; ".join(
+            f"{n} dòng/{f} fraud: {len(c)} tổ hợp, vd. {sorted(c)[0]}" for (n, f), c in sorted(eval_sets.items(), key=lambda kv: str(kv[0]))
+        )
+        problems.append(
+            f"Mẫu SHAP KHÁC nhau giữa các tổ hợp ({detail}) — mọi tổ hợp của một dataset phải dùng CÙNG mẫu SHAP "
+            f"(xem config.RERUN_SHAP_TEST_FRACTION). Chuyển các file chạy mẫu khác (vd. đối chiếu test đầy đủ) ra thư mục riêng rồi gộp lại."
+        )
     from src.explainability.cies import combo_order_key
 
     results.sort(key=lambda r: combo_order_key(r["model_name"], r["imbalance_technique"]))
@@ -582,6 +621,8 @@ def combo_job(data_dir, model_name: str, technique: str, seeds, dataset: str = "
     """Việc 'train': đọc dữ liệu rồi run_rerun_combo. Top-level — gọi qua run_isolated."""
     X_train, y_train, X_test, y_test, feature_names, onehot_groups = load_encoded_data(data_dir, dataset)
     kwargs.setdefault("params", dataset_params(dataset, model_name))
+    # Mẫu SHAP theo chính sách dataset (None → mặc định; "all" → toàn bộ test; số nguyên → đúng số đó)
+    kwargs["shap_rows"] = resolve_shap_rows(dataset, len(y_test), kwargs.get("shap_rows"))
     result = run_rerun_combo(
         model_name, technique, X_train, y_train, X_test, y_test, feature_names, onehot_groups, seeds, **kwargs,
     )
