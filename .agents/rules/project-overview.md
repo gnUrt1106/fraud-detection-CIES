@@ -37,11 +37,11 @@ Fraud Detection - CIES/
 └── .agents/rules/               # Hướng dẫn cho agent
 ```
 
-## Tiến độ hiện tại (2026-10-26)
+## Tiến độ hiện tại (2026-10-30)
 - [x] Toàn bộ module `src/` và 7 notebook (01–06 + `kaggle_pipeline.ipynb`)
 - [x] Thiết kế đầu tiên (bootstrap 20 run) chạy xong 5 model × 5 kỹ thuật × 2 dataset — kết quả tham khảo (`results/cies_summary_results*.json`)
 - [x] Thiết kế hiện tại: chia train/test theo thời gian, không dùng cột định danh khách hàng, tune validate theo thời gian (xem `AGENT_SPEC.md` §8, §11)
-- [x] Chế độ chạy lại theo seed (yêu cầu giảng viên, `AGENT_SPEC.md` §12): ULB 25/25 tổ hợp; Sparkov 22/25 (còn Random Forest × SMOTE-ENN, ADASYN, Borderline-SMOTE)
+- [x] Chế độ chạy lại theo seed (yêu cầu giảng viên, `AGENT_SPEC.md` §12): Sparkov và ULB đều 25/25 tổ hợp; bảng tổng hợp `results/cies_rerun_summary*.json/.csv`, hình `reports/figures/rerun_*.png` (`scripts/plot_rerun.py`)
 - [x] Mẫu SHAP Sparkov = 20% tập test cố định, ULB = toàn bộ test
 - [ ] Giảng viên xác nhận mẫu SHAP 20% (đã có bằng chứng 15 tổ hợp so với test đầy đủ)
 - [ ] Chạy 3 tổ hợp Random Forest còn lại, `merge` Sparkov + ULB, cập nhật bảng kết quả

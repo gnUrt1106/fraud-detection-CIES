@@ -212,7 +212,7 @@ fraudTrain.csv / fraudTest.csv ──preprocess (sắp thời gian, thêm hour/d
     run, nên **so mức CIES giữa cây và LR/ANN không cùng điều kiện mốc** (RF với mốc cố định: +0,029) — so giữa kỹ thuật trong cùng
     model được coi là ít bị ảnh hưởng (cùng loại mốc), nhưng mức ảnh hưởng chỉ mới đo cho RF × class weighting.
 17. **"CIES đo nhiễu gì?"** — Dao động khi **train lại từ đầu**: seed của run đổi mẫu bootstrap, phần ngẫu nhiên của SMOTE… và của
-    model (khởi tạo ANN, lấy mẫu của RF/XGBoost). Cố định: tập eval, tham số, kỹ thuật, dữ liệu nền SHAP. 5 kỹ thuật dùng chung 20 mẫu
+    model (khởi tạo ANN, lấy mẫu của RF/XGBoost, lấy mẫu dòng MVS + `random_strength` của CatBoost). Cố định: tập eval, tham số, kỹ thuật, dữ liệu nền SHAP. 5 kỹ thuật dùng chung 20 mẫu
     bootstrap nên so sánh giữa kỹ thuật là so theo cặp.
 18. **"CIES 0,91 là cao hay thấp?"** — Thứ hạng hoàn toàn ngẫu nhiên cho CIES ≈ 0,56 (không phải 0); chỉ đổi chỗ top-1 với top-2 cho
     0,976 (21 feature). CIES 0,91 nghĩa là trung bình các run đảo hạng nhiều hơn 1 lần đổi chỗ top-2.

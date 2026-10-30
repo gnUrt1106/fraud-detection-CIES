@@ -62,14 +62,13 @@ def _shap_rows_arg(text: str):
     return n
 
 
-
 def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--dataset", default="sparkov", choices=rs.DATASETS,
                    help="sparkov hoặc ulb — hai dataset được đối xử ngang nhau, cùng thiết kế")
     p.add_argument("--data-dir", type=Path, default=PROCESSED_DATA_DIR,
                    help="Thư mục có train_encoded/test_encoded.parquet (Sparkov) hoặc ulb_train/ulb_test.parquet (ULB)")
     p.add_argument("--cache-root", type=Path, default=None,
-                   help=f"Gốc cache resample theo seed (mặc định {RESAMPLE_CACHE_RERUN_DIR}; ULB: thư mục con ulb)")
+                   help=f"Gốc cache resample theo seed (mặc định {RESAMPLE_CACHE_RERUN_DIR}); ULB luôn dùng thư mục con ulb/ của gốc")
     p.add_argument("--seeds", default=f"0-{RERUN_N_SEEDS - 1}", help="vd. 0-9 hoặc 0,2,5")
     p.add_argument("--techniques", nargs="+", default=list(IMBALANCE_TECHNIQUES), choices=IMBALANCE_TECHNIQUES)
 
@@ -104,7 +103,7 @@ def _check_best_params(models, allow_default: bool, dataset: str = "sparkov") ->
 def _paths(a):
     """(thư mục kết quả, gốc cache, file summary json, file summary csv) theo dataset."""
     suffix = "_ulb" if a.dataset == "ulb" else ""
-    cache_root = getattr(a, "cache_root", None) or rs.dataset_cache_root(a.dataset)
+    cache_root = rs.dataset_cache_root(a.dataset, getattr(a, "cache_root", None))
     return (rs.dataset_results_dir(a.dataset), cache_root,
             RESULTS_DIR / f"cies_rerun_summary{suffix}.json", RESULTS_DIR / f"cies_rerun_summary{suffix}.csv")
 
@@ -117,18 +116,21 @@ def cmd_pilot(a) -> None:
         logger.info(f"Pilot {m} ...")
         try:
             r = run_isolated(rs.pilot_job, a.data_dir, m, dataset=a.dataset, pilot_rows=a.pilot_rows, shap_batch=a.shap_batch,
-                             shap_backend=a.shap_backend, force_cpu=a.force_cpu, shap_jobs=a.shap_jobs, timeout=None)
+                             shap_backend=a.shap_backend, force_cpu=a.force_cpu, shap_jobs=a.shap_jobs,
+                             shap_rows=a.shap_rows, timeout=None)
             out[m] = r
             rows.append(r)
-            logger.info(f"  {m}: train {r['seconds_train']}s, SHAP toàn test ước {r['est_seconds_shap_full_test']}s, "
-                        f"~{r['est_hours_for_model']} giờ cho 50 lần train (chưa gồm resample) [{r['device']}]")
+            logger.info(f"  {m}: train {r['seconds_train']}s, SHAP trên {r['n_eval_shap']} dòng ước {r['est_seconds_shap_eval']}s "
+                        f"(toàn test {r['est_seconds_shap_full_test']}s), ~{r['est_hours_for_model']} giờ cho 50 lần train "
+                        f"(chưa gồm resample) [{r['device']}]")
         except Exception as e:  # noqa: BLE001
             out[m] = {"error": str(e)[:2000]}
             logger.error(f"  {m} lỗi: {str(e)[:500]}")
     rs.atomic_write_json(res_dir / f"pilot_{a.name}.json", out)
-    print("\nmodel | thiết bị | train(s) | SHAP toàn test ước(s) | giờ/model(50 lần)")
+    print("\nmodel | thiết bị | train(s) | dòng SHAP | SHAP ước(s) | giờ/model(50 lần)")
     for r in rows:
-        print(f"{r['model']} | {r['device']} | {r['seconds_train']} | {r['est_seconds_shap_full_test']:.0f} | {r['est_hours_for_model']}")
+        print(f"{r['model']} | {r['device']} | {r['seconds_train']} | {r['n_eval_shap']} | {r['est_seconds_shap_eval']:.0f} | "
+              f"{r['est_hours_for_model']}")
 
 
 def cmd_cache(a) -> None:
@@ -239,6 +241,8 @@ def main() -> None:
     p = sub.add_parser("pilot", help="Đo thời gian để ước lượng")
     _add_common(p); _add_model_args(p)
     p.add_argument("--pilot-rows", type=int, default=2_000, help="Số dòng test dùng đo tốc độ SHAP")
+    p.add_argument("--shap-rows", type=_shap_rows_arg, default=None,
+                   help="Tập SHAP để ước giờ, như ở train (mặc định theo dataset: Sparkov 20%% test, ULB toàn bộ test)")
     p.add_argument("--allow-default-params", action="store_true")
     p.set_defaults(fn=cmd_pilot)
 

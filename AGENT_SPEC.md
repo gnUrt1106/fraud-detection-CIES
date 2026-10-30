@@ -359,7 +359,7 @@ Mục này ghi lại những chỗ code hiện tại **khác hoặc vượt** so
 
 ## 12. THIẾT KẾ CHẠY LẠI THEO SEED (yêu cầu giảng viên) — cách đo kết quả chính
 
-Thay §7 cho kết quả chính. Mã: `src/explainability/rerun_stability.py`; CLI: `scripts/run_rerun.py` (pilot / cache / train / status / merge).
+Thay §7 cho kết quả chính. Mã: `src/explainability/rerun_stability.py`; CLI: `scripts/run_rerun.py` (pilot / cache / train / status / merge); hình: `scripts/plot_rerun.py`.
 
 **Ràng buộc bắt buộc:**
 - 10 seed (0–9). Train trên TOÀN BỘ train, phân phối giữ nguyên; encoding fit MỘT lần (`train_encoded.parquet`); mỗi run chỉ đổi seed của resampler và model — nguồn dao động duy nhất là tính ngẫu nhiên của thuật toán.

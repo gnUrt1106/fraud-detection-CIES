@@ -1,6 +1,6 @@
 """
-`compute_mean_abs_shap(..., backend="native")` cho Random Forest (sau scripts/apply_rf_native_patch.py) phải cho cùng
-mean|SHAP| như backend "shap" (shap.TreeExplainer), còn "auto" vẫn là shap.TreeExplainer như trước.
+`compute_mean_abs_shap(..., backend="native")` cho Random Forest (TreeSHAP của XGBoost, src/explainability/rf_gpu_shap.py)
+phải cho cùng mean|SHAP| như backend "shap" (shap.TreeExplainer), còn "auto" vẫn là shap.TreeExplainer.
 """
 
 import numpy as np
@@ -10,11 +10,7 @@ pytest.importorskip("shap")
 pytest.importorskip("xgboost")
 from sklearn.ensemble import RandomForestClassifier  # noqa: E402
 
-from src.explainability import shap_utils  # noqa: E402
 from src.explainability.shap_utils import compute_mean_abs_shap  # noqa: E402
-
-pytestmark = pytest.mark.skipif("rf_gpu_shap" not in open(shap_utils.__file__, encoding="utf-8").read(),
-                                reason="chưa chạy scripts/apply_rf_native_patch.py")
 
 
 def _rf():

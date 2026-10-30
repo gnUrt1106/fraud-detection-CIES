@@ -14,7 +14,7 @@ import pytest
 
 from src.explainability import rerun_stability as rs
 from src.explainability.shap_utils import compute_mean_abs_shap, compute_shap
-from src.models.train import build_model, predict_proba, train_model
+from src.models.train import build_model, train_model
 
 FEATURES = [f"f{i}" for i in range(6)]
 
@@ -173,6 +173,17 @@ def test_pilot_timing_runs(data):
     r = rs.pilot_timing("logistic_regression", X, y, Xt, yt, pilot_rows=60, n_runs_total=50)
     assert r["pilot_rows"] == pytest.approx(60, abs=1)
     assert r["est_seconds_per_run"] >= 0 and r["est_hours_for_model"] >= 0
+    assert r["n_eval_shap"] == len(yt) and r["est_seconds_shap_eval"] == r["est_seconds_shap_full_test"]
+
+
+def test_pilot_estimates_the_eval_sample_not_full_test(data):
+    # Hồi quy: pilot từng ước SHAP trên TOÀN BỘ test trong khi train của Sparkov dùng mẫu 20% → giờ ước cao ~5 lần.
+    X, y, Xt, yt = data
+    r = rs.pilot_timing("logistic_regression", X, y, Xt, yt, pilot_rows=60, eval_rows=60)
+    assert r["n_eval_shap"] == 60
+    assert r["est_seconds_shap_eval"] <= r["est_seconds_shap_full_test"]
+    big = rs.pilot_timing("logistic_regression", X, y, Xt, yt, pilot_rows=60, eval_rows=10 ** 9)
+    assert big["n_eval_shap"] == len(yt)  # không vượt số dòng test
 
 
 # ===== Gộp kết quả =====
@@ -231,6 +242,9 @@ def test_ulb_loader_params_and_paths(tmp_path):
     assert rs.dataset_params("ulb", "xgboost")
     assert rs.dataset_results_dir("ulb") != rs.dataset_results_dir("sparkov")
     assert rs.dataset_cache_root("ulb").name == "ulb" and rs.dataset_cache_root("sparkov").name != "ulb"
+    # Hồi quy: --cache-root cho ULB từng dùng thẳng gốc → chung thư mục với Sparkov, cache hai dataset ghi đè nhau
+    assert rs.dataset_cache_root("ulb", tmp_path) == tmp_path / "ulb"
+    assert rs.dataset_cache_root("sparkov", tmp_path) == tmp_path
 
 
 def test_parallel_tree_shap_matches_serial(data):

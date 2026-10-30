@@ -435,11 +435,13 @@ def pilot_timing(
     force_cpu: bool = False,
     n_runs_total: int = 50,
     shap_jobs: int = 1,
+    eval_rows: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Train 1 lần (class_weighting — không cần cache resample) trên toàn bộ train, đo thời gian train, dự đoán
-    toàn bộ test, và SHAP trên `pilot_rows` dòng; suy ra thời gian SHAP toàn bộ test (tuyến tính theo số dòng) và
-    tổng giờ cho `n_runs_total` lần train (5 kỹ thuật × 10 seed), CHƯA gồm thời gian resample.
+    toàn bộ test, và SHAP trên `pilot_rows` dòng; suy ra thời gian SHAP (tuyến tính theo số dòng) cho tập SHAP mà
+    `train` sẽ dùng (`eval_rows` dòng; None = toàn bộ test) và tổng giờ cho `n_runs_total` lần train (5 kỹ thuật ×
+    10 seed), CHƯA gồm thời gian resample. Ước cho toàn bộ test vẫn được trả kèm để so.
     Hàm top-level — gọi qua run_isolated.
     """
     if force_cpu:
@@ -472,7 +474,9 @@ def pilot_timing(
     sec_shap = time.time() - t
     sec_per_row = sec_shap / len(idx)
     est_shap_full = sec_per_row * len(y_test)
-    per_run = sec_train + sec_predict + est_shap_full
+    n_eval = len(y_test) if eval_rows is None else min(int(eval_rows), len(y_test))
+    est_shap_eval = sec_per_row * n_eval
+    per_run = sec_train + sec_predict + est_shap_eval
     return {
         "model": model_name,
         "device": "cpu (ép)" if force_cpu else ("gpu" if _has_gpu() else "cpu"),
@@ -481,6 +485,8 @@ def pilot_timing(
         "seconds_predict_full_test": round(sec_predict, 1),
         "pilot_rows": int(len(idx)),
         "seconds_shap_pilot": round(sec_shap, 2),
+        "n_eval_shap": int(n_eval),
+        "est_seconds_shap_eval": round(est_shap_eval, 0),
         "est_seconds_shap_full_test": round(est_shap_full, 0),
         "est_seconds_per_run": round(per_run, 0),
         "est_hours_for_model": round(per_run * n_runs_total / 3600, 1),
@@ -545,11 +551,15 @@ DATASETS = ("sparkov", "ulb")
 
 
 def dataset_cache_root(dataset: str, cache_root: Optional[Path] = None) -> Path:
-    """Gốc cache resample của dataset (Sparkov giữ nguyên đường dẫn cũ; ULB nằm trong thư mục con `ulb`)."""
+    """
+    Gốc cache resample của dataset: Sparkov dùng thẳng gốc, ULB LUÔN nằm trong thư mục con `ulb` của gốc — kể cả khi
+    truyền `cache_root` (`--cache-root`). File cache đặt tên theo (seed, kỹ thuật), nên hai dataset chung một thư mục
+    sẽ ghi đè cache của nhau (dấu vân tay chặn dùng nhầm, nhưng phải tính lại — SMOTE-ENN hàng giờ).
+    """
     from src.config import RESAMPLE_CACHE_RERUN_DIR
 
     base = Path(cache_root) if cache_root is not None else Path(RESAMPLE_CACHE_RERUN_DIR)
-    return base / "ulb" if dataset == "ulb" and cache_root is None else base
+    return base / "ulb" if dataset == "ulb" else base
 
 
 def dataset_results_dir(dataset: str) -> Path:
@@ -637,4 +647,6 @@ def pilot_job(data_dir, model_name: str, dataset: str = "sparkov", **kwargs) -> 
     """Việc 'pilot': đọc dữ liệu rồi pilot_timing. Top-level — gọi qua run_isolated."""
     X_train, y_train, X_test, y_test, _, _ = load_encoded_data(data_dir, dataset)
     kwargs.setdefault("params", dataset_params(dataset, model_name))
+    # Ước giờ theo đúng tập SHAP mà `train` sẽ dùng (Sparkov: mẫu 20% test; ULB: toàn bộ test)
+    kwargs["eval_rows"] = resolve_shap_rows(dataset, len(y_test), kwargs.pop("shap_rows", None))
     return pilot_timing(model_name, X_train, y_train, X_test, y_test, **kwargs)

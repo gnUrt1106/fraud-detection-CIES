@@ -1,6 +1,8 @@
 # Phiên bản đúng như lúc tạo kết quả trong results/ (Python 3.12.13, macOS arm64, CPU).
 # Dùng file này để tái lập từng chữ số: resample (imbalanced-learn/scikit-learn), model và SHAP đều
 # phụ thuộc phiên bản. requirements.txt chỉ ghi phiên bản tối thiểu để chạy được.
+# Kết quả chạy lại theo seed (results/rerun/) tạo trên Windows, Python 3.12.10, cùng các phiên bản dưới đây trừ torch: phần
+# chạy GPU dùng torch 2.14.1+cu130 do scripts/setup_gpu_env.py cài. Phiên bản thực dùng ghi trong config.environment của từng kết quả.
 pandas==2.3.3
 numpy==2.3.5
 matplotlib==3.10.0

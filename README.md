@@ -79,12 +79,14 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 - CIES tăng theo cỡ mẫu bootstrap nên chỉ so CIES **trong cùng dataset**; giữa 2 dataset chỉ so thứ hạng các kỹ thuật.
 - Kết luận "Borderline-SMOTE kém ổn định nhất" **không tái hiện** khi chạy lại 10 seed trên toàn bộ train (ULB: Borderline-SMOTE không thấp nhất ở cặp nào; Sparkov: thấp nhất ở LR và ANN, không ở XGBoost và CatBoost). Thứ hạng kỹ thuật phụ thuộc dataset; xem `reports/pipeline_report.md` mục "Chế độ chạy lại theo seed".
 
-**Kết quả sơ bộ của thiết kế chạy lại theo seed** (10 seed, toàn bộ train; Sparkov 22/25 tổ hợp — còn 3 tổ hợp Random Forest —, ULB 25/25;
-bảng đầy đủ ở `reports/pipeline_report.md`):
-- CIES theo model, khoảng giữa 5 kỹ thuật. Sparkov: Logistic Regression 0,996–1,000 · XGBoost 0,988–0,995 · CatBoost 0,965–0,981 · ANN 0,886–0,954
-  (Random Forest mới có 2/5 tổ hợp: SMOTE 0,970; Class Weighting 0,985). ULB: Logistic Regression 0,996–1,000 · Random Forest 0,971–0,988 ·
-  XGBoost 0,958–0,982 · CatBoost 0,958–0,987 · ANN 0,846–0,939.
+**Kết quả của thiết kế chạy lại theo seed** (10 seed, toàn bộ train; 25/25 tổ hợp mỗi dataset; bảng đầy đủ ở `reports/pipeline_report.md`,
+hình `reports/figures/rerun_cies_heatmap.png` và `rerun_prauc_vs_cies.png` do `scripts/plot_rerun.py` vẽ):
+- CIES theo model, khoảng giữa 5 kỹ thuật. Sparkov: Logistic Regression 0,996–1,000 · Random Forest 0,969–0,987 · XGBoost 0,988–0,995 ·
+  CatBoost 0,965–0,981 · ANN 0,886–0,954. ULB: Logistic Regression 0,996–1,000 · Random Forest 0,971–0,987 ·
+  XGBoost 0,958–0,982 · CatBoost 0,958–0,986 · ANN 0,846–0,939.
 - ANN có CIES thấp nhất ở cả hai dataset; Logistic Regression × Class Weighting tất định theo seed nên CIES = 1,000 (hệ quả của thiết kế, không phải lỗi).
+- Tương quan Spearman giữa PR-AUC và CIES qua 25 tổ hợp: −0,62 (Sparkov), −0,60 (ULB), gần như hoàn toàn do LR (PR-AUC thấp, CIES ≈ 1); bỏ LR còn
+  −0,26 và −0,23 (n = 20, không có ý nghĩa thống kê) — chỉ giữ ý "PR-AUC cao không đảm bảo giải thích ổn định".
 - Đây là mức dao động giữa các lần chạy lại, chưa phải kết luận về kỹ thuật imbalance tốt nhất: chênh giữa các kỹ thuật trong cùng model nhỏ và chưa kiểm định thống kê.
 
 ## Cài đặt
@@ -136,16 +138,19 @@ thứ hạng feature trung bình tương quan Spearman ≥ 0,9987, top-3 feature
 Bài gốc CIES (Văduva et al., arXiv:2603.05024) tính trên 100 dòng test ngẫu nhiên — điều này ủng hộ việc lấy mẫu test, không ủng hộ riêng con số 111.144.
 
 ```bash
-python scripts/run_rerun.py pilot --force-cpu                               # đo giờ trước
+python scripts/run_rerun.py pilot --force-cpu                               # đo giờ trước (ước theo đúng tập SHAP mà train dùng)
 python scripts/run_rerun.py cache --techniques smote_enn --seeds 0-9        # resample theo (kỹ thuật, seed) → data/processed/resampled_rerun/
-python scripts/run_rerun.py train --models xgboost catboost ann random_forest --shap-backend native   # Sparkov: mẫu SHAP 20% là mặc định
-python scripts/run_rerun.py train --models logistic_regression --force-cpu                           # LR: không dùng --shap-backend native
+python scripts/run_rerun.py train --models xgboost ann random_forest --shap-backend native   # Sparkov trên GPU; mẫu SHAP 20% là mặc định
+python scripts/run_rerun.py train --models catboost logistic_regression --force-cpu          # Sparkov trên CPU (backend auto: CatBoost native, LR linear)
 python scripts/run_rerun.py status
 python scripts/run_rerun.py merge                                           # → results/cies_rerun_summary.json / .csv
+python scripts/plot_rerun.py                                                # → reports/figures/rerun_cies_heatmap.png, rerun_prauc_vs_cies.png
 ```
 
-Thêm `--dataset ulb` vào mọi lệnh cho ULB (cache ở `data/processed/resampled_rerun/ulb/`, kết quả ở `results/rerun/ulb/`, tổng hợp
-`results/cies_rerun_summary_ulb.json/.csv`; SHAP trên toàn bộ test).
+Đây đúng là cách các kết quả trong `results/rerun/` được tạo: Sparkov — XGBoost, ANN, Random Forest trên GPU, CatBoost và LR trên CPU (`--force-cpu`).
+Thêm `--dataset ulb` vào mọi lệnh cho ULB (cache ở `data/processed/resampled_rerun/ulb/` — `--cache-root` cũng luôn tách thư mục con `ulb/` —, kết quả ở
+`results/rerun/ulb/`, tổng hợp `results/cies_rerun_summary_ulb.json/.csv`; SHAP trên toàn bộ test). Kết quả ULB chạy cả 25 tổ hợp trên CPU:
+`train --dataset ulb --force-cpu` (backend `auto`: Random Forest và ANN dùng thư viện `shap`).
 
 Cách tính SHAP (`--shap-backend`; tên explainer được ghi trong từng kết quả):
 - `shap` là thư viện `shap` (Linear/Tree/DeepExplainer). `native` là cùng thuật toán nhưng nhanh hơn và dùng được GPU: XGBoost `pred_contribs` / CatBoost
@@ -157,7 +162,8 @@ Cách tính SHAP (`--shap-backend`; tên explainer được ghi trong từng k�
 
 **SMOTE-ENN trên GPU.** Bước ENN (tìm 3 láng giềng gần nhất của ~2,6 triệu dòng sau SMOTE) chiếm gần hết thời gian resample: ~145 phút/seed trên CPU.
 `scripts/gpu_smote_enn.py` chạy bước này trên GPU, tìm láng giềng chính xác (không xấp xỉ, float64), ~44 phút/seed trên GPU; `check --seed 0` đã xác nhận
-**trùng khít** file CPU seed 0 (2.557.107 dòng, 1.288.931 fraud) và `cache` từ chối chạy nếu `check` chưa đạt.
+**trùng khít** file CPU seed 0 (2.557.107 dòng, 1.288.931 fraud) và `cache` từ chối chạy nếu `check` chưa đạt. Chỉ seed 0 được đối chiếu trực tiếp với bản CPU;
+seed 1–9 dựa trên cùng thuật toán và các test so với `imblearn` (`tests/test_gpu_enn.py`) — một giới hạn nên nêu.
 
 Mỗi (model, kỹ thuật) phải chạy trọn 10 seed trong **một** lần chạy, cùng thiết bị; mọi tổ hợp dùng cùng file `*_encoded.parquet` (`merge` báo nếu dấu vân tay dữ liệu lệch) và
 cùng mẫu SHAP (`merge` báo nếu cỡ mẫu SHAP lệch giữa các tổ hợp — vd. quên chuyển file chạy test đầy đủ ra khỏi `results/rerun/`). CIES ở chế độ này
@@ -169,7 +175,9 @@ cho CIES = 1 — đó là hệ quả của thiết kế, không phải lỗi.
 Trên phần cứng khác, phép tính số thực có thể khác thứ tự nên số lệch ở chữ số nhỏ; riêng ANN thì SHAP từng run lệch rõ hơn nhưng CIES gần
 như trùng (đã đo GPU Kaggle so với CPU với cấu hình dữ liệu nền SHAP cũ: 0,843 / 0,838 và 0,906 / 0,907; chưa đo lại với nền
 hiện tại — số trong `results/` là của nền hiện tại).
-Kết quả chạy lại theo seed (`results/rerun/`) tạo trên Windows; GPU và CPU khác thứ tự phép tính số thực nên chỉ tái lập đến chữ số nhỏ, và vì vậy mỗi tổ hợp chạy trọn 10 seed trong cùng một lần chạy. Thiết bị và phiên bản thư viện được ghi trong `config` của từng kết quả.
+Kết quả chạy lại theo seed (`results/rerun/`) tạo trên Windows, Python 3.12.10, cùng phiên bản thư viện như `requirements-lock.txt` trừ torch: phần chạy GPU dùng
+torch 2.14.1+cu130 do `scripts/setup_gpu_env.py` cài. GPU và CPU khác thứ tự phép tính số thực nên chỉ tái lập đến chữ số nhỏ, và vì vậy mỗi tổ hợp chạy trọn
+10 seed trong cùng một lần chạy, cùng thiết bị. Thiết bị và phiên bản thư viện được ghi trong `config` của từng kết quả.
 
 **Lưu ý kỹ thuật:** torch (ANN) và xgboost không được nạp chung 1 tiến trình (xung đột OpenMP) — mọi model/tổ hợp chạy qua
 `src/utils/isolation.py::run_isolated`.
