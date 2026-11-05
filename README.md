@@ -19,9 +19,9 @@ cố định, rồi đo thứ hạng các feature dao động bao nhiêu giữa 
 | | Sparkov | ULB |
 |---|---|---|
 | Nguồn | [kartik2112/fraud-detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection) | [mlg-ulb/creditcardfraud](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) |
-| Chia train/test | **Theo thời gian**, đúng 2 file gốc: `fraudTrain.csv` (01/2019 → 06/2020, 1.296.675 dòng) / `fraudTest.csv` (06/2020 → 12/2020, 555.719 dòng) | **Theo thời gian**: sắp theo `Time`, 20% cuối làm test (227.846 / 56.961 dòng) |
+| Chia train/test | **Theo thời gian**, đúng 2 file gốc: `fraudTrain.csv` (01/2019 → 06/2020, 1.296.675 dòng) / `fraudTest.csv` (06/2020 → 12/2020, 555.719 dòng) | **Theo thời gian**: sắp theo `Time`, 20% cuối làm test (226.981 / 56.745 dòng; đã bỏ 1.081 dòng trùng toàn bộ cột trước khi chia, xem `results/rerun_ulb_provenance/`) |
 | Tỷ lệ fraud | 0,58% train / 0,39% test | 0,18% train / 0,13% test |
-| Tập đánh giá SHAP (chạy lại theo seed) | Mẫu **cố định, phân tầng theo nhãn = 20% tập test**: 111.144 dòng, 429/2.145 fraud | **Toàn bộ test**: 56.961 dòng, 75 fraud |
+| Tập đánh giá SHAP (chạy lại theo seed) | Mẫu **cố định, phân tầng theo nhãn = 20% tập test**: 111.144 dòng, 429/2.145 fraud | **Toàn bộ test**: 56.745 dòng, 74 fraud |
 | Feature | 7 feature: `amt`, `category`, `merchant`, `hour`, `day_of_week`, `age`, `gender` → 21 cột sau encoding | V1..V28 (PCA) + `Amount` (bỏ `Time`) |
 | Ghi chú | Dữ liệu **mô phỏng** ([Sparkov Data Generation](https://github.com/namebrandon/Sparkov_Data_Generation)) | Dữ liệu thật, ẩn danh |
 
@@ -74,7 +74,7 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 - **Mô hình quyết định mức ổn định nhiều hơn kỹ thuật imbalance** (Sparkov: model cây CIES 0,945–0,973, LR 0,916–0,939, ANN
   0,849–0,921; model giải thích 85% phương sai CIES, kỹ thuật 7%).
 - **PR-AUC cao không đảm bảo giải thích ổn định** trên Sparkov (Spearman giữa PR-AUC và CIES −0,15, không tính LR).
-- Hiệu năng tốt nhất: Sparkov CatBoost × SMOTE PR-AUC **0,887**; ULB Random Forest × SMOTE **0,819**. Trong cùng 1 model, đổi kỹ thuật
+- Hiệu năng tốt nhất: Sparkov CatBoost × SMOTE PR-AUC **0,887**; ULB Random Forest × SMOTE **0,820**. Trong cùng 1 model, đổi kỹ thuật
   imbalance chỉ làm PR-AUC chênh ≤ 3,4 điểm %.
 - CIES tăng theo cỡ mẫu bootstrap nên chỉ so CIES **trong cùng dataset**; giữa 2 dataset chỉ so thứ hạng các kỹ thuật.
 - Kết luận "Borderline-SMOTE kém ổn định nhất" **không tái hiện** khi chạy lại 10 seed trên toàn bộ train (ULB: Borderline-SMOTE không thấp nhất ở cặp nào; Sparkov: thấp nhất ở LR và ANN, không ở XGBoost và CatBoost). Thứ hạng kỹ thuật phụ thuộc dataset; xem `reports/pipeline_report.md` mục "Chế độ chạy lại theo seed".
@@ -82,11 +82,11 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 **Kết quả của thiết kế chạy lại theo seed** (10 seed, toàn bộ train; 25/25 tổ hợp mỗi dataset; bảng đầy đủ ở `reports/pipeline_report.md`,
 hình `reports/figures/rerun_cies_heatmap.png` và `rerun_prauc_vs_cies.png` do `scripts/plot_rerun.py` vẽ):
 - CIES theo model, khoảng giữa 5 kỹ thuật. Sparkov: Logistic Regression 0,996–1,000 · Random Forest 0,969–0,987 · XGBoost 0,988–0,995 ·
-  CatBoost 0,965–0,981 · ANN 0,886–0,954. ULB: Logistic Regression 0,996–1,000 · Random Forest 0,971–0,987 ·
-  XGBoost 0,958–0,982 · CatBoost 0,958–0,986 · ANN 0,846–0,939.
+  CatBoost 0,965–0,981 · ANN 0,886–0,954. ULB: Logistic Regression 0,996–1,000 · Random Forest 0,962–0,979 ·
+  XGBoost 0,948–0,989 · CatBoost 0,967–0,988 · ANN 0,843–0,895.
 - ANN có CIES thấp nhất ở cả hai dataset; Logistic Regression × Class Weighting tất định theo seed nên CIES = 1,000 (hệ quả của thiết kế, không phải lỗi).
-- Tương quan Spearman giữa PR-AUC và CIES qua 25 tổ hợp: −0,62 (Sparkov), −0,60 (ULB), gần như hoàn toàn do LR (PR-AUC thấp, CIES ≈ 1); bỏ LR còn
-  −0,26 và −0,23 (n = 20, không có ý nghĩa thống kê) — chỉ giữ ý "PR-AUC cao không đảm bảo giải thích ổn định".
+- Tương quan Spearman giữa PR-AUC và CIES qua 25 tổ hợp: −0,62 (Sparkov), −0,51 (ULB), gần như hoàn toàn do LR (PR-AUC thấp, CIES ≈ 1); bỏ LR còn
+  −0,26 và −0,06 (n = 20, không có ý nghĩa thống kê) — chỉ giữ ý "PR-AUC cao không đảm bảo giải thích ổn định".
 - Đây là mức dao động giữa các lần chạy lại, chưa phải kết luận về kỹ thuật imbalance tốt nhất: chênh giữa các kỹ thuật trong cùng model nhỏ và chưa kiểm định thống kê.
 
 ## Cài đặt
@@ -128,7 +128,7 @@ CLI: `scripts/run_rerun.py`. Sparkov và ULB được đối xử **ngang nhau**
 
 | | Sparkov | ULB |
 |---|---|---|
-| SHAP tính trên | mẫu **cố định, phân tầng theo nhãn = 20% tập test**: 111.144/555.719 dòng, 429/2.145 fraud (≈ 6% cả dataset) | **toàn bộ test**: 56.961 dòng, 75 fraud |
+| SHAP tính trên | mẫu **cố định, phân tầng theo nhãn = 20% tập test**: 111.144/555.719 dòng, 429/2.145 fraud (≈ 6% cả dataset) | **toàn bộ test**: 56.745 dòng, 74 fraud |
 | PR-AUC tính trên | toàn bộ test | toàn bộ test |
 
 Mẫu 20% là mặc định của Sparkov (`config.RERUN_SHAP_TEST_FRACTION`), cùng một tập dòng cho mọi model, kỹ thuật và seed (`stratified_eval_indices`,
@@ -149,8 +149,9 @@ python scripts/plot_rerun.py                                                # �
 
 Đây đúng là cách các kết quả trong `results/rerun/` được tạo: Sparkov — XGBoost, ANN, Random Forest trên GPU, CatBoost và LR trên CPU (`--force-cpu`).
 Thêm `--dataset ulb` vào mọi lệnh cho ULB (cache ở `data/processed/resampled_rerun/ulb/` — `--cache-root` cũng luôn tách thư mục con `ulb/` —, kết quả ở
-`results/rerun/ulb/`, tổng hợp `results/cies_rerun_summary_ulb.json/.csv`; SHAP trên toàn bộ test). Kết quả ULB chạy cả 25 tổ hợp trên CPU:
-`train --dataset ulb --force-cpu` (backend `auto`: Random Forest và ANN dùng thư viện `shap`).
+`results/rerun/ulb/`, tổng hợp `results/cies_rerun_summary_ulb.json/.csv`; SHAP trên toàn bộ test). Kết quả ULB hiện tại (bản chạy lại 2026-11-05) dùng dữ liệu **đã bỏ 1.081 dòng trùng toàn bộ cột**, tune lại siêu tham số, và dùng cùng công thức thiết bị với Sparkov:
+XGBoost, ANN, Random Forest trên GPU (`--shap-backend native`), CatBoost và LR trên CPU (`--force-cpu`). Kịch bản chạy (`chay_lai_ulb/`: bỏ dòng trùng → tune → resample → train → gộp) nằm trên máy chạy, chưa đưa vào repo; báo cáo bỏ trùng và thời gian chạy ở `results/rerun_ulb_provenance/`.
+Bản mã trên máy chạy (Windows, RTX 4070) không kèm lịch sử git và cũ hơn commit 8049e67 (khác ở tham số dòng lệnh `--machine`/`--name` của `run_rerun.py`). Kết quả cũ (chưa bỏ trùng, chạy CPU) không còn trong `results/`.
 
 Cách tính SHAP (`--shap-backend`; tên explainer được ghi trong từng kết quả):
 - `shap` là thư viện `shap` (Linear/Tree/DeepExplainer). `native` là cùng thuật toán nhưng nhanh hơn và dùng được GPU: XGBoost `pred_contribs` / CatBoost
