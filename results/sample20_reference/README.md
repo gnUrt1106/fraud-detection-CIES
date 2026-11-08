@@ -18,3 +18,4 @@ Thư mục này lưu trữ bản sao lưu kết quả Sparkov chạy lại 10 se
    ```
 3. **Khôi phục kết quả đã có mà không cần chạy lại:**
    Chỉ cần copy `sparkov_20pct.json` ngược lại vào `results/rerun/main.json`.
+
