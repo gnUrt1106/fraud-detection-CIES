@@ -252,6 +252,7 @@ def _make_shap_batch_fn(
     model_name: str,
     X_background: Optional[np.ndarray],
     backend: str,
+    batch_size: int = 10_000,
 ):
     """
     Dựng explainer MỘT lần, trả (hàm_đợt, tên_explainer). `hàm_đợt(X)` trả SHAP (n, n_features).
@@ -324,7 +325,8 @@ def _make_shap_batch_fn(
             # Rừng sklearn → XGBoost (từng cây, ngưỡng, cover giữ nguyên) → TreeSHAP chính xác của XGBoost, GPU nếu có.
             from src.explainability.rf_gpu_shap import make_rf_gpu_shap_fn
 
-            return make_rf_gpu_shap_fn(model, device="auto")
+            n_trees = len(getattr(model, "estimators_", [])) or 250
+            return make_rf_gpu_shap_fn(model, device="auto", chunk_trees=n_trees, row_batch=max(batch_size, 100_000))
 
         tree_explainer = shap.TreeExplainer(model)
 
@@ -449,7 +451,7 @@ def compute_mean_abs_shap(
         )
         return np.sum(parts, axis=0) / n, "deep"
 
-    shap_fn, used = _make_shap_batch_fn(model, model_name, X_background, backend)
+    shap_fn, used = _make_shap_batch_fn(model, model_name, X_background, backend, batch_size=batch_size)
 
     total = None
     for start in range(0, n, batch_size):

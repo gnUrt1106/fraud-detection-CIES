@@ -179,7 +179,7 @@ class RFXgbShap:
     `__call__(X)` trả ma trận có dấu (n, n_features) float64 — giống `shap.TreeExplainer(rf).shap_values(X)[..., 1]`.
     """
 
-    def __init__(self, rf: Any, device: str = "cuda", chunk_trees: int = 50, row_batch: int = 20_000):
+    def __init__(self, rf: Any, device: str = "cuda", chunk_trees: int = 250, row_batch: int = 100_000):
         self._rf = rf
         self.device = resolve_device(device)
         self.chunk_trees = chunk_trees
@@ -245,8 +245,8 @@ class RFXgbShap:
         return total
 
 
-def make_rf_gpu_shap_fn(rf: Any, device: str = "auto", chunk_trees: int = 50,
-                        row_batch: int = 20_000) -> Tuple[Callable[[np.ndarray], np.ndarray], str]:
+def make_rf_gpu_shap_fn(rf: Any, device: str = "auto", chunk_trees: int = 250,
+                        row_batch: int = 100_000) -> Tuple[Callable[[np.ndarray], np.ndarray], str]:
     """(hàm_đợt, tên_explainer) cho shap_utils: hàm_đợt(X) → SHAP có dấu (n, n_features).
     Tên explainer ghi trong kết quả: "tree-xgb-gpu" hoặc "tree-xgb-cpu" (theo thiết bị thực sự dùng)."""
     fn = RFXgbShap(rf, device=device, chunk_trees=chunk_trees, row_batch=row_batch)
