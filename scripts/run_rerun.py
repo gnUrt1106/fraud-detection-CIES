@@ -94,6 +94,9 @@ def _add_model_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--shap-backend", default="auto", choices=rs_backends())
     p.add_argument("--shap-jobs", type=int, default=1,
                    help="Số tiến trình tính SHAP song song cho Random Forest (-1 = mọi lõi). Không đổi kết quả; tốn RAM theo số tiến trình")
+    p.add_argument("--catboost-shap-calc-type", default=os.environ.get("CATBOOST_SHAP_CALC_TYPE", "Regular"),
+                   choices=["Regular", "Approximate"],
+                   help="Kiểu tính TreeSHAP cho CatBoost: 'Regular' (chính xác, CPU chậm) hoặc 'Approximate' (Saabas, CPU nhanh ~20x)")
 
 
 def rs_backends():
@@ -130,7 +133,7 @@ def cmd_pilot(a) -> None:
         try:
             r = run_isolated(rs.pilot_job, a.data_dir, m, dataset=a.dataset, pilot_rows=a.pilot_rows, shap_batch=a.shap_batch,
                              shap_backend=a.shap_backend, force_cpu=a.force_cpu, shap_jobs=a.shap_jobs,
-                             shap_rows=a.shap_rows, timeout=None)
+                             shap_rows=a.shap_rows, catboost_shap_calc_type=a.catboost_shap_calc_type, timeout=None)
             out[m] = r
             rows.append(r)
             logger.info(f"  {m}: train {r['seconds_train']}s, SHAP trên {r['n_eval_shap']} dòng ước {r['est_seconds_shap_eval']}s "
@@ -191,7 +194,7 @@ def cmd_train(a) -> None:
                 r = run_isolated(
                     rs.combo_job, a.data_dir, m, t, seeds, dataset=a.dataset, cache_root=cache_root, shap_rows=a.shap_rows,
                     shap_batch=a.shap_batch, shap_backend=a.shap_backend, force_cpu=a.force_cpu,
-                    shap_jobs=a.shap_jobs, timeout=None,
+                    shap_jobs=a.shap_jobs, catboost_shap_calc_type=a.catboost_shap_calc_type, timeout=None,
                 )
                 store["results"] = [x for x in store["results"] if x["combination"] != combo] + [r]
                 store["errors"] = [e for e in store["errors"] if e.get("combination") != combo]

@@ -285,6 +285,7 @@ def run_rerun_combo(
     background_n: int = SHAP_BACKGROUND_N,
     force_cpu: bool = False,
     shap_jobs: int = 1,
+    catboost_shap_calc_type: str = "Regular",
 ) -> Dict[str, Any]:
     """
     Chạy 1 tổ hợp: với mỗi seed → (resample, đọc cache nếu có) → train → PR-AUC trên TOÀN BỘ test → mean|SHAP| trên
@@ -302,7 +303,10 @@ def run_rerun_combo(
         shap_backend: "auto" | "shap" | "native" (xem shap_utils._make_shap_batch_fn).
         force_cpu: ép chạy CPU (XGBoost/CatBoost/ANN) kể cả khi có GPU NVIDIA.
         shap_jobs: số tiến trình tính SHAP song song cho Random Forest (-1 = mọi lõi); không đổi kết quả.
+        catboost_shap_calc_type: "Regular" (chính xác, CPU chậm) hoặc "Approximate" (Saabas, nhanh).
     """
+    if catboost_shap_calc_type:
+        os.environ["CATBOOST_SHAP_CALC_TYPE"] = catboost_shap_calc_type
     if force_cpu:
         # Phải đặt TRƯỚC khi torch/xgboost/catboost được nạp (hàm này chạy trong subprocess spawn riêng).
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -433,6 +437,7 @@ def run_rerun_combo(
             "shap_rows_setting": shap_rows,
             "shap_batch": shap_batch,
             "shap_backend": shap_backend,
+            "catboost_shap_calc_type": (catboost_shap_calc_type if model_name == "catboost" else None),
             "explainers": sorted(explainers),
             "background_n": int(len(X_background)),
             "data_fingerprint": data_fingerprint(X_train, y_train, X_test, y_test),
@@ -461,6 +466,7 @@ def pilot_timing(
     n_runs_total: int = 50,
     shap_jobs: int = 1,
     eval_rows: Optional[int] = None,
+    catboost_shap_calc_type: str = "Regular",
 ) -> Dict[str, Any]:
     """
     Train 1 lần (class_weighting — không cần cache resample) trên toàn bộ train, đo thời gian train, dự đoán
@@ -469,6 +475,8 @@ def pilot_timing(
     10 seed), CHƯA gồm thời gian resample. Ước cho toàn bộ test vẫn được trả kèm để so.
     Hàm top-level — gọi qua run_isolated.
     """
+    if catboost_shap_calc_type:
+        os.environ["CATBOOST_SHAP_CALC_TYPE"] = catboost_shap_calc_type
     if force_cpu:
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
         import src.models.train as train_mod

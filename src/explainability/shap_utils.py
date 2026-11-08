@@ -315,11 +315,22 @@ def _make_shap_batch_fn(
             return xgb_fn, "tree-native"
         if use_native and model_name == "catboost":
             from catboost import Pool
+            import os
+
+            calc_type = os.environ.get("CATBOOST_SHAP_CALC_TYPE", "Regular")
 
             def cb_fn(X: np.ndarray) -> np.ndarray:
-                return np.asarray(model.get_feature_importance(Pool(np.asarray(X)), type="ShapValues"))[:, :-1]
+                return np.asarray(
+                    model.get_feature_importance(
+                        Pool(np.asarray(X)),
+                        type="ShapValues",
+                        shap_calc_type=calc_type,
+                        thread_count=-1,
+                    )
+                )[:, :-1]
 
-            return cb_fn, "tree-native"
+            explainer_name = "tree-catboost-approx" if calc_type.lower() == "approximate" else "tree-native"
+            return cb_fn, explainer_name
 
         if backend == "native" and model_name == "random_forest":
             # Rừng sklearn → XGBoost (từng cây, ngưỡng, cover giữ nguyên) → TreeSHAP chính xác của XGBoost, GPU nếu có.

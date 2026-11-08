@@ -233,6 +233,8 @@ def build_model(
         }
         if _has_gpu():
             cb_params["task_type"] = "GPU"
+            import os
+            cb_params["gpu_ram_part"] = float(os.environ.get("CATBOOST_GPU_RAM_PART", "0.75"))
         if class_weights is not None:
             cb_params["class_weights"] = [
                 class_weights.get(0, 1.0),
