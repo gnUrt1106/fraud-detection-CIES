@@ -7,7 +7,7 @@ Khác `cies.run_cies_experiment` (bootstrap lấy mẫu lại train + fit lại 
       tính ngẫu nhiên của thuật toán ("các lần hội tụ khác nhau").
     - PR-AUC (toàn bộ test) và SHAP lấy từ CÙNG model của mỗi run — không tách nhánh hiệu năng / nhánh ổn định.
     - SHAP tính trên tập eval CỐ ĐỊNH ở phân phối thật, chia đợt, chỉ giữ mean|SHAP| từng feature. Mặc định theo
-      dataset (config.RERUN_SHAP_TEST_FRACTION): Sparkov = mẫu phân tầng 20% test (111.144 dòng), ULB = toàn bộ test.
+      dataset (config.RERUN_SHAP_TEST_FRACTION): cả Sparkov lẫn ULB = TOÀN BỘ test (100%).
       PR-AUC luôn tính trên TOÀN BỘ test. Xem `resolve_shap_rows`.
     - Tham số model giữ nguyên từ Optuna (results/best_params.json), không tune lại.
     - CIES = công thức cũ (compute_stability_metric), trên n_seeds bảng hạng (10 seed = 45 cặp).
@@ -99,18 +99,43 @@ def resolve_shap_rows(dataset: str, n_test: int, shap_rows: Any = None) -> Optio
     Số dòng test dùng tính SHAP (None = toàn bộ test) theo chính sách của dataset.
 
         shap_rows=None   → mặc định của dataset: round(config.RERUN_SHAP_TEST_FRACTION[dataset] × n_test).
-                           Sparkov: 20% × 555.719 = 111.144 dòng; ULB: None (toàn bộ test).
+                           Hiện cả Sparkov và ULB là None (toàn bộ test, 100%).
         shap_rows="all"  → toàn bộ test (vd. chạy đối chiếu với mẫu).
-        shap_rows=<số>   → đúng số đó (vd. 111144 như các lần chạy trước khi có chính sách mặc định).
+        shap_rows=<tỷ lệ>→ vd. "20%" hoặc 0.20 → tự tính số dòng tương ứng.
+        shap_rows=<số>   → đúng số đó (vd. 111144 = mẫu 20% mà kết quả Sparkov cũ đã dùng).
     Mẫu lấy bằng `stratified_eval_indices` (phân tầng theo nhãn, cố định theo SEED) nên cùng n_test và cùng số dòng
     cho đúng cùng một tập dòng ở mọi model/seed.
     """
     from src.config import RERUN_SHAP_TEST_FRACTION
 
     if isinstance(shap_rows, str):
-        if shap_rows.strip().lower() in ("all", "full"):
+        text = shap_rows.strip().lower()
+        if text in ("all", "full", "100%", "1.0"):
             return None
-        shap_rows = int(shap_rows)
+        if text.endswith("%"):
+            try:
+                frac = float(text[:-1]) / 100.0
+                n = int(round(frac * int(n_test)))
+                return None if n >= int(n_test) else max(2, n)
+            except ValueError:
+                pass
+        try:
+            val = float(text)
+            if 0.0 < val < 1.0:
+                n = int(round(val * int(n_test)))
+                return None if n >= int(n_test) else max(2, n)
+            shap_rows = int(val)
+        except ValueError:
+            pass
+
+    if isinstance(shap_rows, (int, np.integer)):
+        return int(shap_rows)
+    if isinstance(shap_rows, float):
+        if 0.0 < shap_rows < 1.0:
+            n = int(round(shap_rows * int(n_test)))
+            return None if n >= int(n_test) else max(2, n)
+        return int(shap_rows)
+
     if shap_rows is not None:
         return int(shap_rows)
     if dataset not in RERUN_SHAP_TEST_FRACTION:
@@ -272,7 +297,7 @@ def run_rerun_combo(
         cache_root: gốc cache resample theo seed; None = không cache.
         params: tham số model; None = build_model tự nạp results/best_params.json (Optuna, không tune lại).
         shap_rows: None = SHAP trên toàn bộ test; số nguyên = mẫu phân tầng cố định cỡ đó. (Chính sách mặc định theo
-            dataset — Sparkov 20% test — do `combo_job` quyết định qua `resolve_shap_rows`, không phải hàm này.)
+            dataset — hiện là toàn bộ test cho cả hai — do `combo_job` quyết định qua `resolve_shap_rows`, không phải hàm này.)
         shap_batch: số dòng mỗi đợt SHAP (chỉ ảnh hưởng bộ nhớ/tốc độ, không ảnh hưởng kết quả).
         shap_backend: "auto" | "shap" | "native" (xem shap_utils._make_shap_batch_fn).
         force_cpu: ép chạy CPU (XGBoost/CatBoost/ANN) kể cả khi có GPU NVIDIA.
@@ -647,6 +672,6 @@ def pilot_job(data_dir, model_name: str, dataset: str = "sparkov", **kwargs) -> 
     """Việc 'pilot': đọc dữ liệu rồi pilot_timing. Top-level — gọi qua run_isolated."""
     X_train, y_train, X_test, y_test, _, _ = load_encoded_data(data_dir, dataset)
     kwargs.setdefault("params", dataset_params(dataset, model_name))
-    # Ước giờ theo đúng tập SHAP mà `train` sẽ dùng (Sparkov: mẫu 20% test; ULB: toàn bộ test)
+    # Ước giờ theo đúng tập SHAP mà `train` sẽ dùng (mặc định: toàn bộ test cho cả Sparkov và ULB)
     kwargs["eval_rows"] = resolve_shap_rows(dataset, len(y_test), kwargs.pop("shap_rows", None))
     return pilot_timing(model_name, X_train, y_train, X_test, y_test, **kwargs)

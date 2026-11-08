@@ -21,9 +21,11 @@ Ví dụ:
 Quy tắc: mỗi (model, kỹ thuật) phải chạy trọn mọi seed trong MỘT lần chạy, cùng thiết bị (xem rerun_stability.py).
 Chạy song song nhiều tiến trình thì đặt `--name` khác nhau (mỗi tiến trình ghi file riêng), rồi `merge`.
 
-Mẫu SHAP: mặc định Sparkov = mẫu phân tầng cố định 20% test (111.144 dòng), ULB = toàn bộ test;
-PR-AUC luôn trên toàn bộ test. `--shap-rows all` ép toàn bộ test, `--shap-rows N` ép đúng N dòng. Mọi tổ hợp của một
+Mẫu SHAP: mặc định cả Sparkov lẫn ULB = TOÀN BỘ test (100%); PR-AUC luôn trên toàn bộ test. `--shap-rows all` ép toàn bộ
+test, `--shap-rows N` ép mẫu phân tầng cố định đúng N dòng (vd. 111144 = mẫu 20% của kết quả Sparkov cũ). Mọi tổ hợp của một
 dataset PHẢI dùng cùng mẫu SHAP (`merge` cảnh báo nếu lệch).
+
+Chạy trên Google Colab (GPU): xem notebooks/colab_pipeline.ipynb.
 """
 
 import argparse
@@ -50,16 +52,27 @@ logger = logging.getLogger("run_rerun")
 
 
 def _shap_rows_arg(text: str):
-    """--shap-rows: 'all' (toàn bộ test) hoặc số nguyên >= 2 (mẫu phân tầng cố định cỡ đó)."""
-    if text.strip().lower() in ("all", "full"):
+    """--shap-rows: 'all' (toàn bộ test), tỷ lệ như '20%' hoặc 0.20, hoặc số nguyên >= 2 (mẫu phân tầng cố định cỡ đó)."""
+    t = text.strip().lower()
+    if t in ("all", "full", "100%", "1.0"):
         return "all"
+    if t.endswith("%"):
+        try:
+            val = float(t[:-1])
+            if 0 < val <= 100:
+                return text  # để resolve_shap_rows tự tính theo n_test
+        except ValueError:
+            pass
     try:
-        n = int(text)
+        val = float(t)
+        if 0.0 < val < 1.0:
+            return text  # tỷ lệ float
+        n = int(val)
+        if n < 2:
+            raise argparse.ArgumentTypeError("số dòng SHAP phải >= 2 (cần cả hai lớp)")
+        return n
     except ValueError:
-        raise argparse.ArgumentTypeError(f"cần 'all' hoặc số nguyên, nhận '{text}'") from None
-    if n < 2:
-        raise argparse.ArgumentTypeError("số dòng SHAP phải >= 2 (cần cả hai lớp)")
-    return n
+        raise argparse.ArgumentTypeError(f"cần 'all', tỷ lệ (vd. '20%') hoặc số nguyên >= 2, nhận '{text}'") from None
 
 
 def _add_common(p: argparse.ArgumentParser) -> None:
@@ -165,7 +178,7 @@ def cmd_train(a) -> None:
     path = res_dir / f"{a.name}.json"
     store = _load_result_file(path)
     done = {r["combination"] for r in store["results"] if r.get("complete")}
-    logger.info("Mẫu SHAP: " + ("mặc định theo dataset (Sparkov 20% test, ULB toàn bộ test)" if a.shap_rows is None
+    logger.info("Mẫu SHAP: " + ("mặc định theo dataset (toàn bộ test, 100%)" if a.shap_rows is None
                                 else f"{a.shap_rows}"))
     for m in a.models:
         for t in a.techniques:
@@ -242,7 +255,7 @@ def main() -> None:
     _add_common(p); _add_model_args(p)
     p.add_argument("--pilot-rows", type=int, default=2_000, help="Số dòng test dùng đo tốc độ SHAP")
     p.add_argument("--shap-rows", type=_shap_rows_arg, default=None,
-                   help="Tập SHAP để ước giờ, như ở train (mặc định theo dataset: Sparkov 20%% test, ULB toàn bộ test)")
+                   help="Tập SHAP để ước giờ, như ở train (mặc định theo dataset: toàn bộ test)")
     p.add_argument("--allow-default-params", action="store_true")
     p.set_defaults(fn=cmd_pilot)
 
@@ -253,8 +266,8 @@ def main() -> None:
     p = sub.add_parser("train", help="Chạy tổ hợp model × kỹ thuật trọn các seed")
     _add_common(p); _add_model_args(p)
     p.add_argument("--shap-rows", type=_shap_rows_arg, default=None,
-                   help="Mặc định theo dataset (config.RERUN_SHAP_TEST_FRACTION): Sparkov = mẫu phân tầng cố định 20%% test "
-                        "(111.144 dòng), ULB = toàn bộ test. 'all' = ép toàn bộ test; số nguyên = ép đúng số dòng đó "
+                   help="Mặc định theo dataset (config.RERUN_SHAP_TEST_FRACTION): cả Sparkov và ULB = toàn bộ test (100%%). "
+                        "'all' = ép toàn bộ test; số nguyên = ép mẫu phân tầng cố định đúng số dòng đó "
                         "(mọi tổ hợp của một dataset phải cùng mẫu)")
     p.add_argument("--allow-default-params", action="store_true")
     p.set_defaults(fn=cmd_train)

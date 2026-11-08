@@ -131,15 +131,14 @@ RERUN_N_SEEDS = 10
 RESAMPLE_CACHE_RERUN_DIR = PROCESSED_DATA_DIR / "resampled_rerun"
 # Mỗi lần chạy ghi một file ở đây (`--name`, mặc định `main`); `scripts/run_rerun.py merge` gộp lại
 RERUN_RESULTS_DIR = RESULTS_DIR / "rerun"
-# Tập test dùng để tính SHAP (PR-AUC luôn tính trên TOÀN BỘ test). None = toàn bộ test.
-#   Sparkov: mẫu cố định, phân tầng theo nhãn, bằng 20% tập test (555.719 → 111.144 dòng; 429/2.145 fraud), dùng chung cho
-#            mọi model, kỹ thuật và seed. SHAP của Random Forest/CatBoost trên toàn bộ 555 nghìn dòng × 50 lần train
-#            tốn hàng chục giờ.
-#   ULB:     toàn bộ test (56.961 dòng, 75 fraud) — đã nhỏ, không cần lấy mẫu.
-# Đối chiếu mẫu 20% với toàn bộ test (15 tổ hợp XGBoost/ANN/Logistic Regression): PR-AUC giống hệt, |ΔCIES| <= 0,0022,
-# top-3 feature trùng nhau (reports/pipeline_report.md). Bài gốc CIES (arXiv:2603.05024) tính trên 100 dòng test ngẫu nhiên.
-# Ghi đè từng lần chạy: `scripts/run_rerun.py train --shap-rows all|N`.
-RERUN_SHAP_TEST_FRACTION = {"sparkov": 0.20, "ulb": None}
+# Tập test dùng để tính SHAP (PR-AUC luôn tính trên TOÀN BỘ test). None = toàn bộ test (100%).
+#   Cả hai dataset đều dùng TOÀN BỘ test (Sparkov 555.719 dòng/2.145 fraud; ULB 56.745 dòng/74 fraud) để hai bên đều nhau.
+#   (Trước 2026-11-08 Sparkov dùng mẫu phân tầng 20% = 111.144 dòng vì SHAP của Random Forest/CatBoost trên 555 nghìn dòng
+#   × 50 lần train rất tốn; chạy trên Colab GPU thì làm được toàn bộ. Kết quả cũ results/rerun/main.json của Sparkov vẫn là
+#   mẫu 20% cho tới khi chạy lại bằng notebooks/colab_pipeline.ipynb.)
+# Muốn quay lại mẫu: đặt một số trong (0, 1), vd. {"sparkov": 0.20, ...}, hoặc ghi đè từng lần chạy bằng
+# `scripts/run_rerun.py train --shap-rows all|N`. Bài gốc CIES (arXiv:2603.05024) tính trên 100 dòng test ngẫu nhiên.
+RERUN_SHAP_TEST_FRACTION = {"sparkov": None, "ulb": None}
 
 # ===== Đảm bảo các thư mục tồn tại =====
 for _dir in [RAW_DATA_DIR, PROCESSED_DATA_DIR, FIGURES_DIR, PROFILING_DIR, RESULTS_DIR]:

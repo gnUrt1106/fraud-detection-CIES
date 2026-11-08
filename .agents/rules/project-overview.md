@@ -42,8 +42,8 @@ Fraud Detection - CIES/
 - [x] Thiết kế đầu tiên (bootstrap 20 run) chạy xong 5 model × 5 kỹ thuật × 2 dataset — kết quả tham khảo (`results/cies_summary_results*.json`)
 - [x] Thiết kế hiện tại: chia train/test theo thời gian, không dùng cột định danh khách hàng, tune validate theo thời gian (xem `AGENT_SPEC.md` §8, §11)
 - [x] Chế độ chạy lại theo seed (yêu cầu giảng viên, `AGENT_SPEC.md` §12): Sparkov và ULB đều 25/25 tổ hợp; bảng tổng hợp `results/cies_rerun_summary*.json/.csv`, hình `reports/figures/rerun_*.png` (`scripts/plot_rerun.py`)
-- [x] Mẫu SHAP Sparkov = 20% tập test cố định, ULB = toàn bộ test
-- [ ] Giảng viên xác nhận mẫu SHAP 20% (đã có bằng chứng 15 tổ hợp so với test đầy đủ)
+- [x] Mẫu SHAP = toàn bộ test cho cả Sparkov và ULB (đổi 2026-11-08; trước đó Sparkov dùng mẫu 20%)
+- [ ] Chạy lại Sparkov với SHAP 100% test trên Colab (`notebooks/colab_pipeline.ipynb`), thay `results/rerun/main.json` (mẫu 20%)
 - [ ] Chạy 3 tổ hợp Random Forest còn lại, `merge` Sparkov + ULB, cập nhật bảng kết quả
 - [ ] Đo lại độ nhạy theo cỡ mẫu (slide 21) theo thiết kế chạy lại theo seed
 - [ ] Thí nghiệm đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2)

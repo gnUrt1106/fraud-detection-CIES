@@ -1,7 +1,7 @@
 """
 Chính sách mẫu SHAP của chế độ chạy lại theo seed:
-Sparkov = mẫu phân tầng cố định 20% test (111.144 dòng, 429/2.145 fraud), ULB = toàn bộ test; `merge` cảnh báo nếu các tổ hợp
-của một dataset dùng mẫu SHAP khác nhau.
+Mặc định cả Sparkov lẫn ULB = toàn bộ test (100%). Mẫu phân tầng cố định (vd. 20% = 111.144 dòng, 429/2.145 fraud, mẫu mà kết quả
+Sparkov cũ đã dùng) vẫn chọn được bằng số dòng tường minh; `merge` cảnh báo nếu các tổ hợp của một dataset dùng mẫu SHAP khác nhau.
 """
 
 import argparse
@@ -24,13 +24,28 @@ def _sparkov_like_labels():
     return y
 
 
-def test_sparkov_default_is_twenty_percent_of_the_test_set():
-    assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV) == 111_144
-    assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV, None) == 111_144
+def test_sparkov_default_is_the_whole_test_set():
+    assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV) is None
+    assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV, None) is None
 
 
 def test_ulb_default_is_the_whole_test_set():
     assert rs.resolve_shap_rows("ulb", 56_961) is None
+
+
+def test_both_datasets_use_the_same_policy_by_default():
+    from src.config import RERUN_SHAP_TEST_FRACTION
+
+    assert RERUN_SHAP_TEST_FRACTION == {"sparkov": None, "ulb": None}
+
+
+def test_a_configured_fraction_still_gives_a_stratified_sample(monkeypatch):
+    # Khả năng lấy mẫu theo tỷ lệ vẫn dùng được nếu có người đặt lại trong config
+    import src.config as cfg
+
+    monkeypatch.setitem(cfg.RERUN_SHAP_TEST_FRACTION, "sparkov", 0.20)
+    assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV) == 111_144
+    assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV, "all") is None
 
 
 @pytest.mark.parametrize("dataset", ["sparkov", "ulb"])
@@ -47,20 +62,21 @@ def test_unknown_dataset_is_rejected_unless_the_size_is_explicit():
     assert rs.resolve_shap_rows("other", 1000, 50) == 50
 
 
-def test_tiny_test_set_never_rounds_below_two_rows():
+def test_tiny_test_set_never_rounds_below_two_rows(monkeypatch):
+    import src.config as cfg
+
+    monkeypatch.setitem(cfg.RERUN_SHAP_TEST_FRACTION, "sparkov", 0.20)
     assert rs.resolve_shap_rows("sparkov", 5) == 2
 
 
-def test_default_sample_has_the_documented_size_and_fraud_count_and_is_reproducible():
+def test_explicit_20_percent_sample_has_the_documented_size_and_fraud_count_and_is_reproducible():
     y = _sparkov_like_labels()
-    n = rs.resolve_shap_rows("sparkov", len(y))
+    n = 111_144  # mẫu 20% mà kết quả Sparkov cũ đã dùng
     idx = rs.stratified_eval_indices(y, n)
     assert len(idx) == 111_144
     assert int(y[idx].sum()) == 429  # round(111144 × 2145 / 555719) — số đã ghi trong báo cáo
     assert np.array_equal(idx, rs.stratified_eval_indices(y, n))  # cùng nhãn + cùng n → cùng tập dòng ở mọi lần chạy
     assert np.all(np.diff(idx) > 0)
-    # Lệnh cũ `--shap-rows 111144` và mặc định mới chọn đúng cùng một tập dòng
-    assert np.array_equal(idx, rs.stratified_eval_indices(y, 111_144))
 
 
 def test_combo_job_applies_the_dataset_policy(monkeypatch):
@@ -79,7 +95,7 @@ def test_combo_job_applies_the_dataset_policy(monkeypatch):
     monkeypatch.setattr(rs, "dataset_params", lambda dataset, model: None)
 
     rs.combo_job(None, "xgboost", "smote", [0, 1], dataset="sparkov")
-    assert seen["shap_rows"] == 4_000  # 20% của 20.000
+    assert seen["shap_rows"] is None  # mặc định: toàn bộ test
     rs.combo_job(None, "xgboost", "smote", [0, 1], dataset="sparkov", shap_rows="all")
     assert seen["shap_rows"] is None
     rs.combo_job(None, "xgboost", "smote", [0, 1], dataset="sparkov", shap_rows=777)
@@ -134,7 +150,17 @@ def _load_cli():
 def test_cli_shap_rows_accepts_all_or_an_integer():
     cli = _load_cli()
     assert cli._shap_rows_arg("all") == "all"
+    assert cli._shap_rows_arg("100%") == "all"
+    assert cli._shap_rows_arg("20%") == "20%"
+    assert cli._shap_rows_arg("0.20") == "0.20"
     assert cli._shap_rows_arg("111144") == 111_144
     for bad in ("abc", "1", "0", "-5"):
         with pytest.raises(argparse.ArgumentTypeError):
             cli._shap_rows_arg(bad)
+
+
+def test_resolve_shap_rows_accepts_percentage_and_fraction():
+    assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV, "20%") == 111_144
+    assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV, "0.20") == 111_144
+    assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV, 0.20) == 111_144
+    assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV, "100%") is None
