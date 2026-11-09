@@ -40,7 +40,7 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 │   ├── 05_cies_experiment_ulb.ipynb # ULB: tune + benchmark + CIES
 │   ├── 06_visualizations.ipynb      # Biểu đồ insight, SHAP, CIES, hiệu năng — kèm nhận xét
 │   ├── kaggle_pipeline.ipynb        # Chạy trên Kaggle GPU (dùng cho ANN): tune → benchmark → CIES
-│   ├── colab_pipeline.ipynb         # Chạy trên Google Colab GPU: chạy lại Sparkov theo seed, SHAP trên 100% test (lưu trên Drive, chạy tiếp được)
+│   ├── colab_pipeline.ipynb         # Chạy trên Google Colab GPU: chạy lại Sparkov hoặc ULB (biến DATASET) theo seed, SHAP trên 100% test (lưu trên Drive, chạy tiếp được)
 │   └── KAGGLE_UPLOAD_README.md      # Hướng dẫn chạy notebook Kaggle
 ├── src/
 │   ├── config.py             # Đường dẫn, hằng số, danh sách model/kỹ thuật, cột feature, cấu hình chạy lại theo seed
@@ -52,7 +52,7 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 │   │                         # deeplift_native.py (DeepLIFT theo lô cho ANN), rf_gpu_shap.py (TreeSHAP của Random Forest qua XGBoost)
 │   ├── visualization/        # dataset.py, explain.py
 │   └── utils/                # isolation.py (mỗi tổ hợp chạy trong tiến trình riêng), jsonio.py
-├── scripts/                  # run_rerun.py (CLI chạy lại theo seed), gpu_smote_enn.py (SMOTE-ENN trên GPU), setup_gpu_env.py (môi trường GPU)
+├── scripts/                  # run_rerun.py (CLI chạy lại theo seed), prepare_ulb.py (bỏ trùng ULB), tune_catboost.py + select_catboost_params.py (CatBoost CPU depth ≤ 7), gpu_smote_enn.py (SMOTE-ENN trên GPU), setup_gpu_env.py (môi trường GPU)
 ├── tests/                    # test_pipeline.py; test của phần chạy lại theo seed, GPU và backend native
 ├── results/                  # Kết quả thí nghiệm (xem bên dưới)
 └── requirements.txt  requirements-lock.txt  .env.example
@@ -124,7 +124,7 @@ biểu đồ). Chạy test: `python -m pytest tests -q` (gồm test của phần
 
 ### Chạy lại theo seed (thiết kế chính thức)
 
-**Chạy trên Google Colab:** mở `notebooks/colab_pipeline.ipynb` trên Colab (runtime GPU), điền Secrets (`KAGGLE_USERNAME`, `KAGGLE_KEY`, nếu repo private thêm `GITHUB_TOKEN`) và chạy các ô theo thứ tự. Dữ liệu, cache resample, kết quả và log nằm trên Google Drive nên mất kết nối thì chạy lại là tiếp tục.
+**Chạy trên Google Colab:** mở `notebooks/colab_pipeline.ipynb` trên Colab (runtime GPU), đặt `train_encoded.parquet` và `test_encoded.parquet` vào Drive (hoặc điền Secrets `KAGGLE_USERNAME`, `KAGGLE_KEY` để tải lại từ Kaggle; repo private thì thêm `GITHUB_TOKEN`) và chạy các ô theo thứ tự. Đổi `DATASET = "ulb"` ở ô 1 để chạy ULB (đặt `creditcard.csv` vào `Drive/CIES_colab/data_processed/ulb_raw/`; notebook tự gọi `scripts/prepare_ulb.py`). Dữ liệu, cache resample, kết quả và log nằm trên Google Drive nên mất kết nối thì chạy lại là tiếp tục.
 
 Đo độ ổn định qua các **lần chạy lại** trên toàn bộ train (dữ liệu và phân phối giữ nguyên, chỉ đổi seed 0–9; không bootstrap), PR-AUC và CIES
 lấy từ cùng các lần chạy, tham số Optuna giữ nguyên (`results/best_params.json`, `best_params_ulb.json`). Mã: `src/explainability/rerun_stability.py`,
@@ -156,7 +156,7 @@ python scripts/plot_rerun.py                                                # �
 Đây đúng là cách các kết quả trong `results/rerun/` được tạo: Sparkov — XGBoost, ANN, Random Forest trên GPU, CatBoost và LR trên CPU (`--force-cpu`).
 Thêm `--dataset ulb` vào mọi lệnh cho ULB (cache ở `data/processed/resampled_rerun/ulb/` — `--cache-root` cũng luôn tách thư mục con `ulb/` —, kết quả ở
 `results/rerun/ulb/`, tổng hợp `results/cies_rerun_summary_ulb.json/.csv`; SHAP trên toàn bộ test). Kết quả ULB hiện tại (bản chạy lại 2026-11-05) dùng dữ liệu **đã bỏ 1.081 dòng trùng toàn bộ cột**, tune lại siêu tham số, và dùng cùng công thức thiết bị với Sparkov:
-XGBoost, ANN, Random Forest trên GPU (`--shap-backend native`), CatBoost và LR trên CPU (`--force-cpu`). Kịch bản chạy (`chay_lai_ulb/`: bỏ dòng trùng → tune → resample → train → gộp) nằm trên máy chạy, chưa đưa vào repo; báo cáo bỏ trùng và thời gian chạy ở `results/rerun_ulb_provenance/`.
+XGBoost, ANN, Random Forest trên GPU (`--shap-backend native`), CatBoost và LR trên CPU (`--force-cpu`). Bước bỏ dòng trùng nay nằm trong repo (`scripts/prepare_ulb.py`, kiểm khớp đúng các số bên dưới); kịch bản cũ trên máy chạy (`chay_lai_ulb/`) chưa đưa vào repo; báo cáo bỏ trùng và thời gian chạy ở `results/rerun_ulb_provenance/`.
 Bản mã trên máy chạy (Windows, RTX 4070) không kèm lịch sử git và cũ hơn commit 8049e67 (khác ở tham số dòng lệnh `--machine`/`--name` của `run_rerun.py`). Kết quả cũ (chưa bỏ trùng, chạy CPU) không còn trong `results/`.
 
 Cách tính SHAP (`--shap-backend`; tên explainer được ghi trong từng kết quả):

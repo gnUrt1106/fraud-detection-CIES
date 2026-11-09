@@ -84,10 +84,16 @@ def _has_gpu() -> bool:
     """
     global _has_gpu_cache
     if _has_gpu_cache is None:
+        import os
         import shutil
         import subprocess
 
-        if shutil.which("nvidia-smi") is None:
+        # `nvidia-smi -L` liệt kê GPU bất kể CUDA_VISIBLE_DEVICES, và tiến trình con (spawn) không thừa kế
+        # `_has_gpu_cache` đã ép False ở tiến trình cha. CIES_FORCE_CPU=1 (biến môi trường được thừa kế) ép CPU
+        # cho cả tune lẫn train, để hai bước luôn cùng thiết bị (xem scripts/tune_catboost.py).
+        if os.environ.get("CIES_FORCE_CPU") == "1":
+            _has_gpu_cache = False
+        elif shutil.which("nvidia-smi") is None:
             _has_gpu_cache = False
         else:
             try:

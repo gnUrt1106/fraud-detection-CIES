@@ -36,6 +36,48 @@ def preprocess_sparkov(df: pd.DataFrame) -> pd.DataFrame:
     return data.drop(columns=[c for c in drop if c in data.columns])
 
 
+ULB_EXPECTED_ROWS = 284_807  # creditcard.csv gốc, trước khi bỏ dòng trùng
+
+
+def dedupe_ulb(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Bỏ dòng trùng KHỚP HOÀN TOÀN ở mọi cột (kể cả `Time` và `Class`), giữ dòng đầu tiên.
+
+    ULB gốc có 1.081 dòng như vậy (19 fraud). Nếu giữ lại, cùng một giao dịch có thể rơi vào cả
+    train lẫn test (rò rỉ) hoặc bị đếm đôi. Thứ tự các dòng còn lại giữ nguyên; không đổi nhãn nào.
+    """
+    return df.loc[~df.duplicated(keep="first")].reset_index(drop=True)
+
+
+def prepare_ulb(df: pd.DataFrame, test_size: float = 0.20):
+    """
+    ULB gốc -> (train, test, report): bỏ dòng trùng, rồi chia theo thời gian (`split_ulb_by_time`).
+
+    `report` lưu số liệu để truy vết: số dòng trùng, kích thước train/test, và số dòng test trùng
+    29 đặc trưng với một dòng train (chỉ để báo cáo, KHÔNG loại bỏ).
+    """
+    from src.config import ULB_FEATURE_COLS
+
+    n0, f0 = len(df), int(df[ULB_TARGET_COL].sum())
+    dup = df.duplicated(keep="first")
+    n_dup, f_dup = int(dup.sum()), int(df.loc[dup, ULB_TARGET_COL].sum())
+    deduped = dedupe_ulb(df)
+    train, test = split_ulb_by_time(deduped, test_size=test_size)
+
+    h_train = set(pd.util.hash_pandas_object(train[ULB_FEATURE_COLS], index=False).tolist())
+    h_test = pd.util.hash_pandas_object(test[ULB_FEATURE_COLS], index=False)
+    report = {
+        "rows_before": n0, "fraud_before": f0,
+        "duplicate_rows": n_dup, "duplicate_fraud_rows": f_dup,
+        "rows_after": len(deduped), "fraud_after": int(deduped[ULB_TARGET_COL].sum()),
+        "train_rows": len(train), "train_fraud": int(train[ULB_TARGET_COL].sum()),
+        "test_rows": len(test), "test_fraud": int(test[ULB_TARGET_COL].sum()),
+        "train_time_max": float(train["Time"].max()), "test_time_min": float(test["Time"].min()),
+        "test_rows_equal_train_on_29_features": int(h_test.isin(h_train).sum()),
+    }
+    return train, test, report
+
+
 def split_ulb_by_time(df: pd.DataFrame, test_size: float = 0.20):
     """
     ULB không có sẵn file train/test: sắp theo `Time` (giây từ giao dịch đầu) và lấy phần

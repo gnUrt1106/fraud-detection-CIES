@@ -44,19 +44,40 @@
   },
   "catboost": {
     "model_name": "catboost",
-    "best_pr_auc": 0.9241544236804923,
+    "best_pr_auc": 0.9243994237642722,
     "best_params": {
-      "iterations": 400,
-      "depth": 11,
-      "learning_rate": 0.03459288009368941,
-      "l2_leaf_reg": 0.9904462737206302,
+      "iterations": 350,
+      "depth": 7,
+      "learning_rate": 0.10525571068045404,
+      "l2_leaf_reg": 3.7335500002074307,
       "eval_metric": "PRAUC",
       "verbose": 0
     },
     "n_trials": 50,
     "n_completed_trials": 34,
     "n_pruned_trials": 16,
-    "complete": true
+    "complete": true,
+    "cv_best_original": {
+      "best_pr_auc": 0.9241544236804923,
+      "best_params": {
+        "iterations": 400,
+        "depth": 11,
+        "learning_rate": 0.03459288009368941,
+        "l2_leaf_reg": 0.9904462737206302,
+        "eval_metric": "PRAUC",
+        "verbose": 0
+      }
+    },
+    "selection": {
+      "rule": "COMPLETE và value >= best - epsilon, chọn chi phí SHAP ước nhỏ nhất (iterations * 2**depth * depth**2)",
+      "epsilon": 0.0015,
+      "trial_number": 39,
+      "manual": true,
+      "best_trial_number": 39,
+      "best_value": 0.9243994237642722,
+      "cost_ratio_vs_best": 1.0,
+      "source_db": "results/tuning_checkpoints_catboost_cpu_d7/catboost.db"
+    }
   },
   "ann": {
     "model_name": "ann",

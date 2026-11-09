@@ -45,5 +45,6 @@ Fraud Detection - CIES/
 - [x] Mẫu SHAP = toàn bộ test cho cả Sparkov và ULB (đổi 2026-11-08; trước đó Sparkov dùng mẫu 20%)
 - [ ] Chạy lại Sparkov với SHAP 100% test trên Colab (`notebooks/colab_pipeline.ipynb`), thay `results/rerun/main.json` (mẫu 20%)
 - [ ] Chạy 3 tổ hợp Random Forest còn lại, `merge` Sparkov + ULB, cập nhật bảng kết quả
+- [ ] Chạy lại 5 tổ hợp CatBoost Sparkov trên CPU + SHAP Regular (kết quả Colab GPU + Approximate ngày 08/11 không dùng); tham số chọn bằng `scripts/select_catboost_params.py`
 - [ ] Đo lại độ nhạy theo cỡ mẫu (slide 21) theo thiết kế chạy lại theo seed
 - [ ] Thí nghiệm đối chứng KernelSHAP (`AGENT_SPEC.md` §6.2)

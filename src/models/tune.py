@@ -15,7 +15,7 @@ RÀNG BUỘC:
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
 import numpy as np
 import optuna
@@ -34,9 +34,14 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 # ===== Search Space Builders =====
 
-def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, Any]:
+def sample_hyperparameters(
+    trial: optuna.Trial, model_name: str, catboost_depth: Tuple[int, int] = (4, 12),
+) -> Dict[str, Any]:
     """
     Định nghĩa không gian tìm kiếm siêu tham số (Search Space) cho từng model.
+
+    catboost_depth: (thấp, cao) của `depth` CatBoost. Mặc định (4, 12). SHAP chính xác của CatBoost tốn khoảng
+    `số cây × 2^depth × depth²` nên có thể giới hạn depth (vd. (4, 7)) hoặc ép đúng một giá trị ((7, 7)).
     """
     if model_name == "logistic_regression":
         return {
@@ -67,7 +72,7 @@ def sample_hyperparameters(trial: optuna.Trial, model_name: str) -> Dict[str, An
         # RÀNG BUỘC: KHÔNG dùng cat_features
         return {
             "iterations": trial.suggest_int("iterations", 100, 600, step=50),
-            "depth": trial.suggest_int("depth", 4, 12),
+            "depth": trial.suggest_int("depth", int(catboost_depth[0]), int(catboost_depth[1])),
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
             "l2_leaf_reg": trial.suggest_float("l2_leaf_reg", 0.1, 30.0, log=True),
             "eval_metric": "PRAUC",
@@ -154,6 +159,7 @@ def tune_model(
     optimize_timeout: Optional[float] = None,
     onehot_cols: Optional[list] = None,
     target_encode_cols: Optional[list] = None,
+    catboost_depth: Tuple[int, int] = (4, 12),
 ) -> Dict[str, Any]:
     """
     Tối ưu hóa siêu tham số cho 1 model bằng Optuna, validation theo thời gian (`time_series_folds`),
@@ -183,6 +189,8 @@ def tune_model(
         optimize_timeout: Giây tối đa cho lượt chạy này (mềm: dừng SAU khi trial hiện tại xong).
             Dùng với storage_path để chia nhiều phiên Kaggle; không làm đổi ngân sách n_trials.
         onehot_cols, target_encode_cols: Cột encode (mặc định theo config).
+        catboost_depth: (thấp, cao) của depth CatBoost; chỉ có tác dụng với model 'catboost'. Dùng thư mục checkpoint
+            RIÊNG khi đổi khoảng này (study cũ ghi theo không gian tìm kiếm cũ).
 
     Returns:
         Dict chứa best_params, best_score (PR-AUC), số trials hoàn thành và
@@ -193,7 +201,7 @@ def tune_model(
     folds, _ = encode_time_folds(df_train, target_col, n_splits, seed, onehot_cols, target_encode_cols)
 
     def objective(trial: optuna.Trial) -> float:
-        params = sample_hyperparameters(trial, model_name)
+        params = sample_hyperparameters(trial, model_name, catboost_depth=catboost_depth)
         val_pr_aucs = []
 
         for fold_idx, (X_train_fold, y_train_fold, X_val_fold, y_val_fold) in enumerate(folds):
@@ -356,6 +364,7 @@ def tune_all_models(
     timeout: Optional[float] = None,
     checkpoint_dir: Optional[Path] = None,
     session_budget: Optional[float] = None,
+    catboost_depth: Tuple[int, int] = (4, 12),
 ) -> Dict[str, Any]:
     """
     Tối ưu hóa siêu tham số cho toàn bộ danh sách models và lưu kết quả ra file JSON.
@@ -432,6 +441,7 @@ def tune_all_models(
                 n_splits=n_splits,
                 seed=seed,
                 timeout=timeout,
+                catboost_depth=catboost_depth,
                 **extra,
             )
         except (TimeoutError, RuntimeError) as e:

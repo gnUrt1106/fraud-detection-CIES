@@ -30,7 +30,7 @@ def test_sparkov_default_is_the_whole_test_set():
 
 
 def test_ulb_default_is_the_whole_test_set():
-    assert rs.resolve_shap_rows("ulb", 56_961) is None
+    assert rs.resolve_shap_rows("ulb", 56_745) is None
 
 
 def test_both_datasets_use_the_same_policy_by_default():
@@ -164,3 +164,14 @@ def test_resolve_shap_rows_accepts_percentage_and_fraction():
     assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV, "0.20") == 111_144
     assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV, 0.20) == 111_144
     assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV, "100%") is None
+
+
+def test_a_fraction_of_one_means_the_whole_test_not_one_row():
+    for value in (1.0, "1", "1.0", "100%"):
+        assert rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV, value) is None
+
+
+@pytest.mark.parametrize("bad", [0, 1, -5, 0.0, -0.5, 1.5, "0", "-5", "abc"])
+def test_resolve_shap_rows_rejects_values_that_cannot_hold_both_classes(bad):
+    with pytest.raises(ValueError):
+        rs.resolve_shap_rows("sparkov", N_TEST_SPARKOV, bad)

@@ -94,6 +94,13 @@ def stratified_eval_indices(y: np.ndarray, n: Optional[int], seed: int = SEED) -
     return np.sort(idx)
 
 
+def _check_explicit_rows(n: int) -> int:
+    """Số dòng SHAP tường minh phải >= 2 (cần cả hai lớp); các giá trị 0, 1, âm từng lọt qua và cho SHAP trên 1 dòng."""
+    if n < 2:
+        raise ValueError(f"số dòng SHAP phải >= 2 (cần cả hai lớp), nhận {n}")
+    return int(n)
+
+
 def resolve_shap_rows(dataset: str, n_test: int, shap_rows: Any = None) -> Optional[int]:
     """
     Số dòng test dùng tính SHAP (None = toàn bộ test) theo chính sách của dataset.
@@ -121,6 +128,8 @@ def resolve_shap_rows(dataset: str, n_test: int, shap_rows: Any = None) -> Optio
                 pass
         try:
             val = float(text)
+            if val == 1.0:  # '1' / '1.0' = 100% test (như '100%'), không phải 1 dòng
+                return None
             if 0.0 < val < 1.0:
                 n = int(round(val * int(n_test)))
                 return None if n >= int(n_test) else max(2, n)
@@ -129,15 +138,17 @@ def resolve_shap_rows(dataset: str, n_test: int, shap_rows: Any = None) -> Optio
             pass
 
     if isinstance(shap_rows, (int, np.integer)):
-        return int(shap_rows)
+        return _check_explicit_rows(int(shap_rows))
     if isinstance(shap_rows, float):
+        if shap_rows == 1.0:
+            return None
         if 0.0 < shap_rows < 1.0:
             n = int(round(shap_rows * int(n_test)))
             return None if n >= int(n_test) else max(2, n)
-        return int(shap_rows)
+        return _check_explicit_rows(int(shap_rows))
 
     if shap_rows is not None:
-        return int(shap_rows)
+        return _check_explicit_rows(int(shap_rows))
     if dataset not in RERUN_SHAP_TEST_FRACTION:
         raise ValueError(f"dataset phải là một trong {tuple(RERUN_SHAP_TEST_FRACTION)}, nhận '{dataset}'")
     frac = RERUN_SHAP_TEST_FRACTION[dataset]
