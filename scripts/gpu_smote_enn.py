@@ -1,5 +1,5 @@
 """
-gpu_smote_enn.py — SMOTE-ENN trên Sparkov với bước ENN chạy trên GPU; chỉ dùng sau khi đã kiểm tra TRÙNG bản CPU.
+gpu_smote_enn.py — SMOTE-ENN (Sparkov hoặc ULB, chọn bằng --dataset; báo cáo check của ULB ở results/rerun/ulb/) với bước ENN chạy trên GPU; chỉ dùng sau khi đã kiểm tra TRÙNG bản CPU.
 
 Các bước (cần GPU NVIDIA và torch bản CUDA):
     python scripts/gpu_smote_enn.py bench             # đo tốc độ trên 20.000 truy vấn → ước thời gian mỗi seed (1–3 phút)
@@ -42,11 +42,13 @@ logger = logging.getLogger("gpu_smote_enn")
 TECHNIQUE = "smote_enn"
 CACHE_NAME = f"train_encoded_{TECHNIQUE}.parquet"
 REPORT_FILE = RERUN_RESULTS_DIR / "gpu_enn_check.json"
+_report_file = lambda a: REPORT_FILE if a.dataset == "sparkov" else REPORT_FILE.parent / a.dataset / REPORT_FILE.name
 BENCH_FILE = RERUN_RESULTS_DIR / "gpu_enn_bench.json"
 
 
 def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--data-dir", type=Path, default=PROCESSED_DATA_DIR)
+    p.add_argument("--dataset", choices=["sparkov", "ulb"], default="sparkov")
     p.add_argument("--cache-root", type=Path, default=None,
                    help="Gốc cache resample theo seed (mặc định data/processed/resampled_rerun)")
     p.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"],
@@ -57,7 +59,7 @@ def _add_common(p: argparse.ArgumentParser) -> None:
 
 
 def _cache_path(a, seed: int) -> Path:
-    root = a.cache_root if a.cache_root is not None else dataset_cache_root("sparkov")
+    root = a.cache_root if a.cache_root is not None else dataset_cache_root(a.dataset)
     return seed_cache_dir(root, seed) / CACHE_NAME
 
 
@@ -126,7 +128,7 @@ def cmd_bench(a) -> int:
 
     if _need_device(a):
         return 2
-    X, y, _, _, _, _ = load_encoded_data(a.data_dir, "sparkov")
+    X, y, _, _, _, _ = load_encoded_data(a.data_dir, a.dataset)
     t0 = time.time()
     X_s, y_s = SMOTE(sampling_strategy="auto", random_state=a.seed).fit_resample(X, y)
     t_smote = time.time() - t0
@@ -152,17 +154,17 @@ def cmd_bench(a) -> int:
 
 def _previous_check_passed(a) -> bool:
     """Lần check gần nhất đã TRÙNG bản CPU cho đúng seed/dtype/thiết bị này (dùng khi chạy lại sau khi bị ngắt)."""
-    if not REPORT_FILE.exists():
+    if not _report_file(a).exists():
         return False
     try:
-        rep = json.loads(REPORT_FILE.read_text(encoding="utf-8"))
+        rep = json.loads(_report_file(a).read_text(encoding="utf-8"))
     except ValueError:
         return False
     ok = (bool(rep.get("identical")) and rep.get("seed") == a.seed and rep.get("dtype") == a.dtype
           and rep.get("device") == a.device and bool(rep.get("fingerprint_input_match")))
     if ok:
         logger.info(f"KẾT LUẬN: đã có lần check TRÙNG KHÍT bản CPU (seed {a.seed}, {a.dtype}) lúc {rep.get('checked_at')} → "
-                    f"không chạy lại. Xoá {REPORT_FILE.name} nếu muốn check lại.")
+                    f"không chạy lại. Xoá {_report_file(a).name} nếu muốn check lại.")
     return ok
 
 
@@ -177,7 +179,7 @@ def cmd_check(a) -> int:
         return 2
     import pandas as pd
 
-    X, y, _, _, names, onehot_groups = load_encoded_data(a.data_dir, "sparkov")
+    X, y, _, _, names, onehot_groups = load_encoded_data(a.data_dir, a.dataset)
     fp_now = _resample_fingerprint(TECHNIQUE, X, y, a.seed, onehot_groups)
     fp_ref = _fingerprint_of(ref_path)
     ref = pd.read_parquet(ref_path)
@@ -202,7 +204,7 @@ def cmd_check(a) -> int:
     if not report["fingerprint_input_match"]:
         logger.warning("Dấu vân tay đầu vào KHÁC file CPU (dữ liệu hoặc version imblearn/scikit-learn không giống lúc tạo file CPU) "
                        "→ so sánh dưới đây ít ý nghĩa; cài đúng requirements-lock.txt rồi chạy lại.")
-    _write_json(REPORT_FILE, report)
+    _write_json(_report_file(a), report)
 
     logger.info(f"GPU: {report['n_rows_gpu']} dòng ({report['n_fraud_gpu']} fraud) | CPU: {report['n_rows_cpu']} dòng "
                 f"({report['n_fraud_cpu']} fraud) | {seconds / 60:.1f} phút")
@@ -212,7 +214,7 @@ def cmd_check(a) -> int:
         return 0
     logger.error(f"KẾT LUẬN: KHÁC bản CPU — {report.get('n_rows_only_in_cpu')} dòng chỉ có ở CPU, "
                  f"{report.get('n_rows_only_in_gpu')} dòng chỉ có ở GPU. Chưa dùng GPU; dán dòng này cho Claude. "
-                 f"Báo cáo: {REPORT_FILE}")
+                 f"Báo cáo: {_report_file(a)}")
     return 1
 
 
@@ -222,10 +224,10 @@ def _guard_ok(a) -> bool:
     if a.skip_guard:
         logger.warning("--skip-guard: bỏ qua điều kiện check đạt.")
         return True
-    if not REPORT_FILE.exists():
-        logger.error(f"Chưa có {REPORT_FILE}. Chạy `check --seed 0` trước.")
+    if not _report_file(a).exists():
+        logger.error(f"Chưa có {_report_file(a)}. Chạy `check --seed 0` trước.")
         return False
-    rep = json.loads(REPORT_FILE.read_text(encoding="utf-8"))
+    rep = json.loads(_report_file(a).read_text(encoding="utf-8"))
     if not rep.get("identical"):
         logger.error("Lần check gần nhất KHÔNG trùng bản CPU → không ghi cache GPU.")
         return False
@@ -244,7 +246,7 @@ def cmd_cache(a) -> int:
     if not _guard_ok(a):
         return 2
     seeds = parse_seeds(a.seeds)
-    X, y, _, _, names, onehot_groups = load_encoded_data(a.data_dir, "sparkov")
+    X, y, _, _, names, onehot_groups = load_encoded_data(a.data_dir, a.dataset)
     done = 0
     for seed in seeds:
         path = _cache_path(a, seed)
