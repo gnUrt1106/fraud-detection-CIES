@@ -1,11 +1,16 @@
 """
 cies.py — Thuật toán tính CIES (Credibility Index via Explanation Stability).
 
-CIES đo độ ổn định của SHAP values qua nhiều lần bootstrap resample train.
+CIES đo độ ổn định thứ hạng SHAP của một tổ hợp (mô hình × kỹ thuật) qua nhiều lần huấn luyện lại.
 Sử dụng rank-weighted distance function — phạt nặng hơn khi top features
 thay đổi thứ hạng, nhẹ hơn khi features ít quan trọng thay đổi.
 
-Quy trình mỗi run:
+KẾT QUẢ CHÍNH (chạy lại 10 seed, chỉ đổi seed, không bootstrap) dùng các hàm tính toán ở đầu file này
+(`compute_rank_weighted_distance`, `compute_stability_metric`) và được chạy bởi
+`src/explainability/rerun_stability.py` (CLI: `scripts/run_rerun.py`).
+
+`run_cies_experiment` bên dưới là THIẾT KẾ ĐẦU TIÊN (bootstrap, lặp N_RUNS lần), giữ lại để tham khảo;
+không dùng để tạo kết quả chính. Quy trình mỗi run của thiết kế đầu tiên:
     1. Bootstrap resample train (KHÔNG đổi eval set)
     2. Encoding fit lại trên resample (KHÔNG dùng lại encoding cũ)
     3. Imbalance handling
@@ -13,7 +18,7 @@ Quy trình mỗi run:
     5. SHAP trên tập eval CỐ ĐỊNH
     → Lặp N_RUNS lần, tính stability metric
 
-RÀNG BUỘC KHÔNG ĐƯỢC VI PHẠM:
+RÀNG BUỘC của thiết kế đầu tiên:
     - df_test_fixed_eval phải CỐ ĐỊNH qua toàn bộ N_RUNS
     - Encoding phải fit lại từ đầu ở mỗi run
     - Ghi log seed của từng run

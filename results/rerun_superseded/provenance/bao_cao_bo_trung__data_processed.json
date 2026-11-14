@@ -1,0 +1,17 @@
+{
+  "created": "2026-11-09T09:02:41",
+  "source": "ulb_train+ulb_test.parquet",
+  "rows_before": 284807,
+  "fraud_before": 492,
+  "duplicate_rows": 1081,
+  "duplicate_fraud_rows": 19,
+  "rows_after": 283726,
+  "fraud_after": 473,
+  "train_rows": 226981,
+  "train_fraud": 399,
+  "test_rows": 56745,
+  "test_fraud": 74,
+  "train_time_max": 145234.0,
+  "test_time_min": 145234.0,
+  "test_rows_equal_train_on_29_features": 1720
+}

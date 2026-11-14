@@ -52,6 +52,7 @@ catboost_info/
 /results/*.lock
 /results/*.tmp
 /results/tuning_checkpoints_ulb/
+/results/tuning_checkpoints_catboost_cpu_d*/
 
 # Ảnh notebook 03/04/05 tự lưu vào results/ (đã nhúng trong notebook; hình cho báo cáo ở reports/figures/)
 /results/*.png

@@ -14,7 +14,8 @@ Encoding strategy (cột theo config.ONEHOT_COLS / TARGET_ENCODE_COLS):
 RÀNG BUỘC:
     - PHẢI dùng StratifiedKFold, KHÔNG KFold thường
     - Fit chỉ trên train; test dùng thống kê toàn train để transform
-    - Mỗi CIES run phải tính lại encoding riêng (không dùng lại từ run trước)
+    - Thiết kế bootstrap đầu tiên (cies.run_cies_experiment) fit lại encoding ở mỗi run; chạy lại theo seed
+      (kết quả chính, rerun_stability.py) fit encoding MỘT lần trên toàn bộ train và giữ cố định ở mọi seed
 """
 
 import pandas as pd

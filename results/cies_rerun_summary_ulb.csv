@@ -1,26 +1,26 @@
-model,technique,cies,mean_spearman,pr_auc_mean,pr_auc_std,pr_auc_min,pr_auc_max,n_seeds_ok,identical_shap,device,machine
-logistic_regression,smote,0.996323,0.997285,0.683376,0.000795,0.682124,0.684647,10,False,cpu (ép),pc4070-cpu
-logistic_regression,smote_enn,0.996294,0.997044,0.682399,0.000776,0.681287,0.683413,10,False,cpu (ép),pc4070-cpu
-logistic_regression,adasyn,0.998624,0.998894,0.674601,0.000782,0.673472,0.676081,10,False,cpu (ép),pc4070-cpu
-logistic_regression,borderline_smote,0.996581,0.997931,0.697505,0.000385,0.696822,0.698369,10,False,cpu (ép),pc4070-cpu
-logistic_regression,class_weighting,1.0,1.0,0.696352,0.0,0.696352,0.696352,10,True,cpu (ép),pc4070-cpu
-random_forest,smote,0.975881,0.973191,0.819631,0.003636,0.81318,0.825831,10,False,gpu,pc4070-gpu
-random_forest,smote_enn,0.973668,0.977625,0.818716,0.003358,0.81266,0.824932,10,False,gpu,pc4070-gpu
-random_forest,adasyn,0.978524,0.984828,0.81647,0.002432,0.812935,0.820175,10,False,gpu,pc4070-gpu
-random_forest,borderline_smote,0.976398,0.976782,0.813642,0.002491,0.809196,0.817118,10,False,gpu,pc4070-gpu
-random_forest,class_weighting,0.962099,0.958478,0.818423,0.00354,0.813902,0.82373,10,False,gpu,pc4070-gpu
-xgboost,smote,0.985784,0.985463,0.786563,0.002444,0.783982,0.790763,10,False,gpu,pc4070-gpu
-xgboost,smote_enn,0.989295,0.990246,0.792103,0.00318,0.786901,0.797319,10,False,gpu,pc4070-gpu
-xgboost,adasyn,0.984445,0.987641,0.78666,0.005327,0.778406,0.79568,10,False,gpu,pc4070-gpu
-xgboost,borderline_smote,0.971803,0.982014,0.801985,0.004898,0.793114,0.80795,10,False,gpu,pc4070-gpu
-xgboost,class_weighting,0.94839,0.891483,0.793039,0.005554,0.786397,0.802908,10,False,gpu,pc4070-gpu
-catboost,smote,0.985712,0.984762,0.780999,0.001697,0.777173,0.783254,10,False,cpu (ép),pc4070-cpu
-catboost,smote_enn,0.980458,0.984641,0.782162,0.001704,0.77979,0.786503,10,False,cpu (ép),pc4070-cpu
-catboost,adasyn,0.987524,0.988254,0.761547,0.004428,0.755735,0.76909,10,False,cpu (ép),pc4070-cpu
-catboost,borderline_smote,0.977218,0.985616,0.770139,0.005083,0.761313,0.776759,10,False,cpu (ép),pc4070-cpu
-catboost,class_weighting,0.967202,0.945769,0.797799,0.003402,0.790894,0.802207,10,False,cpu (ép),pc4070-cpu
-ann,smote,0.843169,0.802463,0.783251,0.016569,0.75249,0.807143,10,False,gpu,pc4070-gpu
-ann,smote_enn,0.858911,0.806951,0.781307,0.013897,0.756432,0.796485,10,False,gpu,pc4070-gpu
-ann,adasyn,0.856162,0.836333,0.779377,0.013357,0.764236,0.807437,10,False,gpu,pc4070-gpu
-ann,borderline_smote,0.894808,0.780777,0.802061,0.011101,0.788843,0.814712,10,False,gpu,pc4070-gpu
-ann,class_weighting,0.86725,0.688123,0.780172,0.023338,0.736215,0.804486,10,False,gpu,pc4070-gpu
+model,technique,cies,mean_spearman,pr_auc_mean,pr_auc_std,pr_auc_min,pr_auc_max,n_seeds_ok,identical_shap,device
+logistic_regression,smote,0.996323,0.997285,0.683376,0.000795,0.682124,0.684647,10,False,cpu (ép)
+logistic_regression,smote_enn,0.996294,0.997044,0.682399,0.000776,0.681287,0.683413,10,False,cpu (ép)
+logistic_regression,adasyn,0.998624,0.998894,0.674601,0.000782,0.673472,0.676081,10,False,cpu (ép)
+logistic_regression,borderline_smote,0.996581,0.997931,0.697505,0.000385,0.696822,0.698369,10,False,cpu (ép)
+logistic_regression,class_weighting,1.0,1.0,0.696352,0.0,0.696352,0.696352,10,True,cpu (ép)
+random_forest,smote,0.975881,0.973191,0.819631,0.003636,0.81318,0.825831,10,False,gpu
+random_forest,smote_enn,0.973668,0.977625,0.818716,0.003358,0.81266,0.824932,10,False,gpu
+random_forest,adasyn,0.978524,0.984828,0.81647,0.002432,0.812935,0.820175,10,False,gpu
+random_forest,borderline_smote,0.976398,0.976782,0.813642,0.002491,0.809196,0.817118,10,False,gpu
+random_forest,class_weighting,0.962099,0.958478,0.818423,0.00354,0.813902,0.82373,10,False,gpu
+xgboost,smote,0.985784,0.985463,0.786563,0.002444,0.783982,0.790763,10,False,gpu
+xgboost,smote_enn,0.989295,0.990246,0.792103,0.00318,0.786901,0.797319,10,False,gpu
+xgboost,adasyn,0.984445,0.987641,0.78666,0.005327,0.778406,0.79568,10,False,gpu
+xgboost,borderline_smote,0.971803,0.982014,0.801985,0.004898,0.793114,0.80795,10,False,gpu
+xgboost,class_weighting,0.94839,0.891483,0.793039,0.005554,0.786397,0.802908,10,False,gpu
+catboost,smote,0.98827,0.988429,0.78307,0.004773,0.775036,0.790073,10,False,cpu (ép)
+catboost,smote_enn,0.988338,0.988495,0.784611,0.002952,0.77888,0.789024,10,False,cpu (ép)
+catboost,adasyn,0.98547,0.985057,0.76206,0.003915,0.757219,0.770783,10,False,cpu (ép)
+catboost,borderline_smote,0.977886,0.988046,0.775641,0.005692,0.768648,0.787813,10,False,cpu (ép)
+catboost,class_weighting,0.967435,0.945583,0.791455,0.004298,0.783591,0.796916,10,False,cpu (ép)
+ann,smote,0.86405,0.833366,0.78248,0.011972,0.75745,0.799809,10,False,gpu
+ann,smote_enn,0.853916,0.808692,0.787775,0.009356,0.775632,0.801954,10,False,gpu
+ann,adasyn,0.851306,0.835545,0.769866,0.013777,0.752193,0.804306,10,False,gpu
+ann,borderline_smote,0.899117,0.783974,0.799582,0.009726,0.784534,0.81364,10,False,gpu
+ann,class_weighting,0.844917,0.628582,0.775645,0.029962,0.718452,0.807634,10,False,gpu

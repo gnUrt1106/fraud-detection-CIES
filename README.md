@@ -21,7 +21,7 @@ cố định, rồi đo thứ hạng các feature dao động bao nhiêu giữa 
 | Nguồn | [kartik2112/fraud-detection](https://www.kaggle.com/datasets/kartik2112/fraud-detection) | [mlg-ulb/creditcardfraud](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) |
 | Chia train/test | **Theo thời gian**, đúng 2 file gốc: `fraudTrain.csv` (01/2019 → 06/2020, 1.296.675 dòng) / `fraudTest.csv` (06/2020 → 12/2020, 555.719 dòng) | **Theo thời gian**: sắp theo `Time`, 20% cuối làm test (226.981 / 56.745 dòng; đã bỏ 1.081 dòng trùng toàn bộ cột trước khi chia, xem `results/rerun_ulb_provenance/`) |
 | Tỷ lệ fraud | 0,58% train / 0,39% test | 0,18% train / 0,13% test |
-| Tập đánh giá SHAP (chạy lại theo seed) | **Toàn bộ test (100%)**: 555.719 dòng, 2.145 fraud (kết quả Sparkov hiện có trong `results/rerun/main.json` còn là mẫu 20% = 111.144 dòng, chờ chạy lại trên Colab — xem bên dưới) | **Toàn bộ test**: 56.745 dòng, 74 fraud |
+| Tập đánh giá SHAP (chạy lại theo seed) | **Toàn bộ test (100%)**: 555.719 dòng, 2.145 fraud (kết quả trong `results/rerun/main.json`, chạy lại xong 25/25 tổ hợp) | **Toàn bộ test**: 56.745 dòng, 74 fraud |
 | Feature | 7 feature: `amt`, `category`, `merchant`, `hour`, `day_of_week`, `age`, `gender` → 21 cột sau encoding | V1..V28 (PCA) + `Amount` (bỏ `Time`) |
 | Ghi chú | Dữ liệu **mô phỏng** ([Sparkov Data Generation](https://github.com/namebrandon/Sparkov_Data_Generation)) | Dữ liệu thật, ẩn danh |
 
@@ -68,7 +68,9 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 | `cies_sensitivity_subsample.json` | CIES theo cỡ mẫu bootstrap (kiểm tra độ nhạy) |
 | `rerun/*.json`, `rerun/ulb/*.json` | Chạy lại theo seed (`main.json`; `--name` đổi tên file); mỗi tổ hợp gồm CIES, PR-AUC theo seed, mean\|SHAP\| từng seed, thời gian, cấu hình (mẫu SHAP, explainer, dấu vân tay dữ liệu, thiết bị, phiên bản thư viện) |
 | `cies_rerun_summary[_ulb].json/.csv` | Bảng tổng hợp do `scripts/run_rerun.py merge` tạo từ các file trong `rerun/` |
-| `full_test_reference/` | Kết quả Sparkov chạy SHAP trên toàn bộ test (XGBoost, ANN, Logistic Regression) — chỉ để đối chiếu với mẫu 20%, **không** đưa vào `merge` |
+| `sample20_reference/` | Lần chạy Sparkov đầu tiên với SHAP trên mẫu 20% test (111.144 dòng) — chỉ là **mốc đối chiếu** (khoá luận mục 4.2.2), **không** đưa vào `merge` |
+| `full_test_reference/` | Lần chạy cũ (máy khác) của Sparkov, SHAP toàn bộ test, chỉ XGBoost, ANN, Logistic Regression — chỉ tham khảo (độ nhạy của ANN với môi trường), **không** đưa vào `merge` |
+| `rerun_superseded/` | Kết quả chạy lại đã bị thay bằng lần chạy cuối — giữ để truy vết, **không** dùng |
 
 **Kết quả chính của thiết kế bootstrap** (1 seed; chi tiết và biểu đồ trong notebook 06):
 - **Borderline-SMOTE cho giải thích kém ổn định nhất** ở 9/10 cặp model × dataset.
@@ -80,17 +82,16 @@ Sparkov: các cột định danh khách hàng (`lat`, `long`, `city`, `state`, `
 - CIES tăng theo cỡ mẫu bootstrap nên chỉ so CIES **trong cùng dataset**; giữa 2 dataset chỉ so thứ hạng các kỹ thuật.
 - Kết luận "Borderline-SMOTE kém ổn định nhất" **không tái hiện** khi chạy lại 10 seed trên toàn bộ train (ULB: Borderline-SMOTE không thấp nhất ở cặp nào; Sparkov: thấp nhất ở LR và ANN, không ở XGBoost và CatBoost). Thứ hạng kỹ thuật phụ thuộc dataset; xem `reports/pipeline_report.md` mục "Chế độ chạy lại theo seed".
 
-> **Lưu ý (2026-11-08):** các số Sparkov dưới đây được tính với SHAP trên mẫu 20% test. Chính sách đã đổi sang 100% test; chạy lại Sparkov bằng
-> `notebooks/colab_pipeline.ipynb` rồi cập nhật các số này.
-
-**Kết quả của thiết kế chạy lại theo seed** (10 seed, toàn bộ train; 25/25 tổ hợp mỗi dataset; bảng đầy đủ ở `reports/pipeline_report.md`,
+**Kết quả của thiết kế chạy lại theo seed** (10 seed, toàn bộ train, SHAP trên 100% tập test; 25/25 tổ hợp mỗi dataset; số liệu tính lại độc lập bằng `scripts/verify_rerun_results.py`; bảng đầy đủ ở `reports/pipeline_report.md`,
 hình `reports/figures/rerun_cies_heatmap.png` và `rerun_prauc_vs_cies.png` do `scripts/plot_rerun.py` vẽ):
-- CIES theo model, khoảng giữa 5 kỹ thuật. Sparkov: Logistic Regression 0,996–1,000 · Random Forest 0,969–0,987 · XGBoost 0,988–0,995 ·
-  CatBoost 0,965–0,981 · ANN 0,886–0,954. ULB: Logistic Regression 0,996–1,000 · Random Forest 0,962–0,979 ·
-  XGBoost 0,948–0,989 · CatBoost 0,967–0,988 · ANN 0,843–0,895.
-- ANN có CIES thấp nhất ở cả hai dataset; Logistic Regression × Class Weighting tất định theo seed nên CIES = 1,000 (hệ quả của thiết kế, không phải lỗi).
-- Tương quan Spearman giữa PR-AUC và CIES qua 25 tổ hợp: −0,62 (Sparkov), −0,51 (ULB), gần như hoàn toàn do LR (PR-AUC thấp, CIES ≈ 1); bỏ LR còn
-  −0,26 và −0,06 (n = 20, không có ý nghĩa thống kê) — chỉ giữ ý "PR-AUC cao không đảm bảo giải thích ổn định".
+- CIES theo model, khoảng giữa 5 kỹ thuật. Sparkov: Logistic Regression 0,9951–1,0000 · Random Forest 0,9694–0,9880 · XGBoost 0,9872–0,9947 ·
+  CatBoost 0,9533–0,9684 · ANN 0,8777–0,9416. ULB: Logistic Regression 0,9963–1,0000 · Random Forest 0,9621–0,9785 ·
+  XGBoost 0,9484–0,9893 · CatBoost 0,9674–0,9883 · ANN 0,8449–0,8991.
+- ANN có CIES thấp nhất ở cả hai dataset; Logistic Regression × Class Weighting tất định theo seed nên CIES = 1,0000 (hệ quả của thiết kế, không phải lỗi).
+- Hiệu năng tốt nhất: Sparkov CatBoost × SMOTE PR-AUC 0,8813; ULB Random Forest × SMOTE PR-AUC 0,8196.
+- Tương quan Spearman giữa PR-AUC và CIES qua 25 tổ hợp: −0,66 (Sparkov), −0,48 (ULB), gần như hoàn toàn do LR (PR-AUC thấp, CIES ≈ 1); bỏ LR còn
+  −0,34 (p = 0,139) và −0,00 (p = 0,985) (n = 20, không có ý nghĩa thống kê) — chỉ giữ ý "PR-AUC cao không đảm bảo giải thích ổn định".
+- Nhóm "đạt" (cả PR-AUC và CIES trên ranh giới tự nhiên Jenks): Sparkov 16/25, ULB 15/25 (chi tiết trong khoá luận mục 4.3).
 - Đây là mức dao động giữa các lần chạy lại, chưa phải kết luận về kỹ thuật imbalance tốt nhất: chênh giữa các kỹ thuật trong cùng model nhỏ và chưa kiểm định thống kê.
 
 ## Cài đặt
@@ -137,11 +138,11 @@ CLI: `scripts/run_rerun.py`. Sparkov và ULB được đối xử **ngang nhau**
 | SHAP tính trên | **toàn bộ test**: 555.719 dòng, 2.145 fraud (mặc định `config.RERUN_SHAP_TEST_FRACTION`) | **toàn bộ test**: 56.745 dòng, 74 fraud |
 | PR-AUC tính trên | toàn bộ test | toàn bộ test |
 
-**Lịch sử:** kết quả Sparkov đầu tiên (`results/rerun/main.json`) dùng mẫu 20% làm mặc định (cùng một tập dòng cho mọi model, kỹ thuật và seed, `stratified_eval_indices`,
-cố định theo `SEED`); `--shap-rows all` ép toàn bộ test, `--shap-rows N` ép đúng N dòng. Lý do: SHAP của Random Forest/CatBoost trên 555 nghìn dòng × 50 lần
-train quá tốn. Bằng chứng mẫu đủ (15 tổ hợp XGBoost, ANN, Logistic Regression có cả bản test đầy đủ lẫn bản 20%): PR-AUC giống hệt, |ΔCIES| ≤ 0,0022,
-thứ hạng feature trung bình tương quan Spearman ≥ 0,9987, top-3 feature giống nhau ở cả 15; CatBoost và Random Forest chưa có đối chiếu với test đầy đủ.
-Bài gốc CIES (Văduva et al., arXiv:2603.05024) tính trên 100 dòng test ngẫu nhiên — điều này ủng hộ việc lấy mẫu test, không ủng hộ riêng con số 111.144.
+**Lịch sử:** lần chạy Sparkov đầu tiên dùng mẫu phân tầng 20% (111.144 dòng, 429 fraud; cố định theo `SEED`) vì SHAP trên 555 nghìn dòng × 50 lần train rất tốn; kết quả đó
+được giữ ở `results/sample20_reference/` làm mốc đối chiếu. Lần chạy cuối tính SHAP trên **toàn bộ test** (555.719 dòng) cho cả 25 tổ hợp. Với 15 tổ hợp của Logistic Regression,
+Random Forest, XGBoost, PR-AUC giữa hai lần chạy trùng nhau (chênh < 10^-8), |ΔCIES| ≤ 0,0018, Spearman thứ hạng feature trung bình ≥ 0,9987, top-3 feature giống nhau ở cả 15.
+CatBoost không so được (siêu tham số được tune lại giữa hai lần: PR-AUC giảm 0,0046–0,0074 ở 4/5 kỹ thuật), ANN không so được trực tiếp (môi trường tính toán khác: CIES lệch tới 0,0254 — xem "Tái lập").
+Bài gốc CIES (Văduva et al., arXiv:2603.05024) tính trên 100 dòng test ngẫu nhiên.
 
 ```bash
 python scripts/run_rerun.py pilot --force-cpu                               # đo giờ trước (ước theo đúng tập SHAP mà train dùng)
@@ -153,11 +154,11 @@ python scripts/run_rerun.py merge                                           # �
 python scripts/plot_rerun.py                                                # → reports/figures/rerun_cies_heatmap.png, rerun_prauc_vs_cies.png
 ```
 
-Đây đúng là cách các kết quả trong `results/rerun/` được tạo: Sparkov — XGBoost, ANN, Random Forest trên GPU, CatBoost và LR trên CPU (`--force-cpu`).
+Đây đúng là cách các kết quả trong `results/rerun/` được tạo (Colab, `notebooks/colab_pipeline.ipynb`): XGBoost, ANN, Random Forest trên GPU; CatBoost (SHAP `Regular`, chính xác) và LR trên CPU (`--force-cpu`). CatBoost Sparkov được tune lại (`results/best_params.json`, 350 cây, độ sâu 7) trước lần chạy cuối; ULB: 600 cây, độ sâu 4.
 Thêm `--dataset ulb` vào mọi lệnh cho ULB (cache ở `data/processed/resampled_rerun/ulb/` — `--cache-root` cũng luôn tách thư mục con `ulb/` —, kết quả ở
-`results/rerun/ulb/`, tổng hợp `results/cies_rerun_summary_ulb.json/.csv`; SHAP trên toàn bộ test). Kết quả ULB hiện tại (bản chạy lại 2026-11-05) dùng dữ liệu **đã bỏ 1.081 dòng trùng toàn bộ cột**, tune lại siêu tham số, và dùng cùng công thức thiết bị với Sparkov:
+`results/rerun/ulb/`, tổng hợp `results/cies_rerun_summary_ulb.json/.csv`; SHAP trên toàn bộ test). Kết quả ULB hiện tại dùng dữ liệu **đã bỏ 1.081 dòng trùng toàn bộ cột**, tune lại siêu tham số, cùng môi trường và cùng cách chia thiết bị với Sparkov:
 XGBoost, ANN, Random Forest trên GPU (`--shap-backend native`), CatBoost và LR trên CPU (`--force-cpu`). Bước bỏ dòng trùng nay nằm trong repo (`scripts/prepare_ulb.py`, kiểm khớp đúng các số bên dưới); kịch bản cũ trên máy chạy (`chay_lai_ulb/`) chưa đưa vào repo; báo cáo bỏ trùng và thời gian chạy ở `results/rerun_ulb_provenance/`.
-Bản mã trên máy chạy (Windows, RTX 4070) không kèm lịch sử git và cũ hơn commit 8049e67 (khác ở tham số dòng lệnh `--machine`/`--name` của `run_rerun.py`). Kết quả cũ (chưa bỏ trùng, chạy CPU) không còn trong `results/`.
+Kết quả ULB cũ (chưa bỏ trùng) không còn trong `results/`.
 
 Cách tính SHAP (`--shap-backend`; tên explainer được ghi trong từng kết quả):
 - `shap` là thư viện `shap` (Linear/Tree/DeepExplainer). `native` là cùng thuật toán nhưng nhanh hơn và dùng được GPU: XGBoost `pred_contribs` / CatBoost
@@ -182,9 +183,8 @@ cho CIES = 1 — đó là hệ quả của thiết kế, không phải lỗi.
 Trên phần cứng khác, phép tính số thực có thể khác thứ tự nên số lệch ở chữ số nhỏ; riêng ANN thì SHAP từng run lệch rõ hơn nhưng CIES gần
 như trùng (đã đo GPU Kaggle so với CPU với cấu hình dữ liệu nền SHAP cũ: 0,843 / 0,838 và 0,906 / 0,907; chưa đo lại với nền
 hiện tại — số trong `results/` là của nền hiện tại).
-Kết quả chạy lại theo seed (`results/rerun/`) tạo trên Windows, Python 3.12.10, cùng phiên bản thư viện như `requirements-lock.txt` trừ torch: phần chạy GPU dùng
-torch 2.14.1+cu130 do `scripts/setup_gpu_env.py` cài. GPU và CPU khác thứ tự phép tính số thực nên chỉ tái lập đến chữ số nhỏ, và vì vậy mỗi tổ hợp chạy trọn
-10 seed trong cùng một lần chạy, cùng thiết bị. Thiết bị và phiên bản thư viện được ghi trong `config` của từng kết quả.
+Kết quả chạy lại theo seed cuối cùng (`results/rerun/`, cả hai dataset) tạo trên Google Colab (Linux x86_64, GPU A100 cho XGBoost/ANN/Random Forest; CPU cho CatBoost và LR), Python 3.13.16, numpy 2.4.6, pandas 2.2.3, scikit-learn 1.9.1, imbalanced-learn 0.14.2, xgboost 3.4.1, catboost 1.2.10, shap 0.52.0, torch 2.14.1+cu130 (ghi trong `config.environment` của từng kết quả; **khác** `requirements-lock.txt`). GPU và CPU khác thứ tự phép tính số thực nên chỉ tái lập đến chữ số nhỏ, và vì vậy mỗi tổ hợp chạy trọn
+10 seed trong cùng một lần chạy, cùng thiết bị. Logistic Regression, Random Forest, XGBoost ổn định giữa các môi trường (|ΔCIES| ≤ 0,0018); CIES của ANN nhạy với môi trường (lệch tới 0,0254 so với lần chạy Windows cũ).
 
 **Lưu ý kỹ thuật:** torch (ANN) và xgboost không được nạp chung 1 tiến trình (xung đột OpenMP) — mọi model/tổ hợp chạy qua
 `src/utils/isolation.py::run_isolated`.
@@ -194,7 +194,7 @@ torch 2.14.1+cu130 do `scripts/setup_gpu_env.py` cài. GPU và CPU khác thứ t
 CIES trong đồ án là **biến thể** của CIES gốc (Văduva et al., 2026, arXiv:2603.05024): bài gốc nhiễu hoá đầu vào lúc suy luận; đồ án
 nhiễu hoá dữ liệu huấn luyện (bootstrap + train lại) và đo trên thứ hạng feature.
 
-**Mẫu SHAP.** SHAP tính trên toàn bộ tập test ở cả hai dataset (mục "Chạy lại theo seed"); kết quả Sparkov cũ dùng mẫu 20% (111.144 dòng). Bài gốc CIES chỉ dùng 100 dòng test ngẫu nhiên cho mỗi tổ hợp.
+**Mẫu SHAP.** SHAP tính trên toàn bộ tập test ở cả hai dataset (Sparkov 555.719 dòng, ULB 56.745 dòng; mục "Chạy lại theo seed"); mẫu 20% của lần chạy đầu chỉ còn là mốc đối chiếu. Bài gốc CIES chỉ dùng 100 dòng test ngẫu nhiên cho mỗi tổ hợp.
 
 ## Trích dẫn dữ liệu
 

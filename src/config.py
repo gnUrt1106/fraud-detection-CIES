@@ -8,7 +8,7 @@ from pathlib import Path
 
 # ===== Reproducibility =====
 SEED = 42
-N_RUNS = 20  # Số lần lặp cho thí nghiệm CIES (tối thiểu 20, có thể tăng 30)
+N_RUNS = 20  # CHỈ cho thiết kế đầu tiên (bootstrap: cies.run_cies_experiment). KHÔNG dùng cho kết quả chính: xem RERUN_N_SEEDS (10 seed) bên dưới.
 # Số dòng nền SHAP cho model không phải LR trong CIES (ANN — chi phí DeepExplainer tăng theo số dòng nền).
 # LR dùng toàn bộ tập train làm nền (LinearExplainer chỉ cần trung bình). Xem src/explainability/cies.py.
 SHAP_BACKGROUND_N = 1000
@@ -134,8 +134,8 @@ RERUN_RESULTS_DIR = RESULTS_DIR / "rerun"
 # Tập test dùng để tính SHAP (PR-AUC luôn tính trên TOÀN BỘ test). None = toàn bộ test (100%).
 #   Cả hai dataset đều dùng TOÀN BỘ test (Sparkov 555.719 dòng/2.145 fraud; ULB 56.745 dòng/74 fraud) để hai bên đều nhau.
 #   (Trước 2026-11-08 Sparkov dùng mẫu phân tầng 20% = 111.144 dòng vì SHAP của Random Forest/CatBoost trên 555 nghìn dòng
-#   × 50 lần train rất tốn; chạy trên Colab GPU thì làm được toàn bộ. Kết quả cũ results/rerun/main.json của Sparkov vẫn là
-#   mẫu 20% cho tới khi chạy lại bằng notebooks/colab_pipeline.ipynb.)
+#   × 50 lần train rất tốn; chạy trên Colab GPU thì làm được toàn bộ. Đã chạy lại bằng notebooks/colab_pipeline.ipynb (2026-11-09):
+#   results/rerun/main.json là SHAP 100% test; lần chạy mẫu 20% giữ ở results/sample20_reference/.)
 # Muốn quay lại mẫu: đặt một số trong (0, 1), vd. {"sparkov": 0.20, ...}, hoặc ghi đè từng lần chạy bằng
 # `scripts/run_rerun.py train --shap-rows all|N`. Bài gốc CIES (arXiv:2603.05024) tính trên 100 dòng test ngẫu nhiên.
 RERUN_SHAP_TEST_FRACTION = {"sparkov": None, "ulb": None}
